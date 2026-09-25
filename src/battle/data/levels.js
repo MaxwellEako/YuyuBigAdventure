@@ -1,0 +1,357 @@
+/**
+ * 序章 + 八个章节，全部在 8×8 棋盘上进行。第 0 行是离镜头最远的一侧。
+ * slots：本章的武器槽数量（2 起步，最多 5，始终少于拥有的武器种类）。
+ *   S 起点  E 出口  K 钥匙  L 铁栅门  P 红心药水  H 宝箱（内含 chest 指定的武器）  U 武器强化格（铁砧）
+ *   b 书堆  c 蜡烛  i 墨水瓶  d 骰子  t 茶杯  w 怀表  . 空地
+ * 怪物 ai：static 原地驻守；patrol 沿 path 往返；chase 发现主角（sight 格内）后追击。
+ * fog：开启战争迷雾，radius 为主角的视野半径（障碍会遮挡视线）。
+ * 宝箱、药水与铁砧不可踩上，站在相邻格点击才会使用。skill：本关新学会的技能。
+ * tip 与 goalText 里的 [关键词] 或 [显示文字|关键词] 会渲染成带图标的强调词（见 ui/keywords.js）。
+ */
+export const LEVELS = [
+  {
+    id: 0,
+    slots: 2,
+    tutorial: true,
+    name: "序章",
+    english: "PROLOGUE",
+    story:
+      "墨水瓶刚刚倒下，墨迹只漫过了一条走廊。走廊中间，一滴墨渍正等着屿屿。",
+    tip: "一直向前走。碰上墨渍怪，战斗就开始了。",
+    goal: "reach",
+    goalText: "穿过走廊，走进[出口]",
+    hero: { rows: 4, cols: 4 },
+    potions: 1,
+    chest: null,
+    par: 10,
+    map: [
+      ". . b E b . . .",
+      ". . b . b . . .",
+      ". . b . b . . .",
+      ". . b . b . . .",
+      ". . b . b . . .",
+      ". . b . b . . .",
+      ". . b . b . . .",
+      ". . b S b . . .",
+    ],
+    monsters: [{ type: "ink", at: [3, 3], ai: "static" }],
+  },
+  {
+    id: 1,
+    slots: 2,
+    name: "墨迹初现",
+    english: "THE FIRST BLOT",
+    story:
+      "墨迹沿着格线蔓延开来。屿屿握紧短剑，从第一排出发。",
+    tip: "路边的[宝箱]里有一件新武器。",
+    goal: "reach",
+    goalText: "击败守门的暗影兵，抵达[出口]",
+    hero: { rows: 4, cols: 4 },
+    potions: 1,
+    chest: "spear",
+    par: 22,
+    map: [
+      ". . . . . i E b",
+      ". b . . . . . .",
+      ". . . c . . t .",
+      ". . . . . . . .",
+      "d . . . . b . .",
+      ". . . . . . . .",
+      ". . H . . . P .",
+      ". . . S . . . .",
+    ],
+    monsters: [
+      { type: "ink", at: [5, 3], ai: "static" },
+      { type: "ink", at: [3, 6], ai: "static", drop: "potion" },
+      { type: "pawn", at: [1, 6], ai: "static" },
+    ],
+  },
+  {
+    id: 2,
+    slots: 2,
+    name: "骑士巡夜",
+    english: "KNIGHT'S WATCH",
+    story:
+      "骑士被墨迹浸透，踏着马步在棋盘上巡夜。出口锁在铁栅门后，钥匙落在棋盘另一侧。",
+    tip: "新技能[疾风斩|技能]，打完还能再攻击一次。被骑士撞上时，由它先出手。",
+    skill: "swift",
+    goal: "reach",
+    goalText: "找到[钥匙]，打开[铁栅门]",
+    hero: { rows: 4, cols: 4 },
+    potions: 1,
+    chest: "hammer",
+    par: 30,
+    map: [
+      "E c . . . . . H",
+      "L b . . t . . .",
+      ". . . . . . b .",
+      ". d . . . . . .",
+      ". . . . . i . .",
+      ". t . . . . . K",
+      ". . . . b . . .",
+      ". . . S . . . P",
+    ],
+    monsters: [
+      { type: "pawn", at: [2, 0], ai: "static" },
+      { type: "knight", at: [3, 4], ai: "chase", sight: 3 },
+      { type: "ink", at: [5, 6], ai: "static", drop: "potion" },
+      { type: "knight", at: [1, 6], ai: "chase", sight: 3, every: 2 },
+    ],
+  },
+  {
+    id: 3,
+    slots: 3,
+    name: "主教长廊",
+    english: "THE BISHOP'S HALL",
+    story:
+      "长廊两侧堆满了书。两位主教沿着斜线踱步，低声祷告。",
+    tip: "主教会给自己补红心，别和它们耗。路上有一座[铁砧]。",
+    goal: "reach",
+    goalText: "穿过长廊，抵达[出口]",
+    hero: { rows: 4, cols: 5 },
+    potions: 2,
+    chest: "scythe",
+    par: 30,
+    map: [
+      ". . b . . . . E",
+      ". . b . t . . .",
+      "H . . . . . b .",
+      "b b . . b . b .",
+      ". . . . b . . .",
+      ". w . . . U t .",
+      ". . . b b . . P",
+      "S . . . . . . .",
+    ],
+    monsters: [
+      { type: "bishop", at: [5, 3], ai: "chase", sight: 3 },
+      { type: "bishop", at: [2, 4], ai: "chase", sight: 3, drop: "potion" },
+      { type: "knight", at: [2, 1], ai: "static" },
+      { type: "pawn", at: [1, 7], ai: "static" },
+    ],
+  },
+  {
+    id: 4,
+    slots: 3,
+    name: "墨池",
+    english: "THE INK POOL",
+    story:
+      "墨水在棋盘中央积成一片墨池，墨渍怪一只接一只冒出来。",
+    tip: "[定身钉|技能]能让怪物停下一回合。[铁砧]还在等你。",
+    skill: "stun",
+    goal: "reach",
+    goalText: "击败守门的暗影兵，抵达[出口]",
+    hero: { rows: 4, cols: 5 },
+    potions: 1,
+    chest: null,
+    par: 30,
+    map: [
+      ". . . b . . . E",
+      ". i . . . i . .",
+      ". . . U . . . b",
+      "b . i . . . . .",
+      ". . . . i . b .",
+      ". b . . . . . .",
+      ". . . i . . P .",
+      "S . . . . b . .",
+    ],
+    monsters: [
+      { type: "pawn", at: [0, 6], ai: "static" },
+      { type: "pawn", at: [1, 7], ai: "static" },
+      { type: "ink", at: [5, 3], ai: "chase", sight: 2, every: 2 },
+      { type: "ink", at: [2, 5], ai: "static", drop: "potion" },
+      { type: "ink", at: [4, 1], ai: "chase", sight: 2, every: 2 },
+      { type: "bishop", at: [3, 5], ai: "chase", sight: 3 },
+    ],
+  },
+  {
+    id: 5,
+    slots: 4,
+    name: "城堡之墙",
+    english: "THE ROOK WALL",
+    story:
+      "城堡棋子在城墙间来回巡逻，它们的红心披着护甲。",
+    tip: "[迷雾]第一次降下。[破甲锥|破甲]专门对付[护甲心]。",
+    goal: "reach",
+    fog: { radius: 2.5 },
+    goalText: "穿过城墙，抵达[出口]",
+    hero: { rows: 5, cols: 5 },
+    potions: 2,
+    chest: "awl",
+    par: 32,
+    map: [
+      "E . . . c . . .",
+      ". . . . . . b .",
+      "i i . i i . i .",
+      ". . . . . . . .",
+      ". i . i i i i .",
+      ". . . . . . . .",
+      "d . i i . i . .",
+      ". H . . S . . P",
+    ],
+    monsters: [
+      {
+        type: "rook",
+        at: [5, 0],
+        ai: "patrol",
+        sight: 2,
+        path: [
+          [5, 0],
+          [5, 1],
+          [5, 2],
+          [5, 3],
+          [5, 4],
+          [5, 5],
+          [5, 6],
+        ],
+      },
+      {
+        type: "rook",
+        at: [3, 7],
+        ai: "patrol",
+        sight: 2,
+        path: [
+          [3, 7],
+          [3, 6],
+          [3, 5],
+          [3, 4],
+          [3, 3],
+          [3, 2],
+          [3, 1],
+        ],
+        drop: "potion",
+      },
+      { type: "pawn", at: [1, 1], ai: "chase", sight: 2 },
+      { type: "knight", at: [0, 6], ai: "static" },
+    ],
+  },
+  {
+    id: 6,
+    slots: 4,
+    name: "暗夜双骑",
+    english: "TWIN RIDERS",
+    story:
+      "夜色和迷雾一起压了下来，两名骑士在雾里巡猎。钥匙在棋盘右侧。",
+    tip: "[陨星|技能]一次砸下 3×3。雾里的骑士随时会扑出来。",
+    skill: "meteor",
+    goal: "reach",
+    goalText: "找到[钥匙]，打开[铁栅门]",
+    fog: { radius: 2.5 },
+    hero: { rows: 5, cols: 5 },
+    potions: 1,
+    chest: null,
+    par: 34,
+    map: [
+      "E . b . . . . .",
+      ". . b . . i . U",
+      "L b b . . . . .",
+      ". . . . b . . .",
+      ". i . . . . i .",
+      ". . . b . . . K",
+      ". b . . . i . .",
+      ". . . S . . . P",
+    ],
+    monsters: [
+      { type: "pawn", at: [3, 0], ai: "static" },
+      { type: "knight", at: [3, 5], ai: "chase", sight: 3 },
+      { type: "knight", at: [4, 2], ai: "chase", sight: 3, every: 2 },
+      { type: "bishop", at: [2, 4], ai: "chase", sight: 3 },
+      { type: "ink", at: [4, 3], ai: "static", drop: "potion" },
+      { type: "bishop", at: [6, 6], ai: "chase", sight: 3 },
+    ],
+  },
+  {
+    id: 7,
+    slots: 5,
+    name: "王后回廊",
+    english: "THE QUEEN'S GALLERY",
+    story:
+      "王后守在回廊尽头，一座城堡沿着走廊巡逻。宝箱里是最后一件武器。",
+    tip: "[汲血|技能]打碎几颗红心就补回几颗。王后蓄力之后，记得举起[木盾]。",
+    skill: "drain",
+    goal: "reach",
+    goalText: "穿过回廊，抵达[出口]",
+    hero: { rows: 5, cols: 5 },
+    potions: 2,
+    chest: "cross",
+    par: 32,
+    map: [
+      ". . . E . . . .",
+      ". b b . b b . .",
+      ". . . . . . . H",
+      "i i . i i . i i",
+      ". . . . . . . .",
+      ". U . i i . . .",
+      ". . . . . . b .",
+      "P . . S . . . .",
+    ],
+    monsters: [
+      { type: "queen", at: [1, 3], ai: "chase", sight: 2 },
+      {
+        type: "rook",
+        at: [4, 0],
+        ai: "patrol",
+        sight: 2,
+        path: [
+          [4, 0],
+          [4, 1],
+          [4, 2],
+          [4, 3],
+          [4, 4],
+          [4, 5],
+          [4, 6],
+          [4, 7],
+        ],
+      },
+      { type: "pawn", at: [6, 4], ai: "static", drop: "potion" },
+    ],
+  },
+  {
+    id: 8,
+    slots: 5,
+    name: "暗王的棋局",
+    english: "CHECKMATE",
+    story:
+      "墨迹的源头就在棋盘尽头。暗王守在出口前，王后在一旁护卫，出口被墨印封住。",
+    tip: "王权蓄势之后是王座崩落。决战之前，还有一座[铁砧]。",
+    goal: "boss",
+    fog: { radius: 2.5 },
+    goalText: "击败暗王，解开[出口]的封印",
+    hero: { rows: 5, cols: 5 },
+    potions: 2,
+    chest: null,
+    par: 30,
+    map: [
+      "t . . E . . . c",
+      ". . . . . . . .",
+      ". b . . . . b .",
+      ". . . . . . . .",
+      "c . b . . b . w",
+      ". . . . . . . .",
+      "P . . . . . . U",
+      ". . . S . . . .",
+    ],
+    monsters: [
+      { type: "king", at: [1, 3], ai: "static" },
+      { type: "queen", at: [3, 3], ai: "chase", sight: 2 },
+      { type: "pawn", at: [5, 2], ai: "static", drop: "potion" },
+      { type: "pawn", at: [5, 5], ai: "static", drop: "potion" },
+    ],
+  },
+];
+
+/** 进入第 n 关时已经拥有的武器：初始武器 + 之前各关宝箱。 */
+export function weaponsForLevel(index, starting) {
+  const list = [...starting];
+  for (let i = 0; i < index; i += 1) if (LEVELS[i].chest) list.push(LEVELS[i].chest);
+  return list;
+}
+
+/** 第 n 关可用的技能及其次数：之前各关与本关学会的技能，每章开始时次数恢复。 */
+export function skillsForLevel(index, skills) {
+  const result = {};
+  for (let i = 0; i <= index; i += 1) {
+    const id = LEVELS[i].skill;
+    if (id) result[id] = skills[id].charges;
+  }
+  return result;
+}

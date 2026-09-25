@@ -1,0 +1,441 @@
+import {
+  resolveHits,
+  resolveHeal,
+  applyChanges,
+  isDead,
+  rankPlacements,
+  cloneMatrix,
+  EMPTY,
+  HEART,
+  ARMOR,
+} from "./shapes.js";
+import { WEAPONS, SHIELD, POTION } from "../data/weapons.js";
+import { SKILLS } from "../data/skills.js";
+import { weaponShape, nextRotation } from "./arsenal.js";
+
+/** 可复现的伪随机数，便于测试与平衡模拟。 */
+export function createRng(seed = 1) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const pick = (list, rng) => list[Math.floor(rng() * list.length)];
+
+/**
+ * 回合制战斗状态机，不依赖 DOM。
+ * phase：hero（等待主角行动）→ monster（等待怪物行动）→ hero …，直到 won / lost / fled。
+ */
+export function createCombat({
+  hero,
+  monster,
+  heroFirst = true,
+  rng = Math.random,
+}) {
+  const state = {
+    def: monster.def,
+    heroMatrix: cloneMatrix(hero.matrix),
+    monsterMatrix: cloneMatrix(monster.matrix),
+    // 武器与技能共用一排“招式位”：武器有冷却和朝向，技能有剩余次数。
+    // 只有装备在武器槽 / 技能槽里的招式才会进入战斗。
+    weapons: [
+      ...(hero.equipped ?? hero.weapons).map((id) => ({ id, kind: "weapon", cd: 0, orient: { rot: 0, flip: false } })),
+      ...Object.entries(hero.skills ?? {})
+        .filter(([id]) => !hero.equippedSkills || hero.equippedSkills.includes(id))
+        .map(([id, charges]) => ({ id, kind: "skill", cd: 0, charges })),
+    ],
+    combo: 0,
+    bestCombo: 0,
+    upgrades: hero.upgrades ?? {},
+    bonus: false,
+    stunned: false,
+    potions: hero.potions,
+    shieldCd: 0,
+    shieldUp: false,
+    step: monster.step ?? 0,
+    round: 1,
+    intent: null,
+    aim: null,
+    phase: heroFirst ? "hero" : "monster",
+    retreating: false,
+    canRetreat: !monster.def.boss,
+    heroFirst,
+    rng,
+    log: [],
+    stats: { dealt: 0, taken: 0, blocked: 0 },
+  };
+  planIntent(state);
+  state.log.push(
+    heroFirst
+      ? `屿屿向${state.def.name}发起攻击。`
+      : `${state.def.name}突然扑了上来。`,
+  );
+  return state;
+}
+
+export function planIntent(state) {
+  const { pattern, aim } = state.def;
+  state.intent = pattern[state.step % pattern.length];
+  state.aim = null;
+  if (state.intent.kind !== "attack") return;
+  const ranked = rankPlacements(state.heroMatrix, state.intent.shape);
+  if (!ranked.length) return;
+  if (state.rng() < aim) {
+    const best = ranked.filter((p) => p.damage === ranked[0].damage);
+    state.aim = pick(best, state.rng);
+  } else state.aim = pick(ranked, state.rng);
+}
+
+/** 主角当前可用的动作检查，界面据此禁用按钮。 */
+export function weaponReady(state, weaponId) {
+  const slot = state.weapons.find((w) => w.id === weaponId);
+  return Boolean(slot && slot.cd === 0);
+}
+
+export const slotOf = (state, id) => state.weapons.find((w) => w.id === id);
+
+/** 招式的定义（武器或技能）。 */
+export const slotDef = (slot) => (slot.kind === "skill" ? SKILLS[slot.id] : WEAPONS[slot.id]);
+
+/** 招式当前的攻击形状：技能固定；武器考虑延长与当前朝向。 */
+export function slotShape(state, slot) {
+  return slot.kind === "skill" ? SKILLS[slot.id].shape : weaponShape(slot.id, state.upgrades, slot.orient);
+}
+
+/** 招式此刻能否使用；不能时给出原因。 */
+export function slotBlocked(state, slot) {
+  if (slot.kind === "skill") {
+    if (slot.charges <= 0) return `${SKILLS[slot.id].name}本章已用完`;
+    if (state.bonus) return "追加攻击只能使用普通武器";
+    return null;
+  }
+  if (slot.cd > 0) return `${WEAPONS[slot.id].name}还需冷却 ${slot.cd} 回合`;
+  return null;
+}
+
+/**
+ * 完美命中：形状的每一格都落在普通红心上（没有打到护甲、空位、无心槽或矩阵外）。
+ * 完美命中累积连击；任何不完美的攻击都会让连击归零。
+ */
+export function isPerfect(shape, hits) {
+  return hits.length === shape.size && hits.every((h) => h.before === HEART);
+}
+
+export function previewPerfect(state, weaponId, r, c) {
+  const slot = slotOf(state, weaponId);
+  return isPerfect(slotShape(state, slot), previewAttack(state, weaponId, r, c));
+}
+
+/** 连击的里程碑：3、5、7……每到一个就获得一次追击。 */
+export const isChaseMilestone = (n) => n >= 3 && n % 2 === 1;
+
+/**
+ * 连击的显示：第一次完美命中只是起手，不提示；第二次起才算连上。
+ * 内部的 combo 记连续完美命中的次数，界面显示 combo - 1，每连上两次获得一次追击。
+ */
+export const comboLinks = (combo) => Math.max(0, combo - 1);
+export const comboLabel = (links) => (links <= 1 ? "连击" : `连击 ×${links}`);
+
+export function previewAttack(state, weaponId, r, c) {
+  const slot = slotOf(state, weaponId);
+  return resolveHits(state.monsterMatrix, slotShape(state, slot), r, c, slotDef(slot));
+}
+
+/** 变形（不消耗回合）：旋转到下一个朝向，或左右翻转。只对拥有对应强化的武器生效。 */
+export function heroTransform(state, weaponId, kind) {
+  const slot = slotOf(state, weaponId);
+  if (!slot || slot.kind !== "weapon") return { ok: false, reason: "技能不能变形" };
+  if (!state.upgrades[weaponId]?.[kind]) return { ok: false, reason: `${WEAPONS[weaponId].name}没有这项强化` };
+  if (kind === "rotate") slot.orient = { ...slot.orient, rot: nextRotation(weaponId, state.upgrades, slot.orient) };
+  else slot.orient = { ...slot.orient, flip: !slot.orient.flip };
+  return { ok: true };
+}
+
+/** 汲血：按消除的红心数，从上到下、从左到右补回主角失去的红心。 */
+function drainHeal(state, amount) {
+  const changes = [];
+  state.heroMatrix.forEach((row, r) =>
+    row.forEach((v, c) => {
+      if (v === EMPTY && changes.length < amount) changes.push({ r, c, before: EMPTY, after: HEART });
+    }),
+  );
+  state.heroMatrix = applyChanges(state.heroMatrix, changes);
+  return changes;
+}
+
+export function previewHeal(state, r, c) {
+  return resolveHeal(state.heroMatrix, POTION.shape, r, c);
+}
+
+export function heroAttack(state, weaponId, r, c) {
+  if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
+  const slot = slotOf(state, weaponId);
+  if (!slot) return { ok: false, reason: "没有这件武器" };
+  const blocked = slotBlocked(state, slot);
+  if (blocked) return { ok: false, reason: blocked };
+  const def = slotDef(slot);
+  const shape = slotShape(state, slot);
+  const hits = resolveHits(state.monsterMatrix, shape, r, c, def);
+  if (!hits.length) return { ok: false, reason: "该位置没有可消除的红心" };
+  const perfect = isPerfect(shape, hits);
+  state.monsterMatrix = applyChanges(state.monsterMatrix, hits);
+  const wasBonus = state.bonus;
+  state.bonus = false;
+  if (slot.kind === "skill") slot.charges -= 1;
+  // 新回合开始时会先减 1，因此存 cooldown+1，保证之后整整 cooldown 个回合不可用。
+  else slot.cd = def.cooldown ? def.cooldown + 1 : 0;
+  const broken = hits.filter((h) => h.after === EMPTY).length;
+  const cracked = hits.length - broken;
+  state.stats.dealt += broken;
+  state.log.push(`${def.name}消除了 ${broken} 颗红心${cracked ? `，击破 ${cracked} 层护甲` : ""}。`);
+  const events = [{ type: "hero-attack", weapon: def, hits, anchor: [r, c] }];
+
+  if (slot.kind === "skill" && def.effect === "drain" && broken) {
+    const changes = drainHeal(state, broken);
+    if (changes.length) {
+      state.log.push(`${def.name}为屿屿恢复了 ${changes.length} 颗红心。`);
+      events.push({ type: "heal", side: "hero", changes });
+    }
+  }
+  if (slot.kind === "skill" && def.effect === "stun") {
+    state.stunned = true;
+    state.log.push(`${state.def.name}被定身，下回合无法行动。`);
+  }
+
+  // 连击结算。
+  let chase = false;
+  if (perfect) {
+    const before = state.combo;
+    const precise = slot.kind === "weapon" && state.upgrades[slot.id]?.precise;
+    state.combo += precise ? 2 : 1;
+    state.bestCombo = Math.max(state.bestCombo, state.combo);
+    const rewards = [];
+    if (precise) {
+      const healed = drainHeal(state, 1);
+      if (healed.length) events.push({ type: "heal", side: "hero", changes: healed });
+      rewards.push("precise");
+    }
+    if (state.combo >= 2) {
+      // 连击 2 起：其他武器的冷却各减 1。
+      for (const other of state.weapons)
+        if (other !== slot && other.kind === "weapon" && other.cd > 0) other.cd = Math.max(0, other.cd - 1);
+      rewards.push("cooldown");
+    }
+    for (let n = before + 1; n <= state.combo; n += 1) if (isChaseMilestone(n)) chase = true;
+    if (chase) rewards.push("chase");
+    const links = comboLinks(state.combo);
+    if (links) state.log.push(`${comboLabel(links)}${chase ? "，追击！" : "。"}`);
+    events.push({ type: "combo", combo: state.combo, rewards, chase });
+  } else if (state.combo > 0) {
+    if (comboLinks(state.combo)) {
+      state.log.push("连击中断。");
+      events.push({ type: "combo-break" });
+    }
+    state.combo = 0;
+  }
+
+  if (isDead(state.monsterMatrix)) {
+    state.phase = "won";
+    state.log.push(`${state.def.name}被击败。`);
+    events.push({ type: "won" });
+  } else if (chase) {
+    // 追击：不等怪物行动，立刻再用一次普通武器。
+    state.bonus = true;
+    events.push({ type: "bonus", reason: "chase" });
+  } else if (slot.kind === "skill" && def.effect === "extra" && !wasBonus) {
+    // 疾风斩：本回合还可以再用一次普通武器，怪物暂不行动。
+    state.bonus = true;
+    state.log.push("疾风未歇，再攻击一次。");
+    events.push({ type: "bonus" });
+  } else state.phase = "monster";
+  return { ok: true, events };
+}
+
+export function heroHeal(state, r, c) {
+  if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
+  if (state.potions <= 0) return { ok: false, reason: "药水已用完" };
+  const heals = resolveHeal(state.heroMatrix, POTION.shape, r, c);
+  if (!heals.length) return { ok: false, reason: "该位置没有需要恢复的红心" };
+  state.heroMatrix = applyChanges(state.heroMatrix, heals);
+  state.potions -= 1;
+  state.bonus = false;
+  state.log.push(`使用红心药水，恢复了 ${heals.length} 颗红心。`);
+  state.phase = "monster";
+  return { ok: true, events: [{ type: "heal", side: "hero", changes: heals }] };
+}
+
+export function heroShield(state) {
+  if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
+  if (state.shieldUp) return { ok: false, reason: "木盾已举起" };
+  if (state.shieldCd > 0)
+    return { ok: false, reason: `木盾还需冷却 ${state.shieldCd} 回合` };
+  state.shieldUp = true;
+  state.shieldCd = SHIELD.cooldown + 1;
+  state.log.push("举起木盾，将抵挡下一次攻击。");
+  return { ok: true, events: [{ type: "shield" }] };
+}
+
+/**
+ * 等待：不攻击，直接结束本回合（连击保留）。
+ * 保证任何时候都有合法动作：例如装备的武器全部在冷却、又没有药水时。
+ */
+export function heroWait(state) {
+  if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
+  state.bonus = false;
+  state.phase = "monster";
+  state.log.push("屿屿按兵不动。");
+  return { ok: true, events: [{ type: "wait" }] };
+}
+
+export function heroRetreat(state) {
+  if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
+  if (!state.canRetreat) return { ok: false, reason: "暗王战无法撤退" };
+  state.retreating = true;
+  state.bonus = false;
+  state.phase = "monster";
+  state.log.push(`屿屿撤退，${state.def.name}发起追击。`);
+  return { ok: true, events: [{ type: "retreat" }] };
+}
+
+function monsterHeal(state, amount) {
+  const m = state.monsterMatrix;
+  const empties = [];
+  m.forEach((row, r) =>
+    row.forEach((v, c) => {
+      if (v === EMPTY) empties.push({ r, c });
+    }),
+  );
+  const changes = [];
+  while (changes.length < amount && empties.length) {
+    const index = Math.floor(state.rng() * empties.length);
+    const [{ r, c }] = empties.splice(index, 1);
+    changes.push({ r, c, before: EMPTY, after: HEART });
+  }
+  state.monsterMatrix = applyChanges(m, changes);
+  return changes;
+}
+
+function monsterArmor(state, amount) {
+  const m = state.monsterMatrix;
+  const hearts = [];
+  m.forEach((row, r) =>
+    row.forEach((v, c) => {
+      if (v === HEART) hearts.push({ r, c });
+    }),
+  );
+  const changes = [];
+  while (changes.length < amount && hearts.length) {
+    const index = Math.floor(state.rng() * hearts.length);
+    const [{ r, c }] = hearts.splice(index, 1);
+    changes.push({ r, c, before: HEART, after: ARMOR });
+  }
+  state.monsterMatrix = applyChanges(m, changes);
+  return changes;
+}
+
+/** 执行怪物当前意图，随后开启主角新回合（或结束战斗）。 */
+export function monsterTurn(state) {
+  if (state.phase !== "monster") return { ok: false, events: [] };
+  const intent = state.intent;
+  const name = state.def.name;
+  const events = [];
+  if (state.stunned) {
+    // 定身：本次行动作废，招式顺序也不前进。
+    state.stunned = false;
+    state.log.push(`${name}被定身，这回合没有行动。`);
+    events.push({ type: "stunned" });
+    if (state.retreating) {
+      state.phase = "fled";
+      state.log.push("撤退成功。");
+      events.push({ type: "fled" });
+    } else startHeroTurn(state);
+    return { ok: true, events };
+  }
+  if (intent.kind === "attack") {
+    if (state.shieldUp) {
+      state.shieldUp = false;
+      const would = state.aim
+        ? resolveHits(state.heroMatrix, intent.shape, state.aim.r, state.aim.c)
+        : [];
+      state.stats.blocked += would.length;
+      state.log.push(`木盾抵挡了「${intent.name}」。`);
+      events.push({ type: "monster-attack", intent, hits: [], blocked: true });
+    } else {
+      const hits = state.aim
+        ? resolveHits(state.heroMatrix, intent.shape, state.aim.r, state.aim.c)
+        : [];
+      state.heroMatrix = applyChanges(state.heroMatrix, hits);
+      state.stats.taken += hits.length;
+      state.log.push(
+        hits.length
+          ? `${name}使用「${intent.name}」，消除了 ${hits.length} 颗红心。`
+          : `${name}的「${intent.name}」没有命中。`,
+      );
+      events.push({ type: "monster-attack", intent, hits, anchor: state.aim });
+    }
+  } else if (intent.kind === "charge") {
+    state.log.push(`${name}正在蓄力。`);
+    events.push({ type: "charge", intent });
+  } else if (intent.kind === "heal") {
+    const changes = monsterHeal(state, intent.amount);
+    state.log.push(
+      changes.length
+        ? `${name}使用「${intent.name}」，恢复了 ${changes.length} 颗红心。`
+        : `${name}使用「${intent.name}」，红心已满。`,
+    );
+    events.push({ type: "heal", side: "monster", changes });
+  } else if (intent.kind === "armor") {
+    const changes = monsterArmor(state, intent.amount);
+    state.log.push(`${name}使用「${intent.name}」，${changes.length} 颗红心获得护甲。`);
+    events.push({ type: "armor", changes });
+  } else if (intent.kind === "curse") {
+    if (state.shieldUp) {
+      state.shieldUp = false;
+      state.log.push(`木盾抵挡了「${intent.name}」。`);
+      events.push({ type: "curse", blocked: true });
+    } else {
+      // 短剑等无冷却的基础武器不受影响，保证主角总有招可出。
+      for (const slot of state.weapons)
+        if (slot.kind === "weapon" && WEAPONS[slot.id].cooldown) slot.cd = Math.max(slot.cd, 1) + intent.amount;
+      state.log.push(`${name}喊出「${intent.name}」，武器冷却 +${intent.amount}${comboLinks(state.combo) ? "，连击中断" : ""}。`);
+      state.combo = 0;
+      events.push({ type: "curse", blocked: false });
+    }
+  }
+  state.step += 1;
+
+  if (isDead(state.heroMatrix)) {
+    state.phase = "lost";
+    state.log.push("屿屿的红心已全部消除。");
+    events.push({ type: "lost" });
+  } else if (state.retreating) {
+    state.phase = "fled";
+    state.log.push("撤退成功。");
+    events.push({ type: "fled" });
+  } else {
+    startHeroTurn(state);
+  }
+  return { ok: true, events };
+}
+
+function startHeroTurn(state) {
+  for (const slot of state.weapons) slot.cd = Math.max(0, slot.cd - 1);
+  state.shieldCd = Math.max(0, state.shieldCd - (state.shieldUp ? 0 : 1));
+  state.round += 1;
+  state.phase = "hero";
+  planIntent(state);
+}
+
+export function hasAnyAction(state) {
+  return state.weapons.some((w) => w.cd === 0) || state.potions > 0;
+}
+
+/** 战斗结束后各技能剩余的次数，写回棋盘。 */
+export function skillCharges(state) {
+  return Object.fromEntries((state.weapons ?? []).filter((w) => w.kind === "skill").map((w) => [w.id, w.charges]));
+}
