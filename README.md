@@ -1,5 +1,7 @@
 # 屿屿大冒险 · Yuyu's Little Adventure
 
+在线游玩：[小岛解谜](https://maxwelleako.github.io/YuyuBigAdventure/) · [心阵棋局](https://maxwelleako.github.io/YuyuBigAdventure/battle.html)。推送到 `main` 后由 GitHub Actions 自动测试、构建并发布到 GitHub Pages。
+
 一个可直接游玩的像素 / 体素风 3D 解谜 Demo。使用 **Three.js + 原生 JavaScript + Vite**，不需要后端、账号、模型下载或第三方资源服务。
 
 ## 启动
