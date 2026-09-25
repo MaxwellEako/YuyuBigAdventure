@@ -1,101 +1,20 @@
-# 屿屿大冒险 · Yuyu's Little Adventure
+# 心阵棋局 · Heart Gambit
 
-在线游玩：[小岛解谜](https://maxwelleako.github.io/YuyuBigAdventure/) · [心阵棋局](https://maxwelleako.github.io/YuyuBigAdventure/battle.html)。推送到 `main` 后由 GitHub Actions 自动测试、构建并发布到 GitHub Pages。
+在线游玩：https://maxwelleako.github.io/YuyuBigAdventure/ 。推送到 `main` 后由 GitHub Actions 自动测试、构建并发布到 GitHub Pages。
 
-一个可直接游玩的像素 / 体素风 3D 解谜 Demo。使用 **Three.js + 原生 JavaScript + Vite**，不需要后端、账号、模型下载或第三方资源服务。
-
-## 启动
-
-开发环境使用 Node.js 24。
-
-```bash
-npm install
-npm run dev
-```
-
-打开终端显示的本地地址，默认是 `http://localhost:5173`。同一局域网中的手机也可使用终端显示的 Network 地址访问。
-
-```bash
-npm run build    # 生成 dist，可部署到静态网站服务
-npm run preview  # 本地预览生产构建
-```
-
-浏览器需要支持 WebGL 2；建议开启硬件加速。所有美术均由程序生成，字体使用系统字体，音效由 Web Audio 合成。
-
-## 五座小岛
-
-| 关卡       | 玩法       | 通关要求                                   |
-| ---------- | ---------- | ------------------------------------------ |
-| 风起林间   | 推箱与压板 | 把木箱推到压板上，修复桥梁                 |
-| 借一束光   | 镜面折射   | 转动两面镜子，让光束抵达接收器             |
-| 苔石的回声 | 音符顺序   | 按石碑线索依次奏响四个音符，错误会重置旋律 |
-| 滑向晴天   | 冰面路径   | 踏上冰面后滑到障碍或落脚地，提前规划转向   |
-| 昼夜之间   | 场景切换   | 切换昼夜穿过不同光桥，寻找分属昼夜的碎片   |
-
-每关都需要收齐三枚记忆碎片并抵达石门。关卡依次解锁，没有时间限制；已经解锁的关卡可以重玩。成绩保存在当前浏览器的 `localStorage`，保留最少行动次数，同步数时保留更短时间。不会保存未完成关卡的中途状态。
-
-## 操作
-
-- **WASD / 方向键**：按屏幕的上、下、左、右大方向移动。镜头保留 15° 轻微侧倾，移动沿棋盘格进行；转动镜头后按键自动适配新视角。
-- **E**：与相邻镜子或石碑交互；第五关中切换昼夜。
-- **Z**：撤销上一步，包括推箱、收集、音符和昼夜变化，最多保留 300 步。
-- **R**：重新开始本关。
-- **H**：逐步查看三层提示。
-- **C**：将视角旋转 90°。
-- **点击 / 触屏**：点击相邻地块移动，点击身旁机关交互；小屏还有方向键和 E 按钮。
-- 顶部可开关音效；场景右下可旋转视角和全屏。已移除低分辨率像素化效果，默认开启抗锯齿并适配高清屏。
-
-## 验证
-
-```bash
-npm test          # 14 项逻辑测试，包括对全部关卡的真实状态空间搜索
-npm run test:e2e  # 浏览器端真实键盘连续通关、存档、按钮和手机布局测试
-```
-
-浏览器测试使用 Playwright。在 macOS 上发现系统 Chrome 时直接复用；其他环境请先运行：
-
-```bash
-npx playwright install chromium
-```
-
-自动化通关路线由广度优先搜索动态求得，再通过真实键盘事件逐步回放。测试不直接修改游戏状态、不调用跳关接口，也不在游戏里内置通关答案。截图输出到 `.playwright/`。
-
-## 代码组织
-
-```text
-src/
-  main.js           页面、输入和游戏流程
-  style.css         响应式界面与低动态效果适配
-  icons.js          内联 SVG 图标
-  thumbnails.js     从关卡地图生成等距预览
-  storage.js        本地成绩存储与容错
-  game/
-    levels.js       五关地图、目标和提示数据
-    engine.js       独立于 DOM / WebGL 的解谜状态机
-    world.js        Three.js 场景、实例化地形、镜头和动画
-    voxel.js        可复用的体素模型与材质
-    audio.js        原生 Web Audio 合成音效
- tests/
-  engine.test.js    逻辑与边界条件回归测试
-  solver.js         用于测试的通用 BFS 求解器
-  game.e2e.js       Playwright 端到端测试
-```
-
-地形通过 `InstancedMesh` 按材质批量绘制，角色、机关和桥保留独立状态。关卡与解谜逻辑不依赖渲染器，可以单独测试。支持系统的“减少动态效果”偏好；浏览器禁止本地存储时降级为当前会话，不影响游玩。
-
-这是一个单机 Demo，没有账号系统、联网、排行榜或关卡编辑器。
-
----
-
-# 心阵棋局 · Heart Gambit（第二部，`battle.html`）
-
-同一个项目里的第二款 Demo。墨水瓶打翻在棋盘上，黑棋一枚接一枚醒了过来，白兵屿屿要走完一个序章和 **8 个章节**，每一章都是一张 8×8 棋盘。
+一个 Three.js 回合制战棋 Demo。墨水瓶打翻在棋盘上，黑棋一枚接一枚醒了过来，白兵屿屿要走完一个序章和 **8 个章节**，每一章都是一张 8×8 棋盘。
 
 序章只有一条直走廊和一只墨渍怪，用来教红心矩阵和攻击形状。每个新机制第一次出现时都会弹出一张说明卡，看过的不再弹出；在玩法说明里可以关闭新手提示。
 
+## 启动
+
+开发环境使用 Node.js 24，浏览器需要支持 WebGL 2。
+
 ```bash
 npm install
-npm run dev:battle   # 自动打开 http://localhost:5173/battle.html
+npm run dev       # 自动打开 http://localhost:5173
+npm run build     # 生成 dist，可部署到任意静态网站服务
+npm run preview   # 本地预览生产构建
 ```
 
 ## 界面风格
@@ -150,14 +69,17 @@ npm run dev:battle   # 自动打开 http://localhost:5173/battle.html
 ## 验证
 
 ```bash
-npm test                              # 含 27 项心阵棋局逻辑测试（形状、越界、护甲、冷却、关卡可达性、怪物追击、相邻拾取、视线与迷雾、变形与强化、技能、连击与精准、铁砧刷新、武器槽、等待）
-npx playwright test tests/battle.e2e.js   # 真实键鼠通关序章（含说明弹窗）、越界预览、手机布局
+npm test          # 27 项逻辑测试（形状、越界、护甲、冷却、关卡可达性、怪物追击、相邻拾取、视线与迷雾、变形与强化、技能、连击与精准、铁砧刷新、武器槽、等待）
+npm run test:e2e  # 真实键鼠通关序章（含说明弹窗）、越界预览、手机布局
 ```
 
 ## 代码组织
 
+浏览器测试使用 Playwright，macOS 上发现系统 Chrome 时直接复用；其他环境先运行 `npx playwright install chromium`。
+
 ```text
-battle.html
+index.html
+public/battle.html    旧地址的跳转页
 src/battle/
   main.js             关卡流程、HUD、各类界面与输入
   style.css           瑞士国际主义风格（IKB 单一强调色、Inter/JetBrains Mono、直角 hairline），含手机布局

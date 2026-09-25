@@ -1,11 +1,10 @@
 {
-  "name": "yuyu-island-adventure",
+  "name": "heart-gambit",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "dev:battle": "vite --host 0.0.0.0 --open /battle.html",
+    "dev": "vite --host 0.0.0.0 --open",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --test tests/*.test.js",

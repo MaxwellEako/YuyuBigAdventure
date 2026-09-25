@@ -795,7 +795,7 @@ function showTitle() {
     "title",
     `<div class="title-card">
       <div class="dot-mat" aria-hidden="true"></div>
-      <div class="t-meta title-chrome"><span>YUYU'S ADVENTURE</span><span class="sep"></span><span>PART 02</span></div>
+      <div class="t-meta title-chrome"><span>YUYU'S ADVENTURE</span></div>
       <h1>心阵<br>棋局</h1>
       <p class="subtitle t-meta">HEART GAMBIT / A TURN-BASED BOARD GAME</p>
       <p class="lede">墨水瓶打翻在棋盘上，被墨迹侵蚀的黑棋变成了怪物。白色小兵屿屿要穿过八个章节，找到墨迹的源头。</p>

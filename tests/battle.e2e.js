@@ -31,7 +31,7 @@ async function dismissCoach(page) {
 
 /** 关闭说明弹窗，直接进入某一章（跳过教学）。 */
 async function skipHints(page) {
-  await page.goto("/battle.html");
+  await page.goto("/");
   await page.evaluate(() =>
     localStorage.setItem(
       "heart-gambit-progress-v3",
@@ -113,7 +113,7 @@ async function fight(page, { screenshot } = {}) {
 test("用真实键鼠通关序章：说明弹窗、移动、悬停预览、出招、结算", async ({ page }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/battle.html");
+  await page.goto("/");
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await expect(page.locator(".title-card h1")).toHaveText("心阵棋局");
