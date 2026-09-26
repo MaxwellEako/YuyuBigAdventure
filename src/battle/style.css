@@ -4419,3 +4419,382 @@ body:not(.in-level) .hint-bar {
   font: 700 11px var(--mono);
   color: var(--heart);
 }
+
+/* ——— 手机竖屏战斗：两块心阵左右并排 ——— */
+
+.battle-modal.portrait {
+  padding: 6px;
+  place-items: start center;
+}
+
+.battle-modal.portrait .battle-card {
+  padding: 10px 10px 8px;
+}
+
+.battle-modal.portrait .battle-head,
+.battle-modal.landscape .battle-head {
+  grid-template-columns: 1fr auto 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+}
+
+.battle-modal.portrait .round b,
+.battle-modal.landscape .round b {
+  font-size: 22px;
+}
+
+.battle-modal.portrait .round .t-meta,
+.battle-modal.landscape .round .t-meta {
+  display: none;
+}
+
+.battle-modal.portrait .turn-banner,
+.battle-modal.landscape .turn-banner {
+  padding: 6px 12px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.battle-modal.portrait .combo-badge,
+.battle-modal.landscape .combo-badge {
+  height: 30px;
+  gap: 4px;
+  padding: 0 6px;
+}
+
+.battle-modal.portrait .combo-badge b,
+.battle-modal.landscape .combo-badge b {
+  font-size: 17px;
+}
+
+.battle-modal.portrait .arena,
+.battle-modal.landscape .arena {
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.battle-modal.portrait .vs,
+.battle-modal.landscape .vs {
+  display: none;
+}
+
+.battle-modal.portrait .side,
+.battle-modal.landscape .side {
+  gap: 6px;
+}
+
+.battle-modal.portrait .side-head,
+.battle-modal.landscape .side-head {
+  gap: 6px;
+  min-height: 0;
+}
+
+.battle-modal.portrait .avatar,
+.battle-modal.landscape .avatar,
+.battle-modal.portrait .who .t-meta,
+.battle-modal.landscape .who .t-meta {
+  display: none;
+}
+
+.battle-modal.portrait .who h3,
+.battle-modal.landscape .who h3 {
+  margin: 0;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.battle-modal.portrait .who p,
+.battle-modal.landscape .who p {
+  font-size: 10px;
+}
+
+.battle-modal.portrait .who p .trait span,
+.battle-modal.landscape .who p .trait span {
+  display: none;
+}
+
+.battle-modal.portrait .hp .num,
+.battle-modal.landscape .hp .num {
+  font-size: 26px;
+}
+
+.battle-modal.portrait .hp em,
+.battle-modal.landscape .hp em {
+  display: none;
+}
+
+.battle-modal.portrait .intent,
+.battle-modal.portrait .aim-note,
+.battle-modal.landscape .intent,
+.battle-modal.landscape .aim-note {
+  height: 36px;
+  gap: 5px;
+  font-size: 12px;
+  border-top-width: 1px;
+}
+
+.battle-modal.portrait .intent-label,
+.battle-modal.landscape .intent-label,
+.battle-modal.portrait .pattern,
+.battle-modal.landscape .pattern {
+  display: none;
+}
+
+.battle-modal.portrait .intent strong,
+.battle-modal.portrait .aim-note strong,
+.battle-modal.landscape .intent strong,
+.battle-modal.landscape .aim-note strong {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.battle-modal.portrait .intent-main,
+.battle-modal.landscape .intent-main {
+  gap: 5px;
+}
+
+.battle-modal.portrait .aim-note b,
+.battle-modal.landscape .aim-note b {
+  font-size: 15px;
+}
+
+.battle-modal.portrait .fx-interrupt,
+.battle-modal.landscape .fx-interrupt {
+  width: 18px;
+  height: 18px;
+  margin-left: 2px;
+}
+
+.battle-modal.portrait .battle-log,
+.battle-modal.landscape .battle-log {
+  display: none;
+}
+
+.battle-modal.portrait .battle-foot {
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+.battle-modal.portrait .weapon-bar {
+  gap: 6px;
+}
+
+.battle-modal.portrait .move-group {
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.battle-modal.portrait .move-group.skills {
+  padding: 0;
+  border: 0;
+}
+
+.battle-modal.portrait .weapon,
+.battle-modal.landscape .weapon {
+  width: calc((100% - 15px) / 4);
+  height: 70px;
+  grid-template-rows: 32px auto 12px;
+  padding: 5px 3px 4px;
+}
+
+.battle-modal.portrait .weapon .weapon-shape,
+.battle-modal.landscape .weapon .weapon-shape {
+  width: 32px;
+  height: 32px;
+}
+
+.battle-modal.portrait .weapon .weapon-shape .shape-svg,
+.battle-modal.landscape .weapon .weapon-shape .shape-svg {
+  max-width: 32px;
+  max-height: 32px;
+}
+
+.battle-modal.portrait .weapon .weapon-name,
+.battle-modal.landscape .weapon .weapon-name {
+  font-size: 11px;
+}
+
+.battle-modal.portrait .action-bar {
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: 40px;
+  width: 100%;
+  height: auto;
+  margin-left: 0;
+}
+
+.battle-modal.portrait .transform-bar,
+.battle-modal.landscape .transform-bar {
+  display: flex;
+  width: 100%;
+  height: auto;
+}
+
+.battle-modal.portrait .transform-bar .action,
+.battle-modal.landscape .transform-bar .action {
+  flex: 1;
+  flex-direction: row;
+  width: auto;
+  height: 34px;
+}
+
+.battle-modal.portrait .action-bar .action,
+.battle-modal.landscape .action-bar .action {
+  justify-content: center;
+  gap: 4px;
+  padding: 0 4px;
+  font-size: 12px;
+}
+
+.battle-modal.portrait .action-bar .action small,
+.battle-modal.landscape .action-bar .action small {
+  display: none;
+}
+
+/* ——— 手机横屏战斗：左边两块心阵，右边一列招式与动作 ——— */
+
+.battle-modal.landscape {
+  padding: 4px;
+  place-items: stretch;
+}
+
+.battle-modal.landscape .battle-card {
+  display: grid;
+  grid-template-columns: 1fr 250px;
+  grid-template-rows: auto 1fr;
+  column-gap: 12px;
+  width: 100%;
+  height: calc(100vh - 8px);
+  padding: 8px 10px;
+  overflow: hidden;
+}
+
+.battle-modal.landscape .battle-head {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.battle-modal.landscape .arena {
+  grid-column: 1;
+  grid-row: 2;
+  min-height: 0;
+}
+
+.battle-modal.landscape .battle-foot {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0 0 0 10px;
+  overflow-y: auto;
+  border-top: 0;
+  border-left: 1px solid var(--ink);
+}
+
+.battle-modal.landscape .weapon-bar {
+  flex: none;
+  gap: 5px;
+}
+
+.battle-modal.landscape .move-group {
+  width: 100%;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.battle-modal.landscape .move-group.skills {
+  padding: 0;
+  border: 0;
+}
+
+.battle-modal.landscape .weapon {
+  width: calc((100% - 8px) / 3);
+  height: 62px;
+  grid-template-rows: 28px auto 11px;
+}
+
+.battle-modal.landscape .weapon .weapon-shape {
+  width: 28px;
+  height: 28px;
+}
+
+.battle-modal.landscape .action-bar {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 34px);
+  width: 100%;
+  height: auto;
+  margin: 0;
+}
+
+/* ——— 手机横屏棋盘：信息栏竖着贴在左边，面板从左侧拉出 ——— */
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .hud-strip {
+    right: auto;
+    bottom: auto;
+    flex-direction: column;
+    align-items: stretch;
+    width: 76px;
+    height: auto;
+    padding: 8px 6px;
+    gap: 6px;
+  }
+  .strip-hp {
+    justify-content: center;
+  }
+  .strip-chip,
+  .strip-btn {
+    justify-content: center;
+  }
+  .strip-gap {
+    display: none;
+  }
+  .hero-hud,
+  .goal-hud {
+    top: 0;
+    right: auto;
+    bottom: 0;
+    width: min(380px, 62vw);
+    max-height: none;
+    border-width: 0 2px 0 0;
+    transform: translateX(-100%);
+  }
+  .dpad {
+    grid-template-columns: repeat(3, 46px);
+    grid-template-rows: repeat(2, 46px);
+  }
+}
+
+/* 两侧标题固定同样的高度，下面的心阵才能对齐。 */
+.side-head {
+  height: 60px;
+}
+
+.battle-modal.portrait .side-head,
+.battle-modal.landscape .side-head {
+  height: 46px;
+  overflow: hidden;
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .strip-btn {
+    flex-direction: column;
+    gap: 2px;
+    height: auto;
+    padding: 6px 2px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .strip-btn em {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+  }
+  .strip-btn {
+    position: relative;
+  }
+}

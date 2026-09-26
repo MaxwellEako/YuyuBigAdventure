@@ -116,11 +116,18 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
 
   const $ = (sel) => root.querySelector(sel);
   const modal = $(".battle-modal");
-  const narrow = innerWidth < 760;
+  modal.classList.toggle("landscape", innerHeight < 520 && innerWidth > innerHeight);
+  modal.classList.toggle("portrait", innerWidth < 760 && !(innerHeight < 520 && innerWidth > innerHeight));
+  // 手机横屏：心阵在左、招式在右；手机竖屏：两块心阵左右并排，各占一半宽度。
+  const landscape = innerHeight < 520 && innerWidth > innerHeight;
+  const narrow = innerWidth < 760 && !landscape;
+  const compact = narrow || landscape;
   // 矩阵尺寸同时受宽度和高度约束，保证整张战斗卡片在一屏内。
-  const maxSize = narrow
-    ? Math.min(innerWidth - 96, 330)
-    : Math.max(240, Math.min(460, (innerWidth - 220) / 2.3, innerHeight - 520));
+  const maxSize = landscape
+    ? Math.max(120, Math.min((innerWidth - 300) / 2, innerHeight - 150))
+    : narrow
+      ? Math.max(120, Math.floor((innerWidth - 44) / 2))
+      : Math.max(240, Math.min(460, (innerWidth - 220) / 2.3, innerHeight - 520));
   // 怪物心阵四周的界外圈按主角武器的实际覆盖范围来留：锚点在形状左上角的武器，只需要上方和左侧的界外格。
   const enemyMargin = { top: 0, bottom: 0, left: 0, right: 0 };
   // 所有招式在所有可能朝向下的形状（武器可能被强化为可旋转、可镜像、延长）。
@@ -136,13 +143,15 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     enemyMargin.left = Math.max(enemyMargin.left, r.right);
     enemyMargin.right = Math.max(enemyMargin.right, r.left);
   }
+  // 小屏上界外只留一圈，红心才不会被压得太小。
+  if (compact) for (const k of Object.keys(enemyMargin)) enemyMargin[k] = Math.min(enemyMargin[k], 1);
   // 两块心阵的外框等高；矩阵在框内居中，界外格铺满整个外框。
   for (const box of root.querySelectorAll(".matrix-box")) box.style.height = `${Math.round(maxSize)}px`;
   const enemyBox = $("[data-enemy-matrix]").parentElement;
   const heroBox = $("[data-hero-matrix]").parentElement;
-  const enemyView = new MatrixView($("[data-enemy-matrix]"), { margin: enemyMargin, maxSize, side: "enemy", box: enemyBox });
+  const enemyView = new MatrixView($("[data-enemy-matrix]"), { margin: enemyMargin, maxSize, side: "enemy", box: enemyBox, minCell: compact ? 12 : 22 });
   // 主角心阵只需容纳药水的十字（每边 1 格）。
-  const heroView = new MatrixView($("[data-hero-matrix]"), { margin: 1, maxSize, side: "hero", box: heroBox });
+  const heroView = new MatrixView($("[data-hero-matrix]"), { margin: compact ? 0 : 1, maxSize, side: "hero", box: heroBox, minCell: compact ? 12 : 22 });
   // 两块心阵共用同一个格子边长，左右的红心一样大。
   const syncSize = () => {
     const size = Math.min(
@@ -682,7 +691,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
   // 招式很多时底部会折成两行：若整张卡片超出屏幕，就把两块心阵的外框压矮，再按新尺寸重建。
   const card = $(".battle-card");
   const overflow = card.getBoundingClientRect().height - (innerHeight - 24);
-  if (overflow > 0 && !narrow) {
+  if (overflow > 0 && !compact) {
     const height = Math.max(200, Math.round(maxSize - overflow));
     for (const box of root.querySelectorAll(".matrix-box")) box.style.height = `${height}px`;
     syncSize();

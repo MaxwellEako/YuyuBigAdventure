@@ -6,7 +6,8 @@ import { VOID, EMPTY, ARMOR, footprint } from "../logic/shapes.js";
  * 让形状的锚点也能放到矩阵外面——形状只需覆盖到对应区域即可，不设边界。
  */
 export class MatrixView {
-  constructor(el, { margin = 2, maxSize = 360, side = "enemy", box = null } = {}) {
+  constructor(el, { margin = 2, maxSize = 360, side = "enemy", box = null, minCell = 22 } = {}) {
+    this.minCell = minCell;
     this.el = el;
     // box：给定外框时进入“铺满”模式，矩阵在框内居中，四周的界外格一直铺到填满外框。
     this.box = box;
@@ -72,7 +73,7 @@ export class MatrixView {
     const needV = Math.max(top, bottom);
     const needH = Math.max(left, right);
     const fit = (avail, n) => Math.floor((avail + GAP) / n - GAP);
-    return Math.max(22, Math.min(92, fit(this.box.clientHeight, rows + needV * 2), fit(this.box.clientWidth, cols + needH * 2)));
+    return Math.max(this.minCell, Math.min(92, fit(this.box.clientHeight, rows + needV * 2), fit(this.box.clientWidth, cols + needH * 2)));
   }
 
   build(rows, cols) {
