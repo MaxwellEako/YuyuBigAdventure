@@ -3664,3 +3664,758 @@ body:not(.in-level) .hint-bar {
 .kw.kw.ink {
   color: var(--ink);
 }
+
+/* 上一击的范围：虚线框，提示下一击挨着它打才能连上。 */
+.cell.last-hit {
+  outline: 2px dashed var(--accent);
+  outline-offset: -5px;
+}
+
+.demo-cell.prev {
+  background: none;
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+
+/* 铁砧重抽：卡片绕竖轴翻过去，换上新强化后翻回来。 */
+.forge-grid {
+  perspective: 900px;
+}
+
+.forge-slot.flip-out {
+  animation: forge-flip-out 0.18s var(--ease-exit, ease-in) forwards;
+}
+
+.forge-slot.flip-in {
+  animation: forge-flip-in 0.32s var(--ease-entry) both;
+}
+
+.forge-slot.flip-in .forge-card {
+  animation: forge-glow 0.6s var(--ease-entry);
+}
+
+@keyframes forge-flip-out {
+  to {
+    transform: rotateY(90deg);
+    opacity: 0.4;
+  }
+}
+
+@keyframes forge-flip-in {
+  from {
+    transform: rotateY(-90deg);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes forge-glow {
+  from {
+    box-shadow: inset 0 0 0 3px var(--accent);
+  }
+  to {
+    box-shadow: inset 0 0 0 0 var(--accent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forge-slot.flip-out,
+  .forge-slot.flip-in,
+  .forge-slot.flip-in .forge-card {
+    animation: none;
+  }
+}
+
+/* 铁砧卡片内各块高度固定：重抽换成字数或形状不同的强化，窗口也不会变高变矮。 */
+.forge-card .forge-weapon {
+  height: 16px;
+}
+
+.forge-card b {
+  height: 34px;
+}
+
+.forge-shapes {
+  box-sizing: content-box;
+  height: 65px;
+}
+
+.forge-card small {
+  display: block;
+  height: 4.5em;
+  overflow: hidden;
+}
+
+/* 只翻转卡片内容，底色保持纸白，不会露出后面的墨黑分隔线。 */
+.forge-slot.flip-out,
+.forge-slot.flip-in {
+  animation: none;
+}
+
+.forge-slot.flip-out > * {
+  animation: forge-flip-out 0.18s ease-in forwards;
+}
+
+.forge-slot.flip-in > * {
+  animation: forge-flip-in 0.32s var(--ease-entry) both;
+}
+
+.forge-slot.flip-in .forge-card {
+  animation: forge-flip-in 0.32s var(--ease-entry) both, forge-glow 0.6s var(--ease-entry);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forge-slot.flip-out > *,
+  .forge-slot.flip-in > *,
+  .forge-slot.flip-in .forge-card {
+    animation: none;
+  }
+}
+
+/* 技能槽变成 3 个后，构筑卡片收紧一些，整页在 900px 高的窗口里放得下。 */
+.loadout .build-card {
+  min-height: 54px;
+  padding: 8px 14px;
+}
+
+.loadout .build-list {
+  gap: 6px;
+}
+
+.loadout-col .build-list + .build-title {
+  margin-top: var(--sp-5);
+}
+
+.panel.armory h2 {
+  margin-bottom: var(--sp-4);
+}
+
+/* 上一击用过的招式：右上角虚线框，提示换一件武器才能接上连击。 */
+.weapon.last-used::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 9px;
+  height: 9px;
+  border: 1.5px dashed var(--accent);
+}
+
+.weapon.selected.last-used::after {
+  border-color: var(--accent-on);
+}
+
+/* ——— 战斗底栏（重排）：固定尺寸的竖卡，武器与技能分组，动作按钮收成 2×2 ——— */
+
+.battle-foot {
+  align-items: stretch;
+  gap: var(--sp-4);
+}
+
+.weapon-bar {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+.move-group {
+  display: flex;
+  gap: 6px;
+}
+
+/* 技能组前面用一条细竖线和武器组隔开。 */
+.move-group.skills {
+  padding-left: var(--sp-4);
+  border-left: 1px solid var(--grey-2);
+}
+
+.weapon {
+  display: grid;
+  grid-template-rows: 44px auto 14px;
+  justify-items: center;
+  align-items: center;
+  row-gap: 2px;
+  width: 92px;
+  min-width: 0;
+  height: 92px;
+  padding: 8px 6px 6px;
+  text-align: center;
+}
+
+.weapon .weapon-shape {
+  grid-row: 1;
+  width: 44px;
+  height: 44px;
+}
+
+.weapon .weapon-name {
+  grid-row: 2;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.weapon .weapon-cd {
+  grid-row: 3;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.weapon .cd-idle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0.55;
+}
+
+/* 强化小图标排在右上角，不挤占名字。 */
+.weapon .weapon-ups {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: flex;
+  gap: 2px;
+}
+
+.weapon .weapon-ups .up-icon {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+}
+
+.weapon .weapon-ups .up-icon .icon {
+  width: 9px;
+  height: 9px;
+}
+
+.weapon.last-used::after {
+  top: auto;
+  right: auto;
+  bottom: 5px;
+  left: 5px;
+}
+
+.weapon.spent {
+  opacity: 0.5;
+}
+
+/* 动作按钮：2×2 网格，高度和招式卡一致。 */
+.action-bar {
+  display: grid;
+  grid-template-columns: repeat(2, 84px);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 0;
+  height: 92px;
+  margin-left: auto;
+}
+
+.action-bar .action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: 0;
+  margin: 0 0 -1px -1px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.action-bar .action .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.action-bar .action small {
+  margin-left: auto;
+}
+
+/* 变形按钮（R / F）竖着排在动作区左边，只在选中可变形的武器时出现。 */
+.transform-bar {
+  display: grid;
+  grid-auto-rows: 1fr;
+  height: 92px;
+}
+
+.transform-bar .action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0 0 -1px;
+  padding: 0 10px;
+}
+
+.transform-bar .action .icon {
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 760px) {
+  .move-group {
+    flex-wrap: wrap;
+  }
+  .move-group.skills {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .weapon {
+    width: 76px;
+    height: 84px;
+    flex: none;
+  }
+  .action-bar {
+    grid-template-columns: repeat(2, 1fr);
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+/* 收紧：一行放下 5 件武器 + 3 个技能 + 动作区。 */
+.weapon {
+  width: 80px;
+  height: 88px;
+  grid-template-rows: 42px auto 14px;
+}
+
+.weapon .weapon-shape {
+  width: 42px;
+  height: 42px;
+}
+
+.action-bar {
+  grid-template-columns: repeat(2, 88px);
+  height: 88px;
+}
+
+.action-bar .action .count {
+  min-width: 16px;
+  padding: 0 3px;
+  font: 600 11px var(--mono);
+  text-align: center;
+  color: var(--paper);
+  background: var(--heart);
+}
+
+.action-bar .action:disabled .count {
+  background: var(--grey-3);
+}
+
+.transform-bar {
+  height: 88px;
+}
+
+.transform-bar .action {
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  width: 64px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .weapon {
+    width: calc((100% - 18px) / 4);
+    height: 80px;
+  }
+  .move-group {
+    width: 100%;
+  }
+  .move-group.skills {
+    padding-top: 0;
+  }
+  .transform-bar {
+    display: flex;
+    height: auto;
+    width: 100%;
+  }
+  .transform-bar .action {
+    flex: 1;
+    flex-direction: row;
+    width: auto;
+    height: 40px;
+  }
+}
+
+.action-bar {
+  grid-template-columns: repeat(2, 96px);
+}
+
+.action-bar .action span {
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .action-bar {
+    grid-template-columns: repeat(2, 1fr);
+    width: 100%;
+  }
+}
+
+/* 左侧面板：5 件武器 + 3 个技能也能一屏放下。 */
+.hero-hud .weapon-list li {
+  padding: 6px 0;
+}
+
+.hero-hud .hud-matrix {
+  padding: var(--sp-3) 0;
+}
+
+.hero-hud .kicker {
+  margin-bottom: var(--sp-3);
+}
+
+/* ——— 重置进度 ——— */
+
+.ghost.subtle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--grey-3);
+  border-color: var(--grey-2);
+}
+
+.ghost.subtle .icon {
+  width: 14px;
+  height: 14px;
+}
+
+.ghost.subtle:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+.reset-panel {
+  max-width: 560px;
+}
+
+.reset-warn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: var(--sp-4) 0 0;
+  font-weight: 600;
+}
+
+.reset-warn .icon {
+  width: 14px;
+  height: 14px;
+  padding: 2px;
+  color: var(--paper);
+  background: var(--ink);
+}
+
+/* 确认重置用墨黑实底，和普通的蓝色主按钮区分开。 */
+.primary.danger {
+  color: var(--paper);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.primary.danger:hover {
+  background: #2a2a2a;
+}
+
+.help .panel-actions {
+  gap: var(--sp-3);
+}
+
+/* 左侧面板：构筑按钮放在武器标题行里，一眼就能看到。 */
+.build-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: var(--sp-3);
+  padding: 3px 6px 3px 5px;
+  font: 600 12px var(--sans, inherit);
+  color: var(--accent);
+  background: var(--paper);
+  border: 1px solid var(--accent);
+}
+
+.build-chip .icon {
+  width: 13px;
+  height: 13px;
+}
+
+.build-chip kbd {
+  margin-left: 2px;
+  padding: 0 3px;
+  font: 500 10px var(--mono);
+  color: var(--accent-on);
+  background: var(--accent);
+  border: 0;
+}
+
+.build-chip:hover {
+  color: var(--accent-on);
+  background: var(--accent);
+}
+
+.build-chip:hover kbd {
+  color: var(--accent);
+  background: var(--accent-on);
+}
+
+/* ——— 怪物特性、打断标记、连击破甲 ——— */
+
+.traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0 0;
+}
+
+.trait {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px 1px 3px;
+  font: 500 11px var(--sans, inherit);
+  font-style: normal;
+  color: var(--ink);
+  border: 1px solid var(--grey-2);
+}
+
+.trait .icon,
+.trait .heart-svg {
+  width: 12px;
+  height: 12px;
+}
+
+.trait.armor .heart-svg {
+  width: 13px;
+}
+
+.tip-traits {
+  margin: 0 0 var(--sp-3);
+}
+
+.fx-interrupt {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 6px;
+  font-style: normal;
+  color: var(--ink);
+  border: 1.5px dashed var(--ink);
+}
+
+.fx-interrupt .icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* 预览：这一击能打断重击，标记变成蓝色实底。 */
+.intent.will-interrupt .fx-interrupt {
+  color: var(--accent-on);
+  background: var(--accent);
+  border: 1.5px solid var(--accent);
+  animation: combo-pop 0.3s var(--ease-entry);
+}
+
+.combo-badge .combo-pierce {
+  display: none;
+}
+
+.combo-badge.piercing .combo-pierce {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+  background: var(--accent-on);
+}
+
+.combo-badge.piercing .combo-pierce .icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* ——— 手机：信息栏 + 底部面板 ——— */
+
+.hud-strip,
+.sheet-backdrop,
+.sheet-close {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  /* 大面板默认收起，不压在棋盘上。 */
+  .hero-hud,
+  .goal-hud {
+    display: block;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    min-width: 0;
+    max-height: 72vh;
+    padding: var(--sp-5) var(--sp-5) calc(var(--sp-5) + env(safe-area-inset-bottom));
+    border-width: 2px 0 0;
+    z-index: 30;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(100%);
+    transition: transform 0.26s var(--ease-entry), opacity 0.2s;
+  }
+  .hero-hud .weapon-list,
+  .hero-hud .kicker:not(:first-child) {
+    display: flex;
+  }
+  .hero-hud .weapon-list {
+    display: block;
+  }
+  body.in-level.sheet-hero:not(.in-battle) .hero-hud,
+  body.in-level.sheet-goal:not(.in-battle) .goal-hud {
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
+  .sheet-close {
+    display: grid;
+    float: right;
+    margin: -6px -6px 0 var(--sp-3);
+  }
+  .sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+    display: block;
+    background: rgba(10, 10, 10, 0.28);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  body.sheet-open.in-level:not(.in-battle) .sheet-backdrop {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* 棋盘上方的一条信息栏。 */
+  .hud-strip {
+    position: fixed;
+    top: calc(var(--topbar) + 8px);
+    left: 8px;
+    right: 8px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    padding: 0 6px 0 10px;
+    background: var(--paper);
+    border: 1px solid var(--ink);
+    transition: opacity 0.2s;
+  }
+  body:not(.in-level) .hud-strip,
+  body.in-battle .hud-strip {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .strip-hp {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 3px;
+  }
+  .strip-hp .heart-svg {
+    align-self: center;
+    width: 18px;
+    height: auto;
+  }
+  .strip-hp b {
+    font-size: 20px;
+    font-weight: 300;
+    font-feature-settings: "tnum";
+  }
+  .strip-hp small {
+    font: 500 11px var(--mono);
+    color: var(--grey-3);
+  }
+  .strip-hp.low b {
+    color: var(--heart);
+  }
+  .strip-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 28px;
+    padding: 0 6px;
+    font: 600 12px var(--mono);
+    color: var(--ink);
+    background: none;
+    border: 1px solid var(--grey-2);
+  }
+  .strip-chip .icon {
+    width: 14px;
+    height: 14px;
+  }
+  .strip-chip:disabled {
+    color: var(--grey-3);
+  }
+  .strip-gap {
+    flex: 1;
+  }
+  .strip-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 30px;
+    padding: 0 9px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--paper);
+    border: 1px solid var(--accent);
+  }
+  .strip-btn .icon {
+    width: 14px;
+    height: 14px;
+  }
+  .strip-btn em {
+    min-width: 16px;
+    padding: 0 3px;
+    font: 600 11px var(--mono);
+    font-style: normal;
+    color: var(--accent-on);
+    background: var(--accent);
+  }
+  body.sheet-hero .strip-btn[data-cmd="sheetHero"],
+  body.sheet-goal .strip-btn[data-cmd="sheetGoal"] {
+    color: var(--accent-on);
+    background: var(--accent);
+  }
+}
+
+/* 敌人列表里只放特性图标，不放文字。 */
+.traits.mini {
+  display: inline-flex;
+  margin: 0 0 0 6px;
+  vertical-align: -2px;
+}
+
+.traits.mini .trait {
+  padding: 1px 2px;
+}
+
+.traits.mini .trait span {
+  display: none;
+}
+
+.trait .plus {
+  margin-left: -2px;
+  font: 700 11px var(--mono);
+  color: var(--heart);
+}

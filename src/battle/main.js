@@ -1,7 +1,7 @@
 import "./style.css";
 import { BoardWorld } from "./render/world.js";
 import { Sfx } from "./audio.js";
-import { LEVELS, weaponsForLevel, skillsForLevel } from "./data/levels.js";
+import { LEVELS, LEGACY_ORDER, weaponsForLevel, skillsForLevel } from "./data/levels.js";
 import { WEAPONS, STARTING_WEAPONS, POTION, SHIELD } from "./data/weapons.js";
 import { SKILLS } from "./data/skills.js";
 import {
@@ -14,6 +14,8 @@ import {
   toggleSkill,
   swapEquip,
   swapSkill,
+  weaponCooldown,
+  sanitizeUpgrades,
   UPGRADE_TEXT,
   SKILL_SLOTS,
 } from "./logic/arsenal.js";
@@ -42,7 +44,7 @@ import {
 } from "./logic/board.js";
 import { createCombat } from "./logic/combat.js";
 import { countHearts, resolveHeal, applyChanges } from "./logic/shapes.js";
-import { runBattle, GLYPH, MOVE_TEXT } from "./ui/battleView.js";
+import { runBattle, GLYPH, MOVE_TEXT, traitChips } from "./ui/battleView.js";
 import { MatrixView } from "./ui/matrixView.js";
 import { SPRITE, icon, shapeSvg, matrixSvg, heartSvg } from "./ui/icons.js";
 
@@ -50,14 +52,70 @@ import { SPRITE, icon, shapeSvg, matrixSvg, heartSvg } from "./ui/icons.js";
 const STORAGE_KEY = "heart-gambit-progress-v3";
 const AI_TEXT = { static: "原地驻守", patrol: "来回巡逻", chase: "随处巡逻" };
 
+/**
+ * 进度按章节的 key 记录（插入新章节不会错位）。
+ * profile：跨章节的构筑存档（拥有的武器与技能、强化、出战配置、已解锁的武器槽）。
+ * 每通过一章更新一次；重玩旧章节时照样使用它，不会因为回到前面而变弱。
+ * forged：{ 章节 key: 用过的铁砧坐标 "r,c" 列表 }，重玩时这些铁砧不能再用。
+ */
+const PROGRESS_VERSION = 4;
+const EMPTY_PROGRESS = { v: PROGRESS_VERSION, unlocked: 1, stars: {}, profile: null, forged: {}, seen: [], hints: true };
+
 function loadProgress() {
   try {
     const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (data && typeof data.unlocked === "number") return { unlocked: 1, stars: {}, loadouts: {}, seen: [], hints: true, ...data };
+    if (data && typeof data.unlocked === "number") return migrate({ ...EMPTY_PROGRESS, v: data.v ?? 3, ...data });
   } catch {
     /* 隐私模式或存储被禁用时退回到本次会话 */
   }
-  return { unlocked: 1, stars: {}, loadouts: {}, seen: [], hints: true };
+  return { ...EMPTY_PROGRESS };
+}
+
+const indexOfKey = (key) => LEVELS.findIndex((l) => l.key === key);
+
+/** 一章里全部铁砧的坐标。 */
+const forgeKeys = (level) =>
+  level.map.flatMap((line, r) => [...line.replace(/\s+/g, "")].map((ch, c) => (ch === "U" ? `${r},${c}` : null))).filter(Boolean);
+
+/**
+ * 旧存档（v3 及更早）按章节序号记录，那时还没有兵阵、镜厅、王城禁卫三章。
+ * 把序号换成 key，解锁进度换算到新的章节顺序；按章节分别保存的构筑取走得最远的一份作为 profile。
+ */
+function migrate(data) {
+  if (data.v >= PROGRESS_VERSION) return data;
+  const legacyKey = (i) => LEGACY_ORDER[Math.min(i, LEGACY_ORDER.length - 1)];
+  const saved = Object.keys(data.loadouts ?? {}).map(Number);
+  if (!data.profile && saved.length) {
+    const index = indexOfKey(legacyKey(Math.max(...saved)));
+    const old = data.loadouts[Math.max(...saved)];
+    data.profile = {
+      weapons: weaponsForLevel(index, STARTING_WEAPONS),
+      skills: Object.keys(skillsForLevel(index, SKILLS)),
+      upgrades: old.upgrades ?? {},
+      equipped: old.equipped ?? null,
+      equippedSkills: old.equippedSkills ?? null,
+      slots: LEVELS[index].slots,
+    };
+  }
+  delete data.loadouts;
+  data.stars = Object.fromEntries(Object.entries(data.stars ?? {}).map(([id, n]) => [/^\d+$/.test(id) ? legacyKey(+id) : id, n]));
+  data.forged = Object.fromEntries(
+    Object.entries(data.forged ?? {}).map(([id, used]) => {
+      const key = /^\d+$/.test(id) ? legacyKey(+id) : id;
+      return [key, Array.isArray(used) ? used : forgeKeys(LEVELS[indexOfKey(key)])];
+    }),
+  );
+  if (data.unlocked > 1) data.unlocked = indexOfKey(legacyKey(data.unlocked - 1)) + 1;
+  data.v = PROGRESS_VERSION;
+  return data;
+}
+
+/** 章节数写成中文：十一个章节。 */
+function cnNumber(n) {
+  const d = "零一二三四五六七八九";
+  if (n < 10) return d[n];
+  if (n < 20) return `十${n % 10 ? d[n % 10] : ""}`;
+  return `${d[Math.floor(n / 10)]}十${n % 10 ? d[n % 10] : ""}`;
 }
 
 function saveProgress() {
@@ -76,15 +134,18 @@ app.innerHTML = `${SPRITE}
     <div class="chapter" id="chapter"></div>
     <div class="top-actions">
       <span class="turns" id="turns" title="已行动回合"></span>
-      <button class="icon-btn" data-cmd="rotate" title="旋转视角（C）" aria-label="旋转视角">${icon("rotate")}</button>
+      <button class="icon-btn" data-cmd="rotate" title="旋转视角（C）" aria-label="旋转视角">${icon("orbit")}</button>
       <button class="icon-btn" data-cmd="help" title="玩法说明（H）" aria-label="玩法说明">${icon("help")}</button>
+      <button class="icon-btn" data-cmd="music" title="音乐开关" aria-label="音乐开关" id="music-btn">${icon("music")}</button>
       <button class="icon-btn" data-cmd="sound" title="音效开关" aria-label="音效开关" id="sound-btn">${icon("sound")}</button>
-      <button class="icon-btn" data-cmd="restart" title="重新开始本关（R）" aria-label="重新开始本关">${icon("restart")}</button>
+      <button class="icon-btn" data-cmd="restart" title="重新开始本章（R）" aria-label="重新开始本章">${icon("restart")}</button>
       <button class="icon-btn" data-cmd="levels" title="选择关卡" aria-label="选择关卡">${icon("menu")}</button>
     </div>
   </header>
   <aside class="hud hero-hud" id="hero-hud"></aside>
   <aside class="hud goal-hud" id="goal-hud"></aside>
+  <div class="hud-strip" id="hud-strip"></div>
+  <div class="sheet-backdrop" data-cmd="closeSheet"></div>
   <div class="hint-bar" id="hint-bar"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动</span><span>点击格子 自动寻路</span><span>拖拽 旋转 / 滚轮 缩放</span><span>悬停怪物 查看情报</span></div>
   <div class="dpad" id="dpad" aria-label="方向键">
     <button data-dir="up" aria-label="上">↑</button><button data-dir="left" aria-label="左">←</button><button data-dir="down" aria-label="下">↓</button><button data-dir="right" aria-label="右">→</button>
@@ -99,6 +160,13 @@ const $ = (sel) => document.querySelector(sel);
 const world = new BoardWorld($("#stage"));
 const sfx = new Sfx();
 const progress = loadProgress();
+// 音效与音乐开关各自记住。
+sfx.enabled = progress.audio?.sfx !== false;
+sfx.musicEnabled = progress.audio?.music !== false;
+
+/** 每个场景对应一首背景音乐。 */
+const BATTLE_TRACK = { ink: "battle", pawn: "battle", knight: "elite", bishop: "elite", rook: "elite", queen: "elite", king: "boss" };
+const boardTrack = () => (board?.level.fog ? "fog" : "board");
 const explain = createCoach({
   root: $("#coach-root"),
   enabled: () => progress.hints !== false,
@@ -120,6 +188,7 @@ let levelGen = 0;
 let screenName = null;
 let screenBack = null;
 let currentCombat = null;
+let slotsBefore = 0;
 
 // ——— 通用提示 ———
 
@@ -135,6 +204,7 @@ function toast(html, tone = "") {
 // ——— HUD ———
 
 const pad = (n) => String(n).padStart(2, "0");
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** 瑞士风小标题：等宽编号 + 中文 + 英文大写。 */
 const kicker = (nb, zh, en, extra = "") =>
@@ -147,22 +217,32 @@ function renderHud() {
   $("#turns").innerHTML = `<span class="t-meta">TURN</span><b>${pad(board.turn)}</b><span class="t-meta">PAR ${level.par}</span>`;
   const { hearts, slots } = countHearts(board.hero.matrix);
   const hero = board.hero;
+  // 手机上：两块大面板收起来，只在棋盘上方留一条信息栏，点按钮才从底部拉出面板。
+  const alive = board.monsters.filter((m) => m.alive);
+  $("#hud-strip").innerHTML = `
+    <span class="strip-hp ${hearts / slots < 0.35 ? "low" : ""}">${heartSvg("heart")}<b>${hearts}</b><small>/${slots}</small></span>
+    <button class="strip-chip" data-cmd="potion" ${hero.potions && hearts < slots ? "" : "disabled"} aria-label="喝药水">${icon("potion")}<b>${hero.potions}</b></button>
+    ${hero.keys ? `<span class="strip-chip">${icon("key")}<b>${hero.keys}</b></span>` : ""}
+    <span class="strip-gap"></span>
+    <button class="strip-btn" data-cmd="sheetHero">${icon("sword")}武器</button>
+    <button class="strip-btn" data-cmd="sheetGoal">${icon("exit")}目标<em>${alive.length}</em></button>`;
   $("#hero-hud").innerHTML = `
+    <button class="sheet-close icon-btn" data-cmd="closeSheet" aria-label="收起">${icon("close")}</button>
     ${kicker("01", "主角", "HERO")}
     <div class="hud-hero">
       <div class="hud-name"><b>屿屿</b><small>白色小兵 · ${hero.matrix.length}×${hero.matrix[0].length} 红心矩阵</small></div>
       <div class="hud-hp ${hearts / slots < 0.35 ? "low" : ""}"><span class="num">${hearts}</span><span class="of">/${slots}</span></div>
     </div>
-    <div class="hud-matrix" title="你的红心矩阵">${matrixSvg(hero.matrix, { cell: 16, gap: 3 })}</div>
+    <div class="hud-matrix" title="你的红心矩阵">${matrixSvg(hero.matrix, { cell: 12, gap: 2.5 })}</div>
     <div class="hud-items">
       <button class="chip-btn" data-cmd="potion" ${hero.potions && hearts < slots ? "" : "disabled"} title="喝药水（P）">${icon("potion")}<span>药水</span><b>${hero.potions}</b></button>
       <span class="chip ${hero.keys ? "on" : ""}" title="钥匙">${icon("key")}<span>钥匙</span><b>${hero.keys}</b></span>
     </div>
-    ${kicker("02", "武器", "ARSENAL", slotPips(hero.equipped.length, hero.slots))}
+    ${kicker("02", "武器", "ARSENAL", `${slotPips(hero.equipped.length, hero.slots)}<button class="build-chip" data-cmd="armory" title="构筑（B）">${icon("bag")}构筑<kbd>B</kbd></button>`)}
     <ul class="weapon-list">${hero.equipped
       .map((id, i) => {
         const w = WEAPONS[id];
-        return `<li title="${w.desc}"><span class="wi">${i + 1}</span><span class="ws">${shapeSvg(weaponShape(id, hero.upgrades), { cell: 8, gap: 1.5 })}</span><span class="wn"><b>${w.name}${upIcons(id, hero.upgrades)}</b></span><em>${cdMark(w.cooldown)}</em></li>`;
+        return `<li title="${w.desc}"><span class="wi">${i + 1}</span><span class="ws">${shapeSvg(weaponShape(id, hero.upgrades), { cell: 8, gap: 1.5 })}</span><span class="wn"><b>${w.name}${upIcons(id, hero.upgrades)}</b></span><em>${cdMark(weaponCooldown(id, hero.upgrades))}</em></li>`;
       })
       .join("")}
       <li class="shield-row" title="${SHIELD.desc}"><span class="wi">Q</span><span class="ws">${icon("shield")}</span><span class="wn"><b>${SHIELD.name}</b></span><em>${cdMark(SHIELD.cooldown)}</em></li>
@@ -176,10 +256,10 @@ function renderHud() {
         return `<li class="${charges ? "" : "spent"}" title="${sk.desc}"><span class="wi">${icon("skill")}</span><span class="ws">${shapeSvg(sk.shape, { cell: 8, gap: 1.5, tone: "skill" })}</span><span class="wn"><b>${sk.name}</b></span><em>×${charges}</em></li>`;
       })
       .join("")}</ul>` : ""}
-    <button class="ghost build-btn" data-cmd="armory">${icon("bag")}<span>构筑</span><span class="t-meta">B</span></button>`;
+`;
 
-  const alive = board.monsters.filter((m) => m.alive);
   $("#goal-hud").innerHTML = `
+    <button class="sheet-close icon-btn" data-cmd="closeSheet" aria-label="收起">${icon("close")}</button>
     ${kicker("04", "目标", "OBJECTIVE")}
     <p class="goal">${rich(level.goalText)}</p>
     ${kicker("05", "敌人", "HOSTILES", `<em>${alive.length}/${board.monsters.length}</em>`)}
@@ -188,7 +268,7 @@ function renderHud() {
         const { hearts: h, slots: sl } = countHearts(m.matrix);
         if (!m.seen) return `<li class="unseen"><span class="avatar-sm unknown">?</span><span class="wn"><b>未发现</b><small>藏在迷雾中</small></span><em>?</em></li>`;
         const hp = m.def.boss ? "?" : `${h}/${sl}`;
-        return `<li class="${m.alive ? "" : "dead"} ${m.aggro && m.alive ? "alert" : ""}" data-uid="${m.uid}"><span class="avatar-sm ${m.def.model}">${GLYPH[m.def.model]}</span><span class="wn"><b>${m.def.name}</b><small>${m.alive ? `${m.def.boss ? "情报不明" : AI_TEXT[m.ai]}${m.stun ? " · 晕眩" : ""}` : "已击败"}</small></span><em>${m.alive ? hp : "0"}</em></li>`;
+        return `<li class="${m.alive ? "" : "dead"} ${m.aggro && m.alive ? "alert" : ""}" data-uid="${m.uid}"><span class="avatar-sm ${m.def.model}">${GLYPH[m.def.model]}</span><span class="wn"><b>${m.def.name}${m.alive && !m.def.boss ? `<span class="traits mini">${traitChips(m.def)}</span>` : ""}</b><small>${m.alive ? `${m.def.boss ? "情报不明" : AI_TEXT[m.ai]}${m.stun ? " · 晕眩" : ""}` : "已击败"}</small></span><em>${m.alive ? hp : "0"}</em></li>`;
       })
       .join("")}</ul>
     <p class="hud-foot"><span class="sq ${board.exitOpen ? "on" : ""}"></span>${board.exitOpen ? "出口已开启" : "出口已被封印"}</p>`;
@@ -280,11 +360,13 @@ function refreshMarks() {
 function showItemTip(item, event) {
   const tip = $("#tooltip");
   const w = WEAPONS[item.weapon];
-  const text =
-    item.type === "chest"
-      ? ["宝箱", w ? `<span class="inline-shape">${shapeSvg(w.shape, { cell: 7, gap: 1.5 })}</span>${w.name}` : ""]
-      : ["红心药水", POTION.desc];
-  tip.innerHTML = `<div class="tip-head tip-item"><span class="tip-icon">${icon(item.type === "chest" ? "chest" : "potion")}</span><div><b>${text[0]}</b><small>${text[1]}</small></div></div>`;
+  const text = {
+    chest: ["宝箱", w ? `<span class="inline-shape">${shapeSvg(w.shape, { cell: 7, gap: 1.5 })}</span>${w.name}` : ""],
+    potion: ["红心药水", POTION.desc],
+    forge: ["铁砧", "三项强化，挑一项。"],
+  }[item.type];
+  if (!text) return;
+  tip.innerHTML = `<div class="tip-head tip-item"><span class="tip-icon">${icon({ chest: "chest", potion: "potion", forge: "anvil" }[item.type])}</span><div><b>${text[0]}</b><small>${text[1]}</small></div></div>`;
   tip.hidden = false;
   const x = Math.min(event.clientX + 18, innerWidth - tip.offsetWidth - 12);
   const y = Math.min(event.clientY + 18, innerHeight - tip.offsetHeight - 12);
@@ -310,6 +392,7 @@ function showTooltip(monster, event) {
   }
   tip.innerHTML = `
     <div class="tip-head"><span class="avatar-sm ${def.model}">${GLYPH[def.model]}</span><div><b>${def.name}</b><small>${def.title}</small></div><span class="tip-hp"><span class="num">${hearts}</span><span class="of">/${slots}</span></span></div>
+    ${traitChips(def) ? `<p class="traits tip-traits">${traitChips(def)}</p>` : ""}
     <div class="tip-body">
       <div class="tip-matrix">${matrixSvg(monster.matrix, { cell: 13, gap: 2.5 })}<span class="t-meta">${armor ? `ARMOR ${armor}` : "HP MATRIX"}</span></div>
       <ul>${def.pattern
@@ -417,71 +500,89 @@ async function interact(r, c) {
   }
 }
 
+/** 第一只护甲怪出场的章节。在那之前，铁砧不会刷出破甲。 */
+const FIRST_ARMOR_LEVEL = LEVELS.findIndex((l) => l.monsters.some((m) => MONSTERS[m.type].matrix.some((row) => row.includes("A"))));
+const forgeRules = () => ({ pierce: levelIndex >= FIRST_ARMOR_LEVEL });
+
 /** 铁砧：随机给出三项强化，玩家选一项；也可以暂不强化，稍后再来。 */
 function showForge(item) {
-  item.options ??= createForgeOptions(board.hero, Math.random);
+  item.options ??= createForgeOptions(board.hero, Math.random, forgeRules());
   if (!item.options.length) {
     toast("所有武器都已强化完毕");
     return;
   }
   playing = false;
-  const draw = () => {
-    showScreen(
-      "forge",
-      `<div class="panel forge">
-        <header class="panel-head"><div>${kicker(icon("anvil"), "铁砧", "FORGE")}<h2>挑一项强化</h2></div><button class="icon-btn" data-cmd="back" aria-label="暂不强化">${icon("close")}</button></header>
-        <div class="forge-grid">${item.options
-          .map((opt, i) => {
-            const w = WEAPONS[opt.weapon];
-            const { before, after } = upgradePreview(opt, board.hero.upgrades);
-            const equipped = board.hero.equipped.includes(opt.weapon);
-            return `<div class="forge-slot">
-              <button class="forge-card" data-upgrade="${i}">
-                <span class="t-meta forge-weapon">${w.name}${equipped ? "" : `<i class="in-bag" title="在背包里">${icon("bag")}</i>`}</span>
-                <b>${icon(UPGRADE_TEXT[opt.kind].icon)}${UPGRADE_TEXT[opt.kind].name}</b>
-                <span class="forge-shapes"><span>${shapeSvg(before, { cell: 14, gap: 3 })}</span><i aria-hidden="true">→</i><span>${shapeSvg(after, { cell: 14, gap: 3 })}</span></span>
-                <small>${UPGRADE_TEXT[opt.kind].desc}</small>
-              </button>
-              <button class="reroll" data-reroll="${i}" ${opt.rerolled ? "disabled" : ""}>${icon("restart")}${opt.rerolled ? "已重抽" : "重抽"}</button>
-            </div>`;
-          })
-          .join("")}</div>
-        <div class="panel-actions"><button class="ghost" data-cmd="back">暂不强化</button></div>
-      </div>`,
-    );
-    screenBack = () => {
-      hideScreen();
-      playing = true;
-      refreshMarks();
-    };
-    document.querySelectorAll("[data-reroll]").forEach((btn) =>
-      btn.addEventListener("click", () => {
-        const result = rerollForgeOption(board.hero, item.options, Number(btn.dataset.reroll), Math.random);
-        if (!result.ok) {
-          sfx.play("invalid");
-          toast(result.reason);
-          return;
-        }
-        sfx.play("click");
-        draw();
-      }),
-    );
-    document.querySelectorAll("[data-upgrade]").forEach((btn) =>
-      btn.addEventListener("click", () => {
-        const opt = item.options[Number(btn.dataset.upgrade)];
-        applyUpgrade(board.hero, opt);
-        useForge(board, item.r, item.c);
-        world.useForge(item.r, item.c);
-        sfx.play("chest");
-        toast(`${icon(UPGRADE_TEXT[opt.kind].icon)}<b>${WEAPONS[opt.weapon].name}</b> ${UPGRADE_TEXT[opt.kind].name}`, "gold");
-        hideScreen();
-        playing = true;
-        renderHud();
-        refreshMarks();
-      }),
-    );
+  const cardHtml = (opt, i) => {
+    const w = WEAPONS[opt.weapon];
+    const { before, after } = upgradePreview(opt, board.hero.upgrades);
+    const equipped = board.hero.equipped.includes(opt.weapon);
+    return `<button class="forge-card" data-upgrade="${i}">
+        <span class="t-meta forge-weapon">${w.name}${equipped ? "" : `<i class="in-bag" title="在背包里">${icon("bag")}</i>`}</span>
+        <b>${icon(UPGRADE_TEXT[opt.kind].icon)}${UPGRADE_TEXT[opt.kind].name}</b>
+        <span class="forge-shapes"><span>${shapeSvg(before, { cell: 14, gap: 3 })}</span><i aria-hidden="true">→</i><span>${shapeSvg(after, { cell: 14, gap: 3 })}</span></span>
+        <small>${UPGRADE_TEXT[opt.kind].desc}</small>
+      </button>
+      <button class="reroll" data-reroll="${i}" ${opt.rerolled ? "disabled" : ""}>${icon("restart")}${opt.rerolled ? "已重抽" : "重抽"}</button>`;
   };
-  draw();
+  showScreen(
+    "forge",
+    `<div class="panel forge">
+      <header class="panel-head"><div>${kicker(icon("anvil"), "铁砧", "FORGE")}<h2>挑一项强化</h2></div><button class="icon-btn" data-cmd="back" aria-label="暂不强化">${icon("close")}</button></header>
+      <div class="forge-grid">${item.options.map((opt, i) => `<div class="forge-slot" data-slot="${i}">${cardHtml(opt, i)}</div>`).join("")}</div>
+      <div class="panel-actions"><button class="ghost" data-cmd="back">暂不强化</button></div>
+    </div>`,
+  );
+  screenBack = () => {
+    hideScreen();
+    playing = true;
+    refreshMarks();
+  };
+  const grid = document.querySelector(".forge-grid");
+  let spinning = false;
+
+  // 重抽只替换这一张卡：先翻过去，换上新内容，再翻回来。整个窗口不重建，所以不会抽动。
+  async function reroll(i) {
+    if (spinning) return;
+    const result = rerollForgeOption(board.hero, item.options, i, Math.random, forgeRules());
+    if (!result.ok) {
+      sfx.play("invalid");
+      toast(result.reason);
+      return;
+    }
+    spinning = true;
+    sfx.play("flip");
+    const slot = grid.querySelector(`[data-slot="${i}"]`);
+    slot.classList.add("flip-out");
+    await sleep(180);
+    slot.innerHTML = cardHtml(item.options[i], i);
+    slot.classList.remove("flip-out");
+    slot.classList.add("flip-in");
+    await sleep(320);
+    slot.classList.remove("flip-in");
+    spinning = false;
+  }
+
+  function choose(i) {
+    if (spinning) return;
+    const opt = item.options[i];
+    applyUpgrade(board.hero, opt);
+    useForge(board, item.r, item.c);
+    board.forgesUsed = [...(board.forgesUsed ?? []), `${item.r},${item.c}`];
+    world.useForge(item.r, item.c);
+    sfx.play("anvil");
+    toast(`${icon(UPGRADE_TEXT[opt.kind].icon)}<b>${WEAPONS[opt.weapon].name}</b> ${UPGRADE_TEXT[opt.kind].name}`, "gold");
+    hideScreen();
+    playing = true;
+    renderHud();
+    refreshMarks();
+  }
+
+  grid.addEventListener("click", (e) => {
+    const rerollBtn = e.target.closest("[data-reroll]");
+    if (rerollBtn) return reroll(Number(rerollBtn.dataset.reroll));
+    const card = e.target.closest("[data-upgrade]");
+    if (card) choose(Number(card.dataset.upgrade));
+  });
 }
 
 /**
@@ -501,7 +602,7 @@ function showArmory() {
     return `<button class="build-card ${side} ${picked ? "picked" : ""}" data-kind="weapon" data-id="${id}" title="${w.desc}">
       <span class="build-shape">${shapeSvg(weaponShape(id, hero.upgrades), { cell: 11, gap: 2 })}</span>
       <span class="build-text"><b>${w.name}${upIcons(id, hero.upgrades)}</b><small>${w.desc}</small></span>
-      <span class="build-meta">${cdMark(w.cooldown)}</span>
+      <span class="build-meta">${cdMark(weaponCooldown(id, hero.upgrades))}</span>
       <span class="build-move" aria-hidden="true">${side === "on" ? "→" : pending?.kind === "weapon" && !picked ? "" : "←"}</span>
     </button>`;
   };
@@ -515,7 +616,7 @@ function showArmory() {
       <span class="build-move" aria-hidden="true">${side === "on" ? "→" : "←"}</span>
     </button>`;
   };
-  const emptySlot = (kind) => `<div class="build-card empty ${kind}">${icon(kind === "skill" ? "skill" : "sword")}</div>`;
+  const emptySlot = (kind) => `<div class="build-card empty empty-${kind}">${icon(kind === "skill" ? "skill" : "sword")}</div>`;
 
   const draw = () => {
     const bagWeapons = hero.weapons.filter((id) => !hero.equipped.includes(id));
@@ -676,11 +777,15 @@ async function battle(monster, heroFirst) {
   await world.focusOn(world.hero.position, monsterObj.position);
   const combat = createCombat({ hero: board.hero, monster, heroFirst });
   currentCombat = combat;
+  closeSheet();
   document.body.classList.add("in-battle");
-  const topics = ["battle-matrix", "battle-shape", "battle-intent", "battle-combo"];
+  const topics = ["battle-matrix", "battle-shape", "battle-intent", "combo-switch"];
   if (monster.matrix.some((row) => row.some((v) => v >= 2))) topics.push("armor");
+  if (monster.def.pattern.some((p) => p.kind === "charge")) topics.push("interrupt");
+  sfx.music.play(BATTLE_TRACK[monster.def.id] ?? "battle");
   await runBattle({ root: $("#battle-root"), combat, monster, world, sfx, heroFirst, coach: () => explain(topics) });
   document.body.classList.remove("in-battle");
+  sfx.music.play(combat.phase === "lost" ? null : boardTrack());
   currentCombat = null;
   const events = resolveBattle(board, monster, combat, heroFirst);
   const restore = world.restoreView();
@@ -709,15 +814,24 @@ function startLevel(index, { intro = true } = {}) {
   levelGen += 1;
   levelIndex = index;
   const level = LEVELS[index];
+  const profile = progress.profile;
+  // 拥有的武器、技能与武器槽取本章应有的和存档里已解锁的并集；技能次数每章开始时补满。
+  const weapons = [...new Set([...weaponsForLevel(index, STARTING_WEAPONS), ...(profile?.weapons ?? [])])];
+  const skills = { ...skillsForLevel(index, SKILLS) };
+  for (const id of profile?.skills ?? []) if (SKILLS[id]) skills[id] = SKILLS[id].charges;
+  slotsBefore = profile?.slots ?? 0;
   board = createBoard(level, {
-    weapons: weaponsForLevel(index, STARTING_WEAPONS),
-    // 武器强化会带进后面的章节；技能次数每章开始时恢复。
-    upgrades: progress.loadouts?.[index]?.upgrades ?? {},
-    equipped: progress.loadouts?.[index]?.equipped ?? [],
-    equippedSkills: progress.loadouts?.[index]?.equippedSkills ?? [],
-    skills: skillsForLevel(index, SKILLS),
+    weapons,
+    skills,
+    upgrades: sanitizeUpgrades(profile?.upgrades ?? {}),
+    equipped: profile?.equipped ?? null,
+    equippedSkills: profile?.equippedSkills ?? null,
+    knownSkills: profile?.skills ?? [],
+    minSlots: profile?.slots ?? 0,
+    usedForges: progress.forged?.[level.key] ?? [],
   });
   world.loadLevel(board);
+  sfx.music.play(boardTrack());
   world.controls.autoRotate = false;
   world.setScreenShift(0);
   playing = false;
@@ -736,18 +850,30 @@ async function begin() {
   const topics = [];
   if (level.tutorial) topics.push("move");
   if (has("H") || has("P")) topics.push("chest");
-  if (levelIndex > 0 && level.slots > LEVELS[levelIndex - 1].slots) topics.push({ id: `slots-${level.slots}`, topic: TOPICS_SLOTS_UP });
+  if (slotsBefore && board.hero.slots > slotsBefore) topics.push({ id: `slots-${board.hero.slots}`, topic: TOPICS_SLOTS_UP });
   if (has("K")) topics.push("key-door");
   if (level.monsters.some((m) => m.ai === "chase")) topics.push("ambush");
   if (level.skill) topics.push("skills", { id: `skill-${level.skill}`, topic: skillTopic(level.skill) });
   if (level.fog) topics.push("fog");
   if (level.monsters.some((m) => MONSTERS[m.type].boss)) topics.push("boss");
-  await explain(topics, { slots: level.slots });
+  await explain(topics, { slots: board.hero.slots });
   playing = true;
   refreshMarks();
 }
 
+/** 手机上的底部面板：同一时间只开一块。 */
+function openSheet(name) {
+  const open = document.body.classList.contains(`sheet-${name}`);
+  closeSheet();
+  if (!open) document.body.classList.add(`sheet-${name}`, "sheet-open");
+}
+
+function closeSheet() {
+  document.body.classList.remove("sheet-hero", "sheet-goal", "sheet-open");
+}
+
 function showScreen(name, html, { back = null, wide = false } = {}) {
+  closeSheet();
   screenName = name;
   screenBack = back;
   const el = $("#screen");
@@ -779,7 +905,57 @@ const foeGlyphs = (level) =>
     .map((k) => `<i class="avatar-sm ${MONSTERS[k].model}" title="${MONSTERS[k].name}">${GLYPH[MONSTERS[k].model]}</i>`)
     .join("");
 
+/** 有没有值得重置的东西：解锁过章节、拿过星、有构筑存档或看过说明。 */
+function hasProgress() {
+  return progress.unlocked > 1 || Object.keys(progress.stars ?? {}).length > 0 || Boolean(progress.profile) || progress.seen.length > 0;
+}
+
+/** 重置前的确认。不可撤销，所以单独一屏，默认焦点放在「取消」上。 */
+function showResetConfirm() {
+  const back = screenName && screenBack ? screenBack : null;
+  const from = screenName;
+  showScreen(
+    "reset",
+    `<div class="panel reset-panel" role="alertdialog" aria-labelledby="reset-title">
+      <header class="panel-head"><div>${kicker(icon("restart"), "重置", "RESET")}<h2 id="reset-title">重置进度</h2></div></header>
+      <p class="body">${rich("所有章节、星级、[武器]与强化都会清空，屿屿将从序章重新出发。")}</p>
+      <p class="reset-warn">${icon("close")}这一步无法撤销。</p>
+      <div class="panel-actions">
+        <button class="ghost" data-cmd="back" autofocus>取消</button>
+        <button class="primary danger" data-cmd="confirmReset">确认重置<span aria-hidden="true">→</span></button>
+      </div>
+    </div>`,
+  );
+  // 取消后回到打开前的那一屏。从玩法说明进来的，回去时沿用它原来的关闭方式，棋盘上的状态不会丢。
+  screenBack =
+    from === "help" && back
+      ? () => {
+          showHelp();
+          screenBack = back;
+        }
+      : showTitle;
+  setTimeout(() => document.querySelector(".reset-panel [data-cmd=back]")?.focus(), 30);
+}
+
+function resetProgress() {
+  const audio = progress.audio;
+  for (const k of Object.keys(progress)) delete progress[k];
+  Object.assign(progress, structuredClone(EMPTY_PROGRESS), audio ? { audio } : {});
+  saveProgress();
+  // 回到标题；棋盘背景重新从序章开始。进行中的走动和动画一并作废。
+  walkToken += 1;
+  levelGen += 1;
+  playing = false;
+  busy = false;
+  board = null;
+  currentCombat = null;
+  document.body.classList.remove("in-level", "in-battle");
+  showTitle();
+  toast(`${icon("restart")} 进度已重置`);
+}
+
 function showTitle() {
+  sfx.music.play("title");
   document.body.classList.remove("in-level");
   playing = false;
   if (!board) {
@@ -790,7 +966,7 @@ function showTitle() {
   world.controls.autoRotateSpeed = 0.6;
   world.setScreenShift(0.25);
   const continueIndex = Math.min(progress.unlocked, LEVELS.length) - 1;
-  const earned = LEVELS.reduce((sum, l) => sum + (progress.stars[l.id] ?? 0), 0);
+  const earned = LEVELS.reduce((sum, l) => sum + (progress.stars[l.key] ?? 0), 0);
   showScreen(
     "title",
     `<div class="title-card">
@@ -798,15 +974,16 @@ function showTitle() {
       <div class="t-meta title-chrome"><span>YUYU'S ADVENTURE</span></div>
       <h1>心阵<br>棋局</h1>
       <p class="subtitle t-meta">HEART GAMBIT / A TURN-BASED BOARD GAME</p>
-      <p class="lede">墨水瓶打翻在棋盘上，被墨迹侵蚀的黑棋变成了怪物。白色小兵屿屿要穿过八个章节，找到墨迹的源头。</p>
+      <p class="lede">墨水瓶打翻在棋盘上，被墨迹侵蚀的黑棋变成了怪物。白色小兵屿屿要穿过${cnNumber(LEVELS.length - 1)}个章节，找到墨迹的源头。</p>
       <div class="title-actions">
         <button class="primary" data-cmd="continue">${progress.unlocked > 1 ? `继续冒险 · 第 ${continueIndex} 章` : "开始冒险"}<span aria-hidden="true">→</span></button>
         <button class="ghost" data-cmd="levels">选择关卡</button>
         <button class="ghost" data-cmd="help">玩法说明</button>
+        ${hasProgress() ? `<button class="ghost subtle" data-cmd="reset">${icon("restart")}重置进度</button>` : ""}
       </div>
       <dl class="title-specs">
         <div><dt class="t-meta">Chapters</dt><dd>${pad(LEVELS.length - 1)}</dd></div>
-        <div><dt class="t-meta">Weapons</dt><dd>07</dd></div>
+        <div><dt class="t-meta">Weapons</dt><dd>${pad(Object.keys(WEAPONS).length)}</dd></div>
         <div><dt class="t-meta">Board</dt><dd>8×8</dd></div>
         <div><dt class="t-meta">Stars</dt><dd>${pad(earned)}<small>/${LEVELS.length * 3}</small></dd></div>
       </dl>
@@ -828,7 +1005,7 @@ function showLevels() {
           <span class="level-no">${pad(level.id)}</span>
           <b>${level.name}</b><em class="t-meta">${level.english}</em>
           <span class="level-foes">${foeGlyphs(level)}</span>
-          ${locked ? `<span class="lock t-meta">${icon("lock")} Locked</span>` : stars(progress.stars[level.id] ?? 0)}
+          ${locked ? `<span class="lock t-meta">${icon("lock")} Locked</span>` : stars(progress.stars[level.key] ?? 0)}
         </button>`;
       }).join("")}</div>
     </div>`,
@@ -841,7 +1018,7 @@ function showIntro() {
   const level = board.level;
   const prevChest = levelIndex > 0 && LEVELS[levelIndex - 1].chest ? WEAPONS[LEVELS[levelIndex - 1].chest] : null;
   const newSkill = level.skill ? SKILLS[level.skill] : null;
-  const hasForge = level.map.some((row) => row.includes("U"));
+  const forgeCount = level.map.join("").split("U").length - 1;
   const kinds = [...new Set(level.monsters.map((m) => m.type))];
   const hero = level.hero;
   showScreen(
@@ -861,7 +1038,7 @@ function showIntro() {
         <div><h4 class="t-meta">Hostiles · 敌人</h4><p class="foes">${kinds.map((k) => `<span><i class="avatar-sm ${MONSTERS[k].model}">${GLYPH[MONSTERS[k].model]}</i>${MONSTERS[k].name}</span>`).join("")}</p></div>
         ${prevChest ? `<div><h4 class="t-meta">New weapon · 新武器</h4><p><span class="inline-shape">${shapeSvg(prevChest.shape, { cell: 9 })}</span>${prevChest.name}<br>${prevChest.desc}</p></div>` : levelIndex === 0 ? `<div><h4 class="t-meta">Arsenal · 武器</h4><p>短剑、L 钩镰</p></div>` : ""}
         ${newSkill ? `<div><h4 class="t-meta">New skill · 新技能</h4><p><span class="inline-shape">${shapeSvg(newSkill.shape, { cell: 9, tone: "skill" })}</span>${newSkill.name}<br>${newSkill.desc}<br>${kw(`每章 ×${newSkill.charges}`, "技能")}</p></div>` : ""}
-        ${hasForge ? `<div><h4 class="t-meta">Forge · 铁砧</h4><p>${kw("铁砧 ×1", "铁砧")}</p></div>` : ""}
+        ${forgeCount ? `<div><h4 class="t-meta">Forge · 铁砧</h4><p>${kw(`铁砧 ×${forgeCount}`, "铁砧")}</p></div>` : ""}
       </div>
       <p class="tip"><span class="t-meta">Note</span>${rich(level.tip)}</p>
       <div class="panel-actions"><button class="primary" data-cmd="begin">${level.tutorial ? "开始序章" : `开始第 ${level.id} 章`}<span aria-hidden="true">→</span></button></div>
@@ -872,20 +1049,28 @@ function showIntro() {
 
 async function levelComplete() {
   playing = false;
+  sfx.music.play(null);
   sfx.play("win");
   const level = board.level;
   const { hearts, slots } = countHearts(board.hero.matrix);
   const healthy = hearts / slots >= 0.5;
   const fast = board.turn <= level.par;
   const earned = 1 + (healthy ? 1 : 0) + (fast ? 1 : 0);
-  progress.stars[level.id] = Math.max(progress.stars[level.id] ?? 0, earned);
+  progress.stars[level.key] = Math.max(progress.stars[level.key] ?? 0, earned);
   progress.unlocked = Math.max(progress.unlocked, Math.min(levelIndex + 2, LEVELS.length));
-  progress.loadouts = {
-    ...(progress.loadouts ?? {}),
-    [levelIndex + 1]: JSON.parse(
-      JSON.stringify({ upgrades: board.hero.upgrades, equipped: board.hero.equipped, equippedSkills: board.hero.equippedSkills }),
-    ),
-  };
+  const hero = board.hero;
+  progress.profile = JSON.parse(
+    JSON.stringify({
+      weapons: hero.weapons,
+      skills: Object.keys(hero.skills),
+      upgrades: hero.upgrades,
+      equipped: hero.equipped,
+      equippedSkills: hero.equippedSkills,
+      slots: Math.max(progress.profile?.slots ?? 0, hero.slots),
+    }),
+  );
+  if (board.forgesUsed?.length)
+    progress.forged = { ...(progress.forged ?? {}), [level.key]: [...new Set([...(progress.forged?.[level.key] ?? []), ...board.forgesUsed])] };
   const last = levelIndex === LEVELS.length - 1;
   if (last) progress.cleared = true;
   saveProgress();
@@ -916,7 +1101,8 @@ async function levelComplete() {
 }
 
 function showEnding(earned) {
-  const total = LEVELS.reduce((sum, l) => sum + (progress.stars[l.id] ?? 0), 0);
+  setTimeout(() => sfx.music.play("title"), 2500);
+  const total = LEVELS.reduce((sum, l) => sum + (progress.stars[l.key] ?? 0), 0);
   showScreen(
     "ending",
     `<div class="panel result ending">
@@ -938,12 +1124,13 @@ function showEnding(earned) {
 
 function gameOver() {
   playing = false;
+  sfx.music.play(null);
   showScreen(
     "gameover",
     `<div class="panel result lost">
       <p class="t-meta">Chapter ${pad(board.level.id)} / ${board.level.english}</p>
       <h2>挑战失败</h2>
-      <p class="story">${rich("屿屿倒下了。留意怪物的下一招，重击之前举起[木盾]。")}</p>
+      <p class="story">${rich("屿屿倒下了。留意怪物的下一招，重击之前先[防御]。")}</p>
       <div class="panel-actions">
         <button class="ghost" data-cmd="levels">选择关卡</button>
         <button class="primary" data-cmd="replay">重新挑战<span aria-hidden="true">→</span></button>
@@ -983,26 +1170,26 @@ function showHelp() {
           <h3><span class="t-meta">03</span>战斗</h3>
           <ul class="help-legend">
             <li><span class="legend-glyph"><span class="swatch ink"></span></span><span>墨黑格是怪物下一招要打的地方。</span></li>
-            <li><span class="legend-glyph">${icon("shield")}</span><span>${rich("[木盾]挡下一次攻击，举盾不占回合。")}</span></li>
+            <li><span class="legend-glyph">${icon("shield")}</span><span>${rich("[防御]挡下一次攻击，不占回合。")}</span></li>
             <li><span class="legend-glyph">${icon("potion")}</span><span>${rich("[药水]补回十字范围的红心。")}</span></li>
             <li><span class="legend-glyph">${icon("cd")}</span><span>${rich("用过的武器要[冷却]几回合。")}</span></li>
             <li><span class="legend-glyph">${icon("run")}</span><span>撤退时挨一次追击，怪物随后晕眩两回合。</span></li>
           </ul>
           <h3><span class="t-meta">04</span>连击</h3>
           <ul class="help-legend">
-            <li><span class="legend-glyph">${icon("perfect")}</span><span>${rich("形状每一格都落在红心上，是[完美命中]。")}</span></li>
-            <li><span class="legend-glyph">${icon("combo")}</span><span>${rich("接连完美命中形成[连击]，其他武器冷却 −1。")}</span></li>
-            <li><span class="legend-glyph">${icon("chase")}</span><span>${rich("每连上两次，[追击]一次。")}</span></li>
+            <li><span class="legend-glyph">${icon("perfect")}</span><span>${rich("形状每一格都落在心上、没有落空，是[完美命中]。")}</span></li>
+            <li><span class="legend-glyph">${icon("combo")}</span><span>${rich("换一件武器、紧挨着上一击再完美命中，形成[连击]，其他武器冷却 −1。")}</span></li>
+            <li><span class="legend-glyph">${icon("chase")}</span><span>${rich("每连上两次，[追击]一次；战锤、圣十字接上连击时立刻追击。")}</span></li>
           </ul>
           <h3><span class="t-meta">05</span>棋盘</h3>
           <ul class="help-legend">
             <li><span class="legend-glyph">${icon("chest")}</span><span>${rich("站在[宝箱]、[药水]、[铁砧]旁边点一下即可使用。")}</span></li>
-            <li><span class="legend-glyph">${icon("bag")}</span><span>${rich("[武器槽]决定带几件武器上阵，[技能]最多带两个。按 B 打开[构筑]。")}</span></li>
+            <li><span class="legend-glyph">${icon("bag")}</span><span>${rich("[武器槽]决定带几件武器上阵，[技能]最多带三个。按 B 打开[构筑]。")}</span></li>
             <li><span class="legend-glyph">${icon("fog")}</span><span>${rich("[迷雾]里只看得见屿屿身边的格子。")}</span></li>
           </ul>
           <h3><span class="t-meta">06</span>按键</h3>
-          <p class="keys"><span><kbd>WASD</kbd>移动</span><span><kbd>C</kbd>转动视角</span><span><kbd>B</kbd>构筑</span><span><kbd>P</kbd>喝药水</span><span><kbd>1</kbd>~<kbd>7</kbd>选武器</span><span><kbd>R</kbd>旋转</span><span><kbd>F</kbd>镜像</span><span><kbd>Q</kbd>木盾</span><span><kbd>E</kbd>药水</span><span><kbd>Z</kbd>等待</span></p>
-          <div class="panel-actions"><button class="ghost" data-cmd="hints">新手提示 · ${progress.hints === false ? "关" : "开"}</button></div>
+          <p class="keys"><span><kbd>WASD</kbd>移动</span><span><kbd>C</kbd>转动视角</span><span><kbd>B</kbd>构筑</span><span><kbd>P</kbd>喝药水</span><span><kbd>1</kbd>~<kbd>7</kbd>选武器</span><span><kbd>R</kbd>旋转</span><span><kbd>F</kbd>镜像</span><span><kbd>Q</kbd>防御</span><span><kbd>E</kbd>药水</span><span><kbd>Z</kbd>等待</span></p>
+          <div class="panel-actions"><button class="ghost" data-cmd="hints">新手提示 · ${progress.hints === false ? "关" : "开"}</button><button class="ghost subtle" data-cmd="reset">${icon("restart")}重置进度</button></div>
         </section>
       </div>
     </div>`,
@@ -1065,6 +1252,11 @@ const commands = {
   continue: () => startLevel(Math.min(progress.unlocked, LEVELS.length) - 1),
   levels: showLevels,
   armory: showArmory,
+  sheetHero: () => openSheet("hero"),
+  sheetGoal: () => openSheet("goal"),
+  closeSheet,
+  reset: showResetConfirm,
+  confirmReset: resetProgress,
   hints: () => {
     progress.hints = progress.hints === false;
     saveProgress();
@@ -1078,18 +1270,56 @@ const commands = {
   replay: () => startLevel(levelIndex),
   next: () => startLevel(levelIndex + 1),
   restart: () => {
-    if (!document.body.classList.contains("in-level") || busy) return;
+    if (!document.body.classList.contains("in-level") || busy || screenName) return;
+    const was = playing;
+    playing = false;
+    showScreen(
+      "restart",
+      `<div class="panel reset-panel" role="alertdialog" aria-labelledby="restart-title">
+        <header class="panel-head"><div>${kicker(icon("restart"), "重来", "RESTART")}<h2 id="restart-title">重新开始本章</h2></div></header>
+        <p class="body">回到${board.level.name}的起点，打倒的怪物和拿到的东西都会复原。</p>
+        <div class="panel-actions">
+          <button class="ghost" data-cmd="back">取消</button>
+          <button class="primary danger" data-cmd="confirmRestart">重新开始<span aria-hidden="true">→</span></button>
+        </div>
+      </div>`,
+    );
+    screenBack = () => {
+      hideScreen();
+      playing = was;
+      refreshMarks();
+    };
+    setTimeout(() => document.querySelector(".reset-panel [data-cmd=back]")?.focus(), 30);
+  },
+  confirmRestart: () => {
     startLevel(levelIndex, { intro: false });
-    toast("已重新开始本关");
+    toast(`${icon("restart")} 已回到本章起点`);
   },
   rotate: () => world.rotateView(),
   potion: showFieldHeal,
   sound: () => {
-    sfx.enabled = !sfx.enabled;
-    $("#sound-btn").innerHTML = icon(sfx.enabled ? "sound" : "mute");
+    sfx.setEnabled(!sfx.enabled);
+    progress.audio = { ...(progress.audio ?? {}), sfx: sfx.enabled };
+    saveProgress();
+    syncAudioButtons();
     if (sfx.enabled) sfx.play("click");
   },
+  music: () => {
+    sfx.setMusic(!sfx.musicEnabled);
+    progress.audio = { ...(progress.audio ?? {}), music: sfx.musicEnabled };
+    saveProgress();
+    syncAudioButtons();
+  },
 };
+
+// 浏览器要求先有一次用户操作才能出声：第一次点击或按键时解锁音频，标题音乐随之响起。
+for (const type of ["pointerdown", "keydown"]) document.addEventListener(type, () => sfx.unlock(), { once: true, capture: true });
+
+function syncAudioButtons() {
+  $("#sound-btn").innerHTML = icon(sfx.enabled ? "sound" : "mute");
+  $("#music-btn").innerHTML = icon(sfx.musicEnabled ? "music" : "music-off");
+}
+syncAudioButtons();
 
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-cmd]");
@@ -1160,6 +1390,10 @@ window.__heartGambit = {
   },
   get combat() {
     return currentCombat;
+  },
+  get audio() {
+    const m = sfx.music.current;
+    return { state: sfx.context?.state ?? "none", track: m?.name ?? null, steps: m?.step ?? 0, sfx: sfx.enabled, music: sfx.musicEnabled };
   },
   startLevel,
   world,

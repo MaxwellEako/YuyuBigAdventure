@@ -17,13 +17,23 @@ export const ORTHO = MOVE_SETS.orth;
 export const key = (r, c) => `${r},${c}`;
 
 /** 把关卡定义实例化成可变的棋盘状态。 */
-export function createBoard(level, { weapons, upgrades = {}, skills = {}, equipped = [], equippedSkills = [] }) {
-  const slots = level.slots ?? weapons.length;
-  // 技能槽：本章新学会的技能优先，其次沿用上次的选择，再按学会顺序补齐。
+/**
+ * equipped / equippedSkills：上次的配置；没有存档时传 null，按获得顺序装满。
+ * 有存档时原样沿用，不会因为槽位变多就从背包里自动补上，也不会替换已带的技能。
+ * knownSkills：存档里已经学会的技能。只有真正新学会的技能才会放进空着的技能槽。
+ * minSlots：已解锁的武器槽数，重玩早期章节时不会变少。usedForges：这一章已经用过的铁砧（"r,c" 列表）。
+ */
+export function createBoard(
+  level,
+  { weapons, upgrades = {}, skills = {}, equipped = null, equippedSkills = null, knownSkills = [], minSlots = 0, usedForges = [] },
+) {
+  const slots = Math.max(level.slots ?? weapons.length, minSlots);
   const learned = Object.keys(skills);
-  const skillPick = [];
-  for (const id of [level.skill, ...equippedSkills, ...[...learned].reverse()])
-    if (id && learned.includes(id) && !skillPick.includes(id) && skillPick.length < SKILL_SLOTS) skillPick.push(id);
+  const skillPick = (equippedSkills ?? []).filter((id) => learned.includes(id)).slice(0, SKILL_SLOTS);
+  const fresh = learned.filter((id) => !knownSkills.includes(id) && !skillPick.includes(id));
+  // 新学会的技能（本章的优先）只放进空槽。
+  fresh.sort((a, b) => (b === level.skill) - (a === level.skill));
+  for (const id of fresh) if (skillPick.length < SKILL_SLOTS) skillPick.push(id);
   const size = level.map.length;
   const tiles = [];
   const items = new Map();
@@ -38,10 +48,11 @@ export function createBoard(level, { weapons, upgrades = {}, skills = {}, equipp
       if (ch === "E") exit = { r, c };
       if (ch === "P") items.set(key(r, c), { type: "potion", r, c });
       if (ch === "K") items.set(key(r, c), { type: "key", r, c });
+      // 重玩时，宝箱里的武器已经拿过，宝箱直接是打开的。
       if (ch === "H")
-        items.set(key(r, c), { type: "chest", r, c, weapon: level.chest });
+        items.set(key(r, c), { type: "chest", r, c, weapon: level.chest, opened: weapons.includes(level.chest) });
       if (ch === "L") doors.add(key(r, c));
-      if (ch === "U") items.set(key(r, c), { type: "forge", r, c });
+      if (ch === "U") items.set(key(r, c), { type: "forge", r, c, opened: usedForges.includes(key(r, c)) });
     });
     tiles.push(row);
   });

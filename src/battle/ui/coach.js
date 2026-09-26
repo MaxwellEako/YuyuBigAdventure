@@ -5,14 +5,16 @@ import { SKILLS } from "../data/skills.js";
 import { UPGRADE_TEXT } from "../logic/arsenal.js";
 
 /** 4×4 示意矩阵：hit 中的格子标为被消除，anchor 为锚点。 */
-function demoGrid(hitCells = [], anchor = null, rows = 4, cols = 4) {
+function demoGrid(hitCells = [], anchor = null, rows = 4, cols = 4, prevCells = []) {
   const hit = new Set(hitCells.map(([r, c]) => `${r},${c}`));
+  const prev = new Set(prevCells.map(([r, c]) => `${r},${c}`));
   let html = "";
   for (let r = 0; r < rows; r += 1)
     for (let c = 0; c < cols; c += 1) {
       const on = hit.has(`${r},${c}`);
       const isAnchor = anchor && r === anchor[0] && c === anchor[1];
-      html += `<span class="demo-cell ${on ? "hit" : ""} ${isAnchor ? "anchor" : ""}">${heartSvg("heart")}<small>a${r}${c}</small></span>`;
+      const gone = prev.has(`${r},${c}`);
+      html += `<span class="demo-cell ${on ? "hit" : ""} ${gone ? "prev" : ""} ${isAnchor ? "anchor" : ""}">${gone ? "" : heartSvg("heart")}<small>a${r}${c}</small></span>`;
     }
   return `<div class="demo-grid" style="grid-template-columns:repeat(${cols}, 1fr)">${html}</div>`;
 }
@@ -51,17 +53,18 @@ export const TOPICS = {
     title: "怪物的下一招",
     body: `怪物按固定的顺序出招。${legend([
       [inkSwatch, "你心阵上的墨黑格，就是它下一招要打的地方。"],
-      [icon("shield"), "[木盾] 挡下一次攻击，举盾不占回合。"],
+      [icon("shield"), "[防御] 挡下一次攻击，不占回合。"],
       [icon("potion"), "[药水] 补回十字范围里的红心。"],
     ])}`,
   },
-  "battle-combo": {
+  // 连击规则改过（紧挨上一击、换一件武器），换个 id，让看过旧说明的玩家也能看到新规则。
+  "combo-switch": {
     title: "连击",
-    body: `形状的每一格都落在红心上，就是一次[完美命中]。一次接一次地完美命中，就连成了[连击]。${steps([
+    body: `形状的每一格都落在心上、没有落空，就是一次[完美命中]。下一击换一件武器，紧挨着上一击，同样没有落空，就连成了[连击]。${demoGrid([[1, 0], [1, 1], [2, 0]], [1, 0], 3, 4, [[0, 0], [0, 1]])}${steps([
       { glyph: icon("perfect"), title: "完美命中", note: "起手" },
-      { glyph: icon("combo"), title: "连击", note: "其他武器冷却 −1", tone: "accent" },
-      { glyph: icon("chase"), title: "连击 ×2", note: "追击，怪物来不及还手", tone: "accent" },
-    ])}之后每连上两次，再追击一次。打到空格、护甲或矩阵外，连击就断了。`,
+      { glyph: icon("combo"), title: "连击", note: "换武器、紧挨上一击，其他武器冷却 −1", tone: "accent" },
+      { glyph: icon("chase"), title: "连击 ×2", note: "追击；之后每一击都破甲", tone: "accent" },
+    ])}之后每连上两次，再追击一次；战锤、圣十字这样的重武器接上连击，立刻追击。打到空格或矩阵外、离上一击太远、或者连用同一件武器，连击就断了。`,
   },
   chest: {
     title: "宝箱与药水",
@@ -86,21 +89,31 @@ export const TOPICS = {
   },
   skills: {
     title: "技能",
-    body: `[技能]是次数有限的特殊攻击，不占武器槽，最多带两个。${legend([
+    body: `[技能]是次数有限的特殊攻击，不占武器槽，最多带三个。${legend([
       [icon("skill"), "每章开始时，技能次数补满。"],
-      [icon("bag"), "学会的技能多于两个时，在构筑里挑选带哪两个。"],
+      [icon("bag"), "学会的技能多于三个时，在构筑里挑选带哪三个。"],
     ])}`,
   },
   forge: {
     title: "铁砧",
     body: () =>
       `站在[铁砧]旁边点一下，从三项强化里挑一项。每项可以重抽一次，离开再回来，选项不会变。每座铁砧只能用一次。${legend(
-        ["rotate", "mirror", "extend", "precise"].map((k) => [icon(UPGRADE_TEXT[k].icon), `[${UPGRADE_TEXT[k].name}] ${UPGRADE_TEXT[k].desc}`]),
+        ["rotate", "mirror", "extend", "precise", "pierce", "stagger"].map((k) => [icon(UPGRADE_TEXT[k].icon), `[${UPGRADE_TEXT[k].name}] ${UPGRADE_TEXT[k].desc}`]),
       )}`,
   },
   armor: {
     title: "护甲心",
-    body: `带黑框的[护甲心]要打两下才会碎。打在护甲上接不上连击。[破甲锥|破甲]一下就能把它击碎。`,
+    body: `带黑框的[护甲心]要打两下才会碎，打在护甲上也不算落空。${legend([
+      [icon("pierce"), "破甲锥、碎甲，以及强化了[破甲]的武器，一下就能把它击碎。"],
+      [icon("combo"), "[连击] ×2 起，每一击都自带破甲。"],
+    ])}`,
+  },
+  interrupt: {
+    title: "打断重击",
+    body: `有的怪物会先蓄力，下一招是一记重击。${legend([
+      [icon("stagger"), "用战锤、圣十字这样的重武器，一下打碎 3 颗以上的心，就能把这一招打断。"],
+      [icon("shield"), "打不断的时候，就[防御]。"],
+    ])}能打断的重击，在怪物的下一招旁边会有这个标记。`,
   },
   fog: {
     title: "战争迷雾",
@@ -154,6 +167,7 @@ export function createCoach({ root, enabled, seen, markSeen, sfx }) {
           </div>
         </div>`;
         const ok = root.querySelector("[data-coach-ok]");
+        sfx?.play("page");
         const done = () => {
           document.removeEventListener("keydown", onKey, true);
           root.innerHTML = "";

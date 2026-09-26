@@ -7,12 +7,14 @@ export const UPGRADE_TEXT = {
   rotate: { name: "旋转", icon: "rotate", desc: "战斗中按 R，形状转过 90°。" },
   mirror: { name: "镜像", icon: "mirror", desc: "战斗中按 F，形状左右翻转。" },
   extend: { name: "延长", icon: "extend", desc: "形状多出一格。" },
-  precise: { name: "精准", icon: "perfect", desc: "完美命中时连击多记一次，并恢复 1 颗红心。" },
+  precise: { name: "精准", icon: "perfect", desc: "打出连击时多记一次，并恢复 1 颗红心。" },
+  pierce: { name: "破甲", icon: "pierce", desc: "护甲心一击即碎。" },
+  stagger: { name: "震慑", icon: "stagger", desc: "打碎 2 颗心就能打断重击。" },
 };
 
 /** 武器槽与技能槽。技能不占武器槽，但最多只能携带 SKILL_SLOTS 个。 */
 export const MAX_WEAPON_SLOTS = 5;
-export const SKILL_SLOTS = 2;
+export const SKILL_SLOTS = 3;
 
 /** 武器当前的攻击形状：先看是否延长，再按战斗中的朝向变形。 */
 export function weaponShape(id, upgrades = {}, orient = {}) {
@@ -49,14 +51,38 @@ export function nextRotation(id, upgrades = {}, orient = {}) {
   return rots[(index + 1) % rots.length];
 }
 
-/** 武器强化格随机给出的候选项：变形（按武器而定）或延长一格，已拥有的不再出现。 */
-export function upgradeOptions(hero, rng = Math.random, count = 3) {
+/**
+ * 某件武器能不能拿到某项强化。
+ * 轻武器（短剑、斜刃）不能延长、不能破甲：它们是刷连击的主力，再加这两样就没有取舍了。
+ * 破甲要等护甲怪出现以后才会在铁砧上刷出来（opts.pierce）。震慑只给重武器（降低打断重击的门槛）。
+ */
+export function upgradeAllowed(id, kind, opts = {}) {
+  const w = WEAPONS[id];
+  if (!w) return false;
+  if (kind === "rotate" || kind === "mirror") return w.transforms.includes(kind);
+  if (kind === "extend") return w.weight !== "light";
+  if (kind === "precise") return true;
+  if (kind === "pierce") return w.weight !== "light" && !w.pierce && opts.pierce !== false;
+  if (kind === "stagger") return w.weight === "heavy";
+  return false;
+}
+
+/** 去掉规则调整后不再允许的强化（旧存档里可能有）。 */
+export function sanitizeUpgrades(upgrades = {}) {
+  const clean = {};
+  for (const [id, up] of Object.entries(upgrades)) {
+    const kept = Object.fromEntries(Object.entries(up).filter(([kind, on]) => on && upgradeAllowed(id, kind)));
+    if (Object.keys(kept).length) clean[id] = kept;
+  }
+  return clean;
+}
+
+/** 武器强化格随机给出的候选项，已拥有的不再出现。opts.pierce 为 false 时不出破甲。 */
+export function upgradeOptions(hero, rng = Math.random, count = 3, opts = {}) {
   const pool = [];
   for (const id of hero.weapons) {
     const up = hero.upgrades?.[id] ?? {};
-    for (const kind of WEAPONS[id].transforms) if (!up[kind]) pool.push({ weapon: id, kind });
-    if (!up.extend) pool.push({ weapon: id, kind: "extend" });
-    if (!up.precise) pool.push({ weapon: id, kind: "precise" });
+    for (const kind of Object.keys(UPGRADE_TEXT)) if (!up[kind] && upgradeAllowed(id, kind, opts)) pool.push({ weapon: id, kind });
   }
   for (let i = pool.length - 1; i > 0; i -= 1) {
     const j = Math.floor(rng() * (i + 1));
@@ -84,14 +110,14 @@ const sameOption = (a, b) => a.weapon === b.weapon && a.kind === b.kind;
  * 铁砧的三项强化在第一次打开时生成并保存，之后反复打开看到的都是同一组；
  * 每一项可以单独刷新一次，所以一座铁砧最多只会出现 6 个不同的选项。
  */
-export function createForgeOptions(hero, rng = Math.random) {
-  return upgradeOptions(hero, rng, 3).map((option) => ({ ...option, rerolled: false }));
+export function createForgeOptions(hero, rng = Math.random, opts = {}) {
+  return upgradeOptions(hero, rng, 3, opts).map((option) => ({ ...option, rerolled: false }));
 }
 
-export function rerollForgeOption(hero, options, index, rng = Math.random) {
+export function rerollForgeOption(hero, options, index, rng = Math.random, opts = {}) {
   const current = options[index];
   if (!current || current.rerolled) return { ok: false, reason: "每项强化只能刷新一次" };
-  const pool = upgradeOptions(hero, rng, 99).filter((o) => !options.some((x) => sameOption(x, o)));
+  const pool = upgradeOptions(hero, rng, 99, opts).filter((o) => !options.some((x) => sameOption(x, o)));
   if (!pool.length) return { ok: false, reason: "没有其他可选的强化了" };
   options[index] = { ...pool[0], rerolled: true };
   return { ok: true };
@@ -100,10 +126,11 @@ export function rerollForgeOption(hero, options, index, rng = Math.random) {
 /**
  * 进入章节时的武器配置：优先沿用上次的配置，空位按获得顺序补齐，超出槽位的放进背包。
  */
-export function defaultEquip(owned, saved = [], slots = 2) {
-  const equipped = saved.filter((id) => owned.includes(id));
-  for (const id of owned) if (equipped.length < slots && !equipped.includes(id)) equipped.push(id);
-  return equipped.slice(0, slots);
+export function defaultEquip(owned, saved = null, slots = 2) {
+  const kept = (saved ?? []).filter((id) => owned.includes(id)).slice(0, slots);
+  // 有存档就原样沿用；空出来的槽位留给玩家自己决定装什么。
+  if (saved && kept.length) return kept;
+  return owned.slice(0, slots);
 }
 
 export function toggleEquip(hero, id) {
@@ -142,4 +169,9 @@ export function swapSkill(hero, outId, inId) {
   if (i < 0 || !(inId in hero.skills) || hero.equippedSkills.includes(inId)) return { ok: false, reason: "无法替换" };
   hero.equippedSkills = hero.equippedSkills.map((id, k) => (k === i ? inId : id));
   return { ok: true };
+}
+
+/** 武器实际的冷却。 */
+export function weaponCooldown(id) {
+  return WEAPONS[id].cooldown;
 }

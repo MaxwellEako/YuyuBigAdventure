@@ -111,6 +111,26 @@ export const SPRITE = `
       <path d="M2 8h8v8H2z" fill="currentColor"/>
       <path d="M13 8h8v8h-8z" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2"/>
     </symbol>
+    <symbol id="i-music" viewBox="0 0 24 24">
+      <path d="M9 18V5l11-2v13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"/>
+      <circle cx="6.5" cy="18" r="2.6" fill="currentColor"/><circle cx="17.5" cy="16" r="2.6" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-music-off" viewBox="0 0 24 24">
+      <path d="M9 18V5l11-2v13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" opacity="0.45"/>
+      <circle cx="6.5" cy="18" r="2.6" fill="currentColor" opacity="0.45"/><circle cx="17.5" cy="16" r="2.6" fill="currentColor" opacity="0.45"/>
+      <path d="m3 3 18 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"/>
+    </symbol>
+    <symbol id="i-orbit" viewBox="0 0 24 24">
+      <path d="M12 2.5 18 5.5 12 8.5 6 5.5z" fill="currentColor"/>
+      <path d="M6 5.5v6l6 3v-6M18 5.5v6l-6 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="miter"/>
+      <path d="M3 14.5c1.6 3.6 5 5.5 9 5.5 3.2 0 6-1.2 7.8-3.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square"/>
+      <path d="M16.2 16.4 20 16.2 20.4 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" stroke-linejoin="miter"/>
+    </symbol>
+    <symbol id="i-stagger" viewBox="0 0 24 24">
+      <path d="M3 5h9v6H3z" fill="currentColor"/>
+      <path d="M7.5 11v9" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"/>
+      <path d="m15 4 2.5 5.5L15 12l4 7M20 6.5l1.5-1M21.5 12H23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" stroke-linejoin="miter"/>
+    </symbol>
     <symbol id="i-wait" viewBox="0 0 24 24">
       <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/>
     </symbol>

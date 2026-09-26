@@ -17,7 +17,7 @@ const GLOSSARY = {
   连击: { icon: "combo" },
   追击: { icon: "chase" },
   完美命中: { icon: "perfect" },
-  木盾: { icon: "shield" },
+  防御: { icon: "shield" },
   药水: { icon: "potion", tone: "heart" },
   钥匙: { icon: "key" },
   铁栅门: { icon: "lock", tone: "ink" },
@@ -30,6 +30,8 @@ const GLOSSARY = {
   延长: { icon: "extend" },
   精准: { icon: "perfect" },
   破甲: { icon: "pierce" },
+  打断: { icon: "stagger" },
+  重击: { icon: "stagger", tone: "ink" },
 };
 
 export function kw(label, key = label) {

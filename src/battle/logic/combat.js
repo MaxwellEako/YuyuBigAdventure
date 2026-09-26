@@ -1,6 +1,8 @@
 import {
   resolveHits,
   resolveHeal,
+  footprint,
+  inBounds,
   applyChanges,
   isDead,
   rankPlacements,
@@ -11,7 +13,7 @@ import {
 } from "./shapes.js";
 import { WEAPONS, SHIELD, POTION } from "../data/weapons.js";
 import { SKILLS } from "../data/skills.js";
-import { weaponShape, nextRotation } from "./arsenal.js";
+import { weaponShape, nextRotation, weaponCooldown } from "./arsenal.js";
 
 /** 可复现的伪随机数，便于测试与平衡模拟。 */
 export function createRng(seed = 1) {
@@ -51,6 +53,10 @@ export function createCombat({
     ],
     combo: 0,
     bestCombo: 0,
+    // 上一击覆盖的格子（含界外），用来判断这一击是否紧挨着上一击。
+    lastFootprint: null,
+    // 上一击用的招式：连续两次用同一件武器（或同一个技能）不算连上。
+    lastWeaponId: null,
     upgrades: hero.upgrades ?? {},
     bonus: false,
     stunned: false,
@@ -118,17 +124,62 @@ export function slotBlocked(state, slot) {
   return null;
 }
 
-/**
- * 完美命中：形状的每一格都落在普通红心上（没有打到护甲、空位、无心槽或矩阵外）。
- * 完美命中累积连击；任何不完美的攻击都会让连击归零。
- */
-export function isPerfect(shape, hits) {
-  return hits.length === shape.size && hits.every((h) => h.before === HEART);
+/** 连击 ×2 起，下一击自带破甲：连得越好，越不怕护甲。 */
+export const comboPierce = (state) => comboLinks(state.combo) >= 2;
+
+/** 招式是否破甲：破甲锥、碎甲天生破甲，武器可以通过强化获得，连击 ×2 起每一击都破甲。 */
+export const slotPierce = (state, slot) =>
+  Boolean(slotDef(slot).pierce || (slot.kind === "weapon" && state.upgrades[slot.id]?.pierce) || comboPierce(state));
+
+/** 怪物蓄力之后的那一招重击，可以被重武器打断。 */
+export function interruptible(state) {
+  const p = state.def.pattern;
+  const prev = p[(state.step - 1 + p.length) % p.length];
+  return state.phase === "hero" && state.intent?.kind === "attack" && prev?.kind === "charge";
 }
 
-export function previewPerfect(state, weaponId, r, c) {
+/** 打断需要这一击打碎几颗心：3 颗，带「震慑」强化的武器 2 颗。 */
+export const interruptThreshold = (state, slot) => (slot.kind === "weapon" && state.upgrades[slot.id]?.stagger ? 2 : 3);
+
+export function canInterrupt(state, slot, broken) {
+  return slot.kind === "weapon" && WEAPONS[slot.id].weight === "heavy" && interruptible(state) && broken >= interruptThreshold(state, slot);
+}
+
+/** 预览：这一击会不会打断重击。 */
+export function previewInterrupt(state, weaponId, r, c) {
   const slot = slotOf(state, weaponId);
-  return isPerfect(slotShape(state, slot), previewAttack(state, weaponId, r, c));
+  if (!slot || slot.kind !== "weapon") return false;
+  const broken = previewAttack(state, weaponId, r, c).filter((h) => h.after === EMPTY).length;
+  return canInterrupt(state, slot, broken);
+}
+
+/** 不落空：形状的每一格都落在矩阵内、还有心的格子上（护甲心也算）。 */
+export function isClean(matrix, cells) {
+  return cells.every(([r, c]) => inBounds(matrix, r, c) && matrix[r][c] > EMPTY);
+}
+
+/** 两次攻击的范围是否相邻：有格子重合，或上下左右紧挨着。 */
+export function touches(a, b) {
+  return a.some(([r, c]) => b.some(([r2, c2]) => Math.abs(r - r2) + Math.abs(c - c2) <= 1));
+}
+
+/**
+ * 这一击对连击的影响。
+ * break：落空，连击清零。
+ * repeat：没落空，但和上一击用的是同一件武器，从这一击重新起手（照常造成伤害，只是刷不了连击）。
+ * start：没落空，但不挨着上一击（或还没有连击），从这一击重新起手。
+ * link：没落空、换了武器、并且紧挨着上一击，连击 +1。
+ */
+export function comboOutcome(state, shape, r, c, weaponId) {
+  const cells = footprint(shape, r, c);
+  if (!isClean(state.monsterMatrix, cells)) return "break";
+  if (state.combo === 0 || !state.lastFootprint) return "start";
+  if (weaponId && weaponId === state.lastWeaponId) return "repeat";
+  return touches(cells, state.lastFootprint) ? "link" : "start";
+}
+
+export function previewCombo(state, weaponId, r, c) {
+  return comboOutcome(state, slotShape(state, slotOf(state, weaponId)), r, c, weaponId);
 }
 
 /** 连击的里程碑：3、5、7……每到一个就获得一次追击。 */
@@ -143,7 +194,7 @@ export const comboLabel = (links) => (links <= 1 ? "连击" : `连击 ×${links}
 
 export function previewAttack(state, weaponId, r, c) {
   const slot = slotOf(state, weaponId);
-  return resolveHits(state.monsterMatrix, slotShape(state, slot), r, c, slotDef(slot));
+  return resolveHits(state.monsterMatrix, slotShape(state, slot), r, c, { pierce: slotPierce(state, slot) });
 }
 
 /** 变形（不消耗回合）：旋转到下一个朝向，或左右翻转。只对拥有对应强化的武器生效。 */
@@ -180,20 +231,31 @@ export function heroAttack(state, weaponId, r, c) {
   if (blocked) return { ok: false, reason: blocked };
   const def = slotDef(slot);
   const shape = slotShape(state, slot);
-  const hits = resolveHits(state.monsterMatrix, shape, r, c, def);
-  if (!hits.length) return { ok: false, reason: "该位置没有可消除的红心" };
-  const perfect = isPerfect(shape, hits);
+  const hits = resolveHits(state.monsterMatrix, shape, r, c, { pierce: slotPierce(state, slot) });
+  if (!hits.length) return { ok: false, reason: "这里没有可以打碎的红心" };
+  const outcome = comboOutcome(state, shape, r, c, weaponId);
+  state.lastFootprint = footprint(shape, r, c);
+  state.lastWeaponId = weaponId;
   state.monsterMatrix = applyChanges(state.monsterMatrix, hits);
   const wasBonus = state.bonus;
   state.bonus = false;
   if (slot.kind === "skill") slot.charges -= 1;
   // 新回合开始时会先减 1，因此存 cooldown+1，保证之后整整 cooldown 个回合不可用。
-  else slot.cd = def.cooldown ? def.cooldown + 1 : 0;
+  else {
+    const cooldown = weaponCooldown(slot.id, state.upgrades);
+    slot.cd = cooldown ? cooldown + 1 : 0;
+  }
   const broken = hits.filter((h) => h.after === EMPTY).length;
   const cracked = hits.length - broken;
+  const interrupts = canInterrupt(state, slot, broken);
   state.stats.dealt += broken;
   state.log.push(`${def.name}消除了 ${broken} 颗红心${cracked ? `，击破 ${cracked} 层护甲` : ""}。`);
   const events = [{ type: "hero-attack", weapon: def, hits, anchor: [r, c] }];
+  if (interrupts) {
+    state.interrupted = true;
+    state.log.push(`${def.name}砸断了「${state.intent.name}」的来势。`);
+    events.push({ type: "interrupt", intent: state.intent });
+  }
 
   if (slot.kind === "skill" && def.effect === "drain" && broken) {
     const changes = drainHeal(state, broken);
@@ -209,13 +271,22 @@ export function heroAttack(state, weaponId, r, c) {
 
   // 连击结算。
   let chase = false;
-  if (perfect) {
+  const linksBefore = comboLinks(state.combo);
+  if (outcome !== "break") {
+    // 不挨着上一击或连用同一件武器：之前的连击断开，从这一击重新起手。
+    if (outcome !== "link") {
+      if (linksBefore) {
+        state.log.push(outcome === "repeat" ? "连用同一件武器，连击中断。" : "连击中断。");
+        events.push({ type: "combo-break" });
+      }
+      state.combo = 0;
+    }
     const before = state.combo;
     const precise = slot.kind === "weapon" && state.upgrades[slot.id]?.precise;
-    state.combo += precise ? 2 : 1;
+    state.combo += outcome === "link" && precise ? 2 : 1;
     state.bestCombo = Math.max(state.bestCombo, state.combo);
     const rewards = [];
-    if (precise) {
+    if (precise && outcome === "link") {
       const healed = drainHeal(state, 1);
       if (healed.length) events.push({ type: "heal", side: "hero", changes: healed });
       rewards.push("precise");
@@ -227,12 +298,17 @@ export function heroAttack(state, weaponId, r, c) {
       rewards.push("cooldown");
     }
     for (let n = before + 1; n <= state.combo; n += 1) if (isChaseMilestone(n)) chase = true;
+    // 重武器接上连击：一锤定音，立刻追击。
+    if (outcome === "link" && slot.kind === "weapon" && def.weight === "heavy") {
+      chase = true;
+      rewards.push("finisher");
+    }
     if (chase) rewards.push("chase");
     const links = comboLinks(state.combo);
     if (links) state.log.push(`${comboLabel(links)}${chase ? "，追击！" : "。"}`);
     events.push({ type: "combo", combo: state.combo, rewards, chase });
   } else if (state.combo > 0) {
-    if (comboLinks(state.combo)) {
+    if (linksBefore) {
       state.log.push("连击中断。");
       events.push({ type: "combo-break" });
     }
@@ -271,12 +347,12 @@ export function heroHeal(state, r, c) {
 
 export function heroShield(state) {
   if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
-  if (state.shieldUp) return { ok: false, reason: "木盾已举起" };
+  if (state.shieldUp) return { ok: false, reason: "已经在防御了" };
   if (state.shieldCd > 0)
-    return { ok: false, reason: `木盾还需冷却 ${state.shieldCd} 回合` };
+    return { ok: false, reason: `防御还需冷却 ${state.shieldCd} 回合` };
   state.shieldUp = true;
   state.shieldCd = SHIELD.cooldown + 1;
-  state.log.push("举起木盾，将抵挡下一次攻击。");
+  state.log.push("屿屿摆好架势，准备挡下一次攻击。");
   return { ok: true, events: [{ type: "shield" }] };
 }
 
@@ -356,14 +432,19 @@ export function monsterTurn(state) {
     } else startHeroTurn(state);
     return { ok: true, events };
   }
-  if (intent.kind === "attack") {
+  if (state.interrupted) {
+    // 重击被打断：这一招作废，招式顺序照常前进。
+    state.interrupted = false;
+    state.log.push(`${name}的「${intent.name}」被打断了。`);
+    events.push({ type: "interrupted", intent });
+  } else if (intent.kind === "attack") {
     if (state.shieldUp) {
       state.shieldUp = false;
       const would = state.aim
         ? resolveHits(state.heroMatrix, intent.shape, state.aim.r, state.aim.c)
         : [];
       state.stats.blocked += would.length;
-      state.log.push(`木盾抵挡了「${intent.name}」。`);
+      state.log.push(`防御挡下了「${intent.name}」。`);
       events.push({ type: "monster-attack", intent, hits: [], blocked: true });
     } else {
       const hits = state.aim
@@ -396,7 +477,7 @@ export function monsterTurn(state) {
   } else if (intent.kind === "curse") {
     if (state.shieldUp) {
       state.shieldUp = false;
-      state.log.push(`木盾抵挡了「${intent.name}」。`);
+      state.log.push(`防御挡下了「${intent.name}」。`);
       events.push({ type: "curse", blocked: true });
     } else {
       // 短剑等无冷却的基础武器不受影响，保证主角总有招可出。

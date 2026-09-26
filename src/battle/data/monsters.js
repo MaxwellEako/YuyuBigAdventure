@@ -53,7 +53,8 @@ export const MONSTERS = {
     name: "墨渍怪",
     title: "墨水凝成的怪物",
     model: "ink",
-    matrix: [".#.", "###", ".#."],
+    // 先用 L 钩镰拿下左上三格，再用短剑接上右下两格，正好一条连击链清空，序章里就能见到连击。
+    matrix: ["##.", "###"],
     moves: "orth",
     aim: 0.35,
     pattern: [atk("溅射", ["##"])],
@@ -63,7 +64,8 @@ export const MONSTERS = {
     name: "暗影兵",
     title: "守在关口的步兵",
     model: "pawn",
-    matrix: [".#.", "###", "###"],
+    // 短剑与 L 钩镰轮换，三击可以一条连击链清空。
+    matrix: [".##.", "####", "#.#."],
     moves: "orth",
     aim: 0.6,
     pattern: [atk("斜刺", ["#.#"]), atk("突刺", ["#", "#"])],
@@ -73,13 +75,15 @@ export const MONSTERS = {
     name: "暗影骑士",
     title: "踏着马步巡夜",
     model: "knight",
-    matrix: ["##.", "###", ".##", ".##"],
+    // 短剑、钩镰、斜刃轮换，四击可以清空。
+    matrix: [".##.", "####", ".##.", ".##."],
     moves: "knight",
     aim: 0.75,
     pattern: [
       atk("马踏", ["#.", "#.", "##"]),
       atk("冲锋", ["##"]),
       { kind: "charge", name: "扬蹄" },
+      atk("践踏", ["##", "##", "##"]),
     ],
   },
   bishop: {
@@ -87,13 +91,14 @@ export const MONSTERS = {
     name: "暗影主教",
     title: "斜行祷告的主教",
     model: "bishop",
-    matrix: [".#.", "###", "###", ".#."],
+    // 12 颗心能一条链清空，但祷告会把打出的缺口补回来，拖久了就连不上。
+    matrix: [".##.", "####", "####", ".##."],
     moves: "diag",
     aim: 0.8,
     pattern: [
       atk("斜斩", ["#..", ".#.", "..#"]),
       atk("反斜斩", ["..#", ".#.", "#.."]),
-      { kind: "heal", name: "祷告", amount: 2 },
+      { kind: "heal", name: "祷告", amount: 3 },
     ],
   },
   rook: {
@@ -101,13 +106,13 @@ export const MONSTERS = {
     name: "暗影城堡",
     title: "披着护甲的城堡",
     model: "rook",
-    matrix: ["A#A", "###", "A#A"],
+    matrix: ["A##A", "####", "####", "A##A"],
     moves: "orth",
     aim: 0.85,
     pattern: [
       atk("横扫", ["###"]),
-      { kind: "armor", name: "筑墙", amount: 2 },
-      atk("冲撞", ["#", "#", "#"]),
+      { kind: "armor", name: "筑墙", amount: 4 },
+      atk("冲撞", ["#", "#", "#", "#"]),
     ],
   },
   queen: {
@@ -115,7 +120,7 @@ export const MONSTERS = {
     name: "暗影王后",
     title: "暗王的护卫",
     model: "queen",
-    matrix: [".##.", "#AA#", "####", ".##."],
+    matrix: [".##.", "#AA#", "####", "#AA#", ".##."],
     moves: "king",
     aim: 0.9,
     pattern: [
@@ -131,16 +136,17 @@ export const MONSTERS = {
     title: "墨迹的源头",
     model: "king",
     boss: true,
-    matrix: ["A###A", "##A##", "#A#A#", "##A##", "A###A"],
+    matrix: ["A####A", "##AA##", "#A##A#", "#A##A#", "##AA##", "A####A"],
     moves: "king",
     aim: 1,
+    // 王座崩落和王之审判紧挨着：防御只能挡住一招，另一招得靠定身钉或者硬扛。
     pattern: [
-      atk("王之审判", ["###", "#.#", "###"]),
-      { kind: "curse", name: "将军！", amount: 1 },
-      atk("十字刑", [".#.", "###", ".#."]),
-      { kind: "heal", name: "吞墨", amount: 3 },
       { kind: "charge", name: "王权蓄势" },
       atk("王座崩落", ["###", "###", "###"]),
+      atk("王之审判", ["###", "#.#", "###"]),
+      { kind: "curse", name: "将军！", amount: 2 },
+      atk("十字刑", [".#.", "###", ".#."]),
+      { kind: "heal", name: "吞墨", amount: 7 },
     ],
   },
 };

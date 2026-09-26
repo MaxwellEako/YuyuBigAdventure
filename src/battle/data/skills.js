@@ -21,6 +21,15 @@ export const SKILLS = {
     effect: "stun",
     desc: "钉住一格，怪物停下一回合。",
   },
+  crush: {
+    id: "crush",
+    name: "碎甲",
+    art: ["@#"],
+    charges: 2,
+    effect: "pierce",
+    pierce: true,
+    desc: "敲碎两格，护甲一击即碎。",
+  },
   meteor: {
     id: "meteor",
     name: "陨星",

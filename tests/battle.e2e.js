@@ -185,3 +185,43 @@ test("手机竖屏：棋盘与战斗窗口不出现横向滚动", async ({ page 
   expect(overflow).toBeLessThanOrEqual(0);
   await page.screenshot({ path: ".playwright/battle-mobile-fight.png" });
 });
+
+test("重置进度：先确认再清空，取消不丢进度，音乐音效开关保留", async ({ page }) => {
+  const saved = { v: 4, unlocked: 6, stars: { prologue: 3, "first-blot": 2 }, profile: { weapons: ["dagger", "hook", "slash"], skills: [], upgrades: { dagger: { extend: true } }, equipped: ["dagger", "hook"], equippedSkills: [], slots: 2 }, forged: {}, seen: ["move"], hints: false, audio: { music: false, sfx: true } };
+  await page.goto("/");
+  await page.evaluate((data) => localStorage.setItem("heart-gambit-progress-v3", JSON.stringify(data)), saved);
+  await page.reload();
+  await expect(page.getByRole("button", { name: /继续冒险 · 第 5 章/ })).toBeVisible();
+
+  // 取消：进度原样保留。
+  await page.getByRole("button", { name: "重置进度" }).click();
+  await expect(page.locator(".reset-panel h2")).toHaveText("重置进度");
+  await page.getByRole("button", { name: "取消" }).click();
+  await expect(page.getByRole("button", { name: /继续冒险 · 第 5 章/ })).toBeVisible();
+  expect(JSON.parse(await page.evaluate(() => localStorage.getItem("heart-gambit-progress-v3"))).unlocked).toBe(6);
+
+  // 在章节里从玩法说明打开重置再取消，关掉说明后还能正常移动。
+  await page.getByRole("button", { name: /继续冒险/ }).click();
+  await page.keyboard.press("Enter");
+  await page.waitForFunction(() => window.__heartGambit.playing);
+  await page.keyboard.press("h");
+  await page.locator(".help [data-cmd=reset]").click();
+  await page.getByRole("button", { name: "取消" }).click();
+  await expect(page.locator(".panel.help")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect.poll(() => page.evaluate(() => window.__heartGambit.playing)).toBe(true);
+
+  // 确认：清空进度，回到标题，音频开关保留。
+  await page.keyboard.press("h");
+  await page.locator(".help [data-cmd=reset]").click();
+  await page.getByRole("button", { name: "确认重置" }).click();
+  await expect(page.getByRole("button", { name: "开始冒险" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "重置进度" })).toHaveCount(0);
+  const after = JSON.parse(await page.evaluate(() => localStorage.getItem("heart-gambit-progress-v3")));
+  expect(after.unlocked).toBe(1);
+  expect(after.stars).toEqual({});
+  expect(after.profile).toBeNull();
+  expect(after.seen).toEqual([]);
+  expect(after.audio).toEqual({ music: false, sfx: true });
+  await page.screenshot({ path: ".playwright/battle-after-reset.png" });
+});

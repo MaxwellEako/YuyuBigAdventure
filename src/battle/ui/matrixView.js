@@ -162,6 +162,12 @@ export class MatrixView {
   }
 
   /** 怪物瞄准区域（持续显示在主角矩阵上）。 */
+  /** 标出上一击覆盖的格子，提示下一击要挨着它打。 */
+  markLast(cells) {
+    for (const cell of this.el.querySelectorAll(".cell.last-hit")) cell.classList.remove("last-hit");
+    for (const [r, c] of cells ?? []) this.cells.get(`${r},${c}`)?.classList.add("last-hit");
+  }
+
   markAim(shape, aim) {
     for (const cell of this.cells.values()) cell.classList.remove("aim", "aim-off");
     if (!shape || !aim) return;

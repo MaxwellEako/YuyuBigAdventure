@@ -11,7 +11,10 @@ import {
   heroWait,
   monsterTurn,
   previewAttack,
-  previewPerfect,
+  previewCombo,
+  previewInterrupt,
+  interruptible,
+  comboPierce,
   comboLinks,
   comboLabel,
   previewHeal,
@@ -21,7 +24,7 @@ import {
   slotBlocked,
   heroTransform,
 } from "../logic/combat.js";
-import { weaponShape, UPGRADE_TEXT } from "../logic/arsenal.js";
+import { weaponShape, weaponCooldown, UPGRADE_TEXT } from "../logic/arsenal.js";
 
 export const GLYPH = { ink: "✹", pawn: "♟", knight: "♞", bishop: "♝", rook: "♜", queen: "♛", king: "♚" };
 const MOVE_TEXT = { orth: "直行一格", diag: "斜行一格", king: "八方一格", knight: "马步跳跃" };
@@ -44,6 +47,22 @@ function intentHtml(intent) {
   return `<span class="intent-label t-meta">Next</span><strong>${intent.name}</strong>${extra}`;
 }
 
+/** 怪物的特性：一眼看出该带什么武器。 */
+export function monsterTraits(def) {
+  const has = (kind) => def.pattern.some((p) => p.kind === kind);
+  const traits = [];
+  if (def.matrix.some((row) => row.includes("A")) || has("armor")) traits.push({ key: "armor", glyph: heartSvg("armor"), label: "护甲" });
+  if (has("heal")) traits.push({ key: "heal", glyph: `${heartSvg("heart")}<b class="plus">+</b>`, label: "回血" });
+  if (has("charge")) traits.push({ key: "charge", glyph: icon("stagger"), label: "蓄力重击" });
+  if (has("curse")) traits.push({ key: "curse", glyph: icon("cd"), label: "打断连击" });
+  return traits;
+}
+
+export const traitChips = (def) =>
+  monsterTraits(def)
+    .map((t) => `<i class="trait ${t.key}" title="${t.label}">${t.glyph}<span>${t.label}</span></i>`)
+    .join("");
+
 /**
  * 战斗窗口：左侧怪物心阵（悬停预览 / 点击出招），右侧主角心阵（显示怪物瞄准、药水治疗）。
  * 返回的 Promise 在玩家确认战斗结果后 resolve。
@@ -54,7 +73,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
   <div class="battle-modal" role="dialog" aria-modal="true" aria-label="战斗">
     <div class="battle-card ${def.boss ? "boss" : ""}">
       <header class="battle-head">
-        <div class="combo-badge" data-combo title="连击 · 每连上两次追击一次">${icon("combo", "combo-icon")}<b data-combo-count></b><span class="chase-pips" data-pips><i></i><i></i></span></div>
+        <div class="combo-badge" data-combo title="连击 · 每连上两次追击一次">${icon("combo", "combo-icon")}<b data-combo-count></b><span class="chase-pips" data-pips><i></i><i></i></span><span class="combo-pierce" title="破甲">${icon("pierce")}</span></div>
         <div class="turn-banner" data-banner>你的回合</div>
         <div class="round"><span class="t-meta">Round</span><b data-round>01</b></div>
       </header>
@@ -62,7 +81,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
         <section class="side enemy" data-side="enemy">
           <div class="side-head">
             <div class="avatar enemy ${def.model}">${GLYPH[def.model]}</div>
-            <div class="who"><span class="t-meta">Enemy${def.boss ? " · Boss" : ""}</span><h3>${def.name}</h3><p>${def.title}</p></div>
+            <div class="who"><span class="t-meta">Enemy${def.boss ? " · Boss" : ""}</span><h3>${def.name}</h3><p class="traits">${def.boss ? def.title : traitChips(def) || def.title}</p></div>
             <div class="hp" data-enemy-hp></div>
           </div>
           <div class="intent"><div class="intent-main" data-intent></div><div class="pattern" data-pattern></div></div>
@@ -174,50 +193,75 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
 
   const keyLabel = (i) => (i < 9 ? String(i + 1) : i === 9 ? "0" : "");
 
+  // 底栏的招式卡：固定尺寸的竖卡，上面是形状，下面是名字和状态；武器一组、技能一组。
+  const cardCell = (shape) => {
+    const n = Math.max(shape.rows, shape.cols);
+    return Math.min(10, Math.floor((38 - (n - 1) * 2) / n));
+  };
+
+  function moveCard(slot, i) {
+    const def = slotDef(slot);
+    const blocked = slotBlocked(combat, slot);
+    const up = slot.kind === "weapon" ? combat.upgrades[slot.id] ?? {} : {};
+    const ups = [
+      ...Object.keys(UPGRADE_TEXT)
+        .filter((k) => up[k])
+        .map((k) => `<i class="up-icon" title="${UPGRADE_TEXT[k].name}">${icon(UPGRADE_TEXT[k].icon)}</i>`),
+      ...(def.pierce ? [`<i class="up-icon" title="破甲">${icon("pierce")}</i>`] : []),
+    ].join("");
+    const status =
+      slot.kind === "skill"
+        ? `${icon("skill")}×${slot.charges}`
+        : slot.cd
+          ? `${icon("cd")}${slot.cd}`
+          : weaponCooldown(slot.id, combat.upgrades)
+            ? `<span class="cd-idle">${icon("cd")}${weaponCooldown(slot.id, combat.upgrades)}</span>`
+            : "";
+    const shape = slotShape(combat, slot);
+    // 连击中，上一击用过的招式角上画一个虚线框（和心阵上标出上一击范围的虚线一致）：换一件才接得上。
+    const lastUsed = combat.combo > 0 && slot.id === combat.lastWeaponId;
+    const classes = [
+      "weapon",
+      slot.kind,
+      slot.id === selected && mode === "attack" ? "selected" : "",
+      blocked ? "cooling" : "",
+      lastUsed ? "last-used" : "",
+      slot.kind === "skill" && slot.charges <= 0 ? "spent" : "",
+    ].join(" ");
+    return `<button class="${classes}" data-weapon="${slot.id}" title="${def.name} · ${def.desc}${lastUsed ? " · 刚用过，换一件才能接上连击" : ""}">
+      <kbd>${keyLabel(i)}</kbd>
+      <span class="weapon-ups">${ups}</span>
+      <span class="weapon-shape">${shapeSvg(shape, { cell: cardCell(shape), gap: 2, tone: slot.kind === "skill" ? "skill" : "attack" })}</span>
+      <span class="weapon-name">${def.name}</span>
+      <span class="weapon-cd t-meta">${status}</span>
+    </button>`;
+  }
+
   function renderWeapons() {
-    $("[data-weapons]").innerHTML = combat.weapons
-      .map((slot, i) => {
-        const def = slotDef(slot);
-        const blocked = slotBlocked(combat, slot);
-        const up = slot.kind === "weapon" ? combat.upgrades[slot.id] ?? {} : {};
-        const tags = Object.keys(UPGRADE_TEXT)
-          .filter((k) => up[k])
-          .map((k) => `<i class="up-icon" title="${UPGRADE_TEXT[k].name}">${icon(UPGRADE_TEXT[k].icon)}</i>`)
-          .join("");
-        const status =
-          slot.kind === "skill"
-            ? `${icon("skill")}×${slot.charges}`
-            : slot.cd
-              ? `${icon("cd")}${slot.cd}`
-              : def.cooldown
-                ? `${icon("cd")}${def.cooldown}`
-                : "";
-        return `<button class="weapon ${slot.kind} ${slot.id === selected && mode === "attack" ? "selected" : ""} ${blocked ? "cooling" : ""}" data-weapon="${slot.id}" title="${def.name} · ${def.desc}">
-          <kbd>${keyLabel(i)}</kbd>
-          <span class="weapon-shape">${shapeSvg(slotShape(combat, slot), { cell: 10, tone: slot.kind === "skill" ? "skill" : "attack" })}</span>
-          <span class="weapon-name">${def.name}${def.pierce ? `<i class="up-icon" title="破甲">${icon("pierce")}</i>` : ""}${tags}</span>
-          <span class="weapon-cd t-meta">${status}</span>
-        </button>`;
-      })
-      .join("");
+    const cards = combat.weapons.map((slot, i) => ({ slot, html: moveCard(slot, i) }));
+    const weapons = cards.filter((c) => c.slot.kind === "weapon").map((c) => c.html).join("");
+    const skills = cards.filter((c) => c.slot.kind === "skill").map((c) => c.html).join("");
+    $("[data-weapons]").innerHTML = `<div class="move-group" aria-label="武器">${weapons}</div>${
+      skills ? `<div class="move-group skills" aria-label="技能">${skills}</div>` : ""
+    }`;
     // 选中的武器若有变形强化，显示旋转 / 镜像按钮（不消耗回合）。
     const slot = slotOf(combat, selected);
     const up = slot?.kind === "weapon" ? combat.upgrades[slot.id] ?? {} : {};
     $("[data-transform]").innerHTML = ["rotate", "mirror"]
       .filter((k) => up[k])
-      .map((k) => `<button class="action transform" data-transform-kind="${k}">${k === "rotate" ? "⟳" : "⇋"}<span>${UPGRADE_TEXT[k].name}</span><small>${k === "rotate" ? "R" : "F"}</small></button>`)
+      .map((k) => `<button class="action transform" data-transform-kind="${k}">${icon(UPGRADE_TEXT[k].icon)}<span>${UPGRADE_TEXT[k].name}</span><small>${k === "rotate" ? "R" : "F"}</small></button>`)
       .join("");
   }
 
   function renderActions() {
     const shield = $("[data-act=shield]");
     shield.innerHTML = `${icon("shield")}<span>${SHIELD.name}</span><small>${
-      combat.shieldUp ? "已举起" : combat.shieldCd ? `冷却 ${combat.shieldCd}` : "Q"
+      combat.shieldUp ? "防御中" : combat.shieldCd ? `冷却 ${combat.shieldCd}` : "Q"
     }</small>`;
     shield.disabled = combat.shieldUp || combat.shieldCd > 0;
     shield.classList.toggle("up", combat.shieldUp);
     const potion = $("[data-act=potion]");
-    potion.innerHTML = `${icon("potion")}<span>药水 ×${combat.potions}</span><small>${mode === "heal" ? "Esc" : "E"}</small>`;
+    potion.innerHTML = `${icon("potion")}<span>药水</span><b class="count">${combat.potions}</b><small>${mode === "heal" ? "Esc" : "E"}</small>`;
     potion.disabled = combat.potions <= 0;
     potion.classList.toggle("active", mode === "heal");
     const retreat = $("[data-act=retreat]");
@@ -226,7 +270,9 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
   }
 
   function renderIntent() {
-    $("[data-intent]").innerHTML = intentHtml(combat.intent);
+    $("[data-intent]").innerHTML =
+      intentHtml(combat.intent) +
+      (interruptible(combat) ? `<i class="fx-interrupt" title="重武器一下打碎 3 颗心就能打断">${icon("stagger")}</i>` : "");
     const len = def.pattern.length;
     // 招式循环画成一排小方块，当前这一招涂黑；名字放在悬停提示里。
     $("[data-pattern]").innerHTML = def.boss
@@ -267,13 +313,15 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     $("[data-combo-count]").textContent = links ? `×${links}` : "";
     const filled = combat.combo >= 1 ? (combat.combo - 1) % 2 : 0;
     $("[data-pips]").querySelectorAll("i").forEach((pip, i) => pip.classList.toggle("on", i < filled));
+    // 连击 ×2 起，下一击自带破甲：标记上多一个破甲图标。
+    badge.classList.toggle("piercing", comboPierce(combat));
   }
 
   function render() {
     $("[data-round]").textContent = String(combat.round).padStart(2, "0");
     $("[data-enemy-hp]").innerHTML = hpHtml(combat.monsterMatrix);
     $("[data-hero-hp]").innerHTML = hpHtml(combat.heroMatrix);
-    $("[data-hero-status]").textContent = combat.shieldUp ? "木盾已举起" : "白色小兵";
+    $("[data-hero-status]").textContent = combat.shieldUp ? "防御中" : "白色小兵";
     const banner = $("[data-banner]");
     const heroTurn = combat.phase === "hero" && !busy;
     banner.textContent = heroTurn ? (mode === "heal" ? "选择治疗位置" : combat.bonus ? "再攻击一次" : "你的回合") : "敌方回合";
@@ -284,6 +332,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     renderActions();
     renderIntent();
     renderCombo();
+    enemyView.markLast(combat.combo > 0 ? combat.lastFootprint : null);
     $("[data-log]").innerHTML = combat.log
       .slice(-3)
       .map((line, i, arr) => `<p class="${i === arr.length - 1 ? "latest" : ""}">${line}</p>`)
@@ -294,7 +343,8 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
   function refreshPreview() {
     enemyView.clearPreview();
     heroView.clearPreview();
-    enemyView.el.classList.remove("pv-perfect");
+    enemyView.el.classList.remove("pv-perfect", "pv-link");
+    $(".intent").classList.remove("will-interrupt");
     $("[data-combo]").classList.remove("at-risk", "rising");
     if (!hover || busy || combat.phase !== "hero") return;
     if (mode === "attack" && hover.side === "enemy") {
@@ -302,10 +352,12 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
       const hits = previewAttack(combat, selected, hover.r, hover.c);
       const ready = !slotBlocked(combat, slot);
       enemyView.preview(slotShape(combat, slot), hover.r, hover.c, hits, { valid: ready && hits.length > 0 });
-      const perfect = ready && previewPerfect(combat, selected, hover.r, hover.c);
-      enemyView.el.classList.toggle("pv-perfect", perfect);
-      // 连击中：这一击能接上，标记亮起；接不上，标记变成虚线。
-      if (ready && hits.length && comboLinks(combat.combo)) $("[data-combo]").classList.add(perfect ? "rising" : "at-risk");
+      const outcome = ready && hits.length ? previewCombo(combat, selected, hover.r, hover.c) : null;
+      enemyView.el.classList.toggle("pv-perfect", outcome && outcome !== "break");
+      enemyView.el.classList.toggle("pv-link", outcome === "link");
+      if (ready && hits.length && previewInterrupt(combat, selected, hover.r, hover.c)) $(".intent").classList.add("will-interrupt");
+      // 连击中：这一击能接上，标记亮起；落空或离上一击太远，标记变成虚线。
+      if (outcome && comboLinks(combat.combo)) $("[data-combo]").classList.add(outcome === "link" ? "rising" : "at-risk");
     }
     if (mode === "heal" && hover.side === "hero") {
       const heals = previewHeal(combat, hover.r, hover.c);
@@ -361,20 +413,25 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     hover = null;
     const [event] = result.events;
     const broken = event.hits.filter((h) => h.after === 0).length;
-    sfx.play("slash");
+    const cracked = event.hits.length - broken;
+    // 挥击声分三种：技能、四格以上的重武器、其余轻武器。
+    const usedShape = slotShape(combat, slotOf(combat, selected));
+    sfx.play(slotOf(combat, selected).kind === "skill" ? "swing-skill" : usedShape.size >= 4 ? "swing-heavy" : "swing-light");
     const heroObj = heroEntity();
     const target = monsterEntity();
     if (heroObj && target) world.attackAnim(heroObj, target, broken);
     render();
     await delay(160);
-    sfx.play("shatter", event.hits.length);
+    if (broken) sfx.play("shatter", broken);
+    if (cracked) sfx.play("crack");
     floatText("enemy", `-${event.hits.length}`, "dmg");
     enemyView.shake();
     await enemyView.animate(event.hits, "hit", combat.monsterMatrix);
     const comboEvent = result.events.find((e) => e.type === "combo");
     const links = comboEvent ? comboLinks(comboEvent.combo) : 0;
     if (links) {
-      sfx.play(comboEvent.chase ? "victory" : "pickup");
+      sfx.play("combo", links);
+      if (comboEvent.chase) setTimeout(() => sfx.play("chase"), 220);
       floatText("enemy", comboLabel(links), "combo");
       if (comboEvent.chase) setTimeout(() => floatText("enemy", "追击！", "chase"), 260);
       $("[data-combo]").classList.remove("pulse");
@@ -382,6 +439,11 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
       $("[data-combo]").classList.add("pulse");
     } else if (result.events.some((e) => e.type === "combo-break")) {
       floatText("enemy", "连击中断", "miss");
+      sfx.play("combo-break");
+    }
+    if (result.events.some((e) => e.type === "interrupt")) {
+      sfx.play("stun");
+      setTimeout(() => floatText("enemy", "打断！", "chase"), 420);
     }
     const drained = result.events.find((e) => e.type === "heal" && e.side === "hero");
     if (drained) {
@@ -490,15 +552,19 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
         setTimeout(() => $('[data-side="enemy"]')?.classList.remove("charging"), 900);
         await delay(650);
       } else if (event.type === "heal") {
-        sfx.play("heal");
+        sfx.play("pray");
         if (event.changes.length) floatText("enemy", `+${event.changes.length}`, "heal");
         await enemyView.animate(event.changes, "heal", combat.monsterMatrix);
       } else if (event.type === "armor") {
-        sfx.play("block");
+        sfx.play("fortify");
         floatText("enemy", "护甲", "armor");
         await enemyView.animate(event.changes, "armor", combat.monsterMatrix);
-      } else if (event.type === "stunned") {
+      } else if (event.type === "interrupted") {
         sfx.play("block");
+        floatText("enemy", "被打断", "charge");
+        await delay(650);
+      } else if (event.type === "stunned") {
+        sfx.play("stun");
         floatText("enemy", "定身", "charge");
         await delay(650);
       } else if (event.type === "curse") {

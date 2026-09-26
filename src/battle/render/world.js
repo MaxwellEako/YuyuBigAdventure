@@ -373,6 +373,8 @@ export class BoardWorld {
       model.userData.tile = [item.r, item.c];
       this.levelGroup.add(model);
       this.items.set(key(item.r, item.c), model);
+      // 重玩旧章节时：已经拿过的宝箱直接敞着，用过的铁砧收起箭头。
+      if (item.opened) this.showUsed(item);
     }
     for (const k of board.doors) {
       const [r, c] = k.split(",").map(Number);
@@ -619,6 +621,17 @@ export class BoardWorld {
     });
     this.levelGroup.remove(entry.group);
     this.monsters.delete(m.uid);
+  }
+
+  /** 不播动画地把宝箱摆成打开状态、把铁砧摆成用过的状态。 */
+  showUsed(item) {
+    const model = this.items.get(key(item.r, item.c));
+    if (!model) return;
+    this.items.delete(key(item.r, item.c));
+    model.userData.badge?.removeFromParent();
+    model.userData.marker?.removeFromParent();
+    model.getObjectByName("pickup-marker")?.removeFromParent();
+    if (model.userData.lid) model.userData.lid.rotation.x = -1.3;
   }
 
   /** 铁砧用过之后：收起箭头和角标，铁砧留在原地。 */
