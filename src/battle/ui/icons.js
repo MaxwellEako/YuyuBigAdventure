@@ -82,8 +82,11 @@ export const SPRITE = `
       <path d="M4 8h16v13H4zM9 8V4h6v4M4 13h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter"/>
     </symbol>
     <symbol id="i-sword" viewBox="0 0 24 24">
-      <path d="M12 2.5v12.5M6.5 15h11M12 15v5M9.5 21h5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"/>
-      <path d="M10.6 3.5 12 1.5l1.4 2V14h-2.8z" fill="currentColor"/>
+      <!-- 剑身绕图标中心顺时针转 45°，剑尖指向右上方。 -->
+      <g transform="rotate(45 12 12)">
+        <path d="M12 2.5v12.5M6.5 15h11M12 15v5M9.5 21h5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"/>
+        <path d="M10.6 3.5 12 1.5l1.4 2V14h-2.8z" fill="currentColor"/>
+      </g>
     </symbol>
     <symbol id="i-skill" viewBox="0 0 24 24">
       <path d="M14 2 5 14h6l-1.5 8L19 10h-6z" fill="currentColor"/>

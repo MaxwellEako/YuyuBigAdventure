@@ -3184,9 +3184,10 @@ body:not(.in-level) .hint-bar {
     right: var(--sp-4);
     bottom: var(--sp-4);
     display: grid;
-    grid-template-columns: repeat(3, 52px);
-    grid-template-rows: repeat(2, 52px);
-    gap: 4px;
+    /* 手指按得准：每个方向键 68px，比系统推荐的最小触控尺寸 44px 大一圈。 */
+    grid-template-columns: repeat(3, 68px);
+    grid-template-rows: repeat(2, 68px);
+    gap: 6px;
     z-index: 4;
     transition: opacity 0.24s;
   }
@@ -3195,8 +3196,9 @@ body:not(.in-level) .hint-bar {
     pointer-events: none;
   }
   .dpad button {
-    font-size: 20px;
+    font-size: 26px;
     font-weight: 300;
+    touch-action: manipulation;
     background: var(--paper);
     border: 1px solid var(--ink);
   }
@@ -4884,8 +4886,8 @@ body:not(.in-level) .hint-bar {
     transform: translateX(-100%);
   }
   .dpad {
-    grid-template-columns: repeat(3, 46px);
-    grid-template-rows: repeat(2, 46px);
+    grid-template-columns: repeat(3, 56px);
+    grid-template-rows: repeat(2, 56px);
   }
 }
 

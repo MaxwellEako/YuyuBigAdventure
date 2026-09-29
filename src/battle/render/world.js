@@ -771,7 +771,8 @@ export class BoardWorld {
     const hHalf = Math.atan(Math.tan(halfFov) * aspect);
     const dir = portrait ? new THREE.Vector3(0, 15, 6.5) : new THREE.Vector3(0, 11.4, 10.3);
     const dist = Math.max(dir.length(), (portrait ? 5.1 : 5.6) / Math.tan(hHalf));
-    const target = new THREE.Vector3(0, 0, portrait ? 1.9 : 0.3);
+    // 竖屏（手机）时镜头对准棋盘正中心，棋盘落在屏幕中央；上方信息栏和下方方向键各占一边，不会压住棋盘。
+    const target = new THREE.Vector3(0, 0, portrait ? 0 : 0.3);
     this.homeView = { pos: target.clone().addScaledVector(dir.normalize(), dist), target };
     this.controls.maxDistance = Math.max(20, dist * 1.25);
     // 标题页只剩半屏给棋盘，镜头拉远一些让整张棋盘入镜。
