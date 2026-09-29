@@ -141,12 +141,16 @@ test("用真实键鼠通关序章：说明弹窗、移动、悬停预览、出�
   // 第一场战斗逐个指着界面讲：心阵、下一招、攻击、充能、防御、药水、撤退。
   await expect(page.locator(".coach.pointed .coach-spot")).toBeVisible();
   const seen = await dismissCoach(page);
-  expect(seen).toEqual(["怪物的红心矩阵", "阿福的红心矩阵", "怪物的下一招", "攻击", "充能", "防御", "药水", "撤退"]);
+  // 序章只讲攻击：充能、防御、药水、撤退都还没解锁，不出现也不讲。
+  expect(seen).toEqual(["怪物的红心矩阵", "阿福的红心矩阵", "怪物的下一招", "攻击"]);
+  for (const act of ["shield", "potion", "wait", "retreat"]) await expect(page.locator(`[data-act=${act}]`)).toBeHidden();
+  await expect(page.locator("[data-energy]")).toBeHidden();
   expect(await fight(page, { screenshot: ".playwright/battle-preview.png" })).toBe("胜利");
 
   await clickTile(page, 0, 3);
   await expect(page.locator(".screen-complete h2")).toHaveText("序章");
   await expect(page.locator(".screen-complete .stars i.on")).not.toHaveCount(0);
+  await expect(page.locator(".screen-complete .reward-line")).toContainText("钩镰");
   await page.screenshot({ path: ".playwright/battle-complete.png" });
 
   await page.reload();
@@ -156,7 +160,7 @@ test("用真实键鼠通关序章：说明弹窗、移动、悬停预览、出�
   expect(errors).toEqual([]);
 });
 
-test("L 钩镰可以越出边界：锚点放在矩阵外，只消除擦到的那一格", async ({ page }) => {
+test("攻击可以越出边界：锚点放在矩阵外，只消除擦到的那一格", async ({ page }) => {
   await skipHints(page);
   await page.getByRole("button", { name: /开始冒险|继续冒险/ }).click();
   await page.keyboard.press("Enter");
@@ -165,14 +169,15 @@ test("L 钩镰可以越出边界：锚点放在矩阵外，只消除擦到的那
     await waitIdle(page);
   }
   await expect(page.locator(".battle-modal")).toBeVisible();
-  await page.keyboard.press("2");
-  const outside = page.locator('.matrix-enemy .cell[data-r="-1"][data-c="1"]');
+  // 序章只有短剑：锚点放在左边界外，只擦到 a00 一格。
+  await page.keyboard.press("1");
+  const outside = page.locator('.matrix-enemy .cell[data-r="0"][data-c="-1"]');
   await outside.hover();
-  await expect(page.locator(".matrix-enemy .cell.pv-off")).toHaveCount(2);
+  await expect(page.locator(".matrix-enemy .cell.pv-off")).toHaveCount(1);
   await expect(page.locator(".matrix-enemy .cell.pv-hit")).toHaveCount(1);
-  await expect(page.locator('.matrix-enemy .cell[data-r="0"][data-c="1"]')).toHaveClass(/pv-hit/);
+  await expect(page.locator('.matrix-enemy .cell[data-r="0"][data-c="0"]')).toHaveClass(/pv-hit/);
   await outside.click();
-  await expect(page.locator("[data-enemy-hp] .num")).toHaveText("7");
+  await expect(page.locator("[data-enemy-hp] .num")).toHaveText("6");
 });
 
 test("手机竖屏：棋盘与战斗窗口不出现横向滚动", async ({ page }) => {

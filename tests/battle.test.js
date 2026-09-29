@@ -51,6 +51,7 @@ import {
   armorHero,
 } from "../src/battle/logic/board.js";
 import { solveChain, grindTurns } from "./helpers/chainSolver.js";
+import { featuresAt } from "../src/battle/data/features.js";
 import { WEAPONS, STARTING_WEAPONS } from "../src/battle/data/weapons.js";
 import { MONSTERS, heartsAt } from "../src/battle/data/monsters.js";
 import { LEVELS, weaponsForLevel, skillsForLevel } from "../src/battle/data/levels.js";
@@ -129,7 +130,7 @@ test("锚点默认取最靠近中心的命中格，也可用 @ 指定", () => {
   assert.deepEqual(parseShape(["#.#"]).pivot, [0, 0]);
   assert.deepEqual(parseShape([".#.", "###", ".#."]).pivot, [1, 1]);
   assert.deepEqual(WEAPONS.spear.shape.pivot, [1, 0], "长枪以中间一格为锚点");
-  assert.deepEqual(WEAPONS.hook.shape.pivot, [0, 0], "L 钩镰以左上角为锚点");
+  assert.deepEqual(WEAPONS.hook.shape.pivot, [0, 0], "钩镰以左上角为锚点");
 });
 
 test("怪物瞄准会优先选择伤害最高的落点", () => {
@@ -783,7 +784,7 @@ test("等待：武器全部冷却、没有药水时也能结束回合，不会�
   });
   heroAttack(combat, "hook", 1, 1);
   monsterTurn(combat);
-  assert.ok(slotBlocked(combat, combat.weapons[0]), "L 钩镰在冷却");
+  assert.ok(slotBlocked(combat, combat.weapons[0]), "钩镰在冷却");
   assert.equal(heroWait(combat).ok, true);
   assert.equal(combat.phase, "monster");
 });
@@ -864,7 +865,8 @@ test("怪物心阵是给武器拼的：首次登场时，用当时的武器能�
       const def = MONSTERS[spec.type];
       const matrix = heartsAt(def, level.rank);
       const id = `${def.id}:${JSON.stringify(matrix)}`;
-      if (checked.has(id)) continue;
+      // 序章只有短剑、还没学连击：这一档留到有两件武器的章节再验证。
+      if (checked.has(id) || owned.length < 2) continue;
       checked.add(id);
       const late = level.rank >= 2;
       const best = solveChain({ def, matrix, weapons: owned, slots: level.slots, maxTurns: late ? 4 : 6, until: late ? "chase" : "won" });
@@ -892,4 +894,31 @@ test("护甲片：走上去拾取；给田字范围内的红心加护甲，空�
   assert.equal(armorHero(board, 2, 2).ok, false, "护甲片用完了");
   const hits = resolveHits(board.hero.matrix, WEAPONS.dagger.shape, 1, 0);
   assert.deepEqual(hits.map((h) => h.after), [1, 1], "先掉护甲，红心还在");
+});
+
+test("机制按章节解锁：序章只有短剑和攻击；钩镰是序章奖励；没解锁的动作用不了、也不计连击", () => {
+  assert.deepEqual([...featuresAt(0)], [], "序章什么都没解锁");
+  assert.deepEqual([...featuresAt(1)].sort(), ["combo", "energy", "potion"]);
+  assert.ok(featuresAt(2).has("shield") && featuresAt(2).has("wait") && !featuresAt(2).has("retreat"));
+  assert.ok(featuresAt(3).has("retreat"));
+  assert.deepEqual(STARTING_WEAPONS, ["dagger"]);
+  assert.deepEqual(weaponsForLevel(0, STARTING_WEAPONS), ["dagger"]);
+  assert.deepEqual(weaponsForLevel(1, STARTING_WEAPONS), ["dagger", "hook"], "通关序章拿到钩镰");
+  assert.equal(WEAPONS.hook.name, "钩镰");
+
+  const combat = createCombat({
+    hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "hook"], potions: 1 },
+    monster: { def: MONSTERS.ink, matrix: MONSTERS.ink.matrixValues },
+    rng: createRng(1),
+    features: featuresAt(0),
+  });
+  assert.equal(heroShield(combat).ok, false);
+  assert.equal(heroWait(combat).ok, false);
+  assert.equal(heroRetreat(combat).ok, false);
+  assert.equal(heroHeal(combat, 2, 2).ok, false);
+  heroAttack(combat, "dagger", 0, 0);
+  monsterTurn(combat);
+  heroAttack(combat, "hook", 1, 1);
+  assert.equal(combat.combo, 0, "没学连击时不计连击");
+  assert.equal(combat.energy, ENERGY_START - 1, "也不会因为连击得充能");
 });

@@ -35,7 +35,7 @@ export const WEAPONS = {
   hook: {
     id: "hook",
     weight: "medium",
-    name: "L 钩镰",
+    name: "钩镰",
     art: ["@#", "#."],
     plus: ["@##", "#.."],
     transforms: ["rotate", "mirror"],
@@ -115,4 +115,5 @@ export const POTION = {
   desc: "恢复十字范围内的红心。",
 };
 
-export const STARTING_WEAPONS = ["dagger", "hook"];
+/** 开局只有短剑；钩镰是序章通关的奖励（见 levels.js 的 reward）。 */
+export const STARTING_WEAPONS = ["dagger"];

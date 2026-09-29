@@ -68,12 +68,12 @@ export const TOPICS = {
     body: () =>
       `选择一件[武器]，${
         coarse() ? "点击怪物红心矩阵上的格子预览攻击范围，再次点击同一格发动攻击" : "将指针移至怪物的红心矩阵上预览攻击范围，点击发动攻击"
-      }。范围内的红心将被消除，攻击范围可以越出矩阵边缘。<p class="coach-example"><span class="inline-shape">${shapeSvg(WEAPONS.hook.shape, { cell: 10 })}</span>L 钩镰：L 形攻击三格。</p>`,
+      }。范围内的红心将被消除，攻击范围可以越出矩阵边缘。<p class="coach-example"><span class="inline-shape">${shapeSvg(WEAPONS.dagger.shape, { cell: 10 })}</span>短剑：横向攻击两格。</p>`,
   },
   "tour-energy": {
     title: "充能",
     target: "[data-energy]",
-    body: `L 钩镰等武器每次使用消耗 1 点[充能]。${legend([[icon("energy"), `每场战斗开始时持有 ${ENERGY_START} 点，最多积蓄 ${ENERGY_MAX} 点。`]])}`,
+    body: `钩镰等武器每次使用消耗 1 点[充能]。${legend([[icon("energy"), `每场战斗开始时持有 ${ENERGY_START} 点，最多积蓄 ${ENERGY_MAX} 点。`]])}`,
   },
   "tour-shield": {
     title: "防御",

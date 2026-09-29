@@ -9,6 +9,7 @@ import { getHeroName } from "./heroName.js";
  * 怪物 ai：static 原地驻守；patrol 沿 path 往返；chase 发现主角（sight 格内）后追击。
  * fog：开启战争迷雾，radius 为主角的视野半径（障碍会遮挡视线）。
  * 宝箱、药水与铁砧不可踩上，站在相邻格点击才会使用。skill：本关新学会的技能。
+ * reward：通关后直接获得的武器（不放在宝箱里，走到出口就拿到）。
  * tip 与 goalText 里的 [关键词] 或 [显示文字|关键词] 会渲染成带图标的强调词（见 ui/keywords.js）。
  */
 const row = (r, from, to) => Array.from({ length: to - from + 1 }, (_, i) => [r, from + i]);
@@ -26,12 +27,13 @@ export const LEVELS = [
     get story() {
       return `墨水瓶刚刚倒下，墨迹只漫过了一条走廊。走廊中间，一滴墨渍正等着${getHeroName()}。`;
     },
-    tip: "沿走廊前进，与墨渍怪接触后进入战斗。",
+    tip: "沿走廊前进，与墨渍怪接触后进入战斗。现在只有一把短剑。",
     goal: "reach",
     goalText: "穿过走廊，走进[出口]",
     hero: { rows: 5, cols: 5 },
-    potions: 1,
+    potions: 0,
     chest: null,
+    reward: "hook",
     par: 10,
     map: [
       ". . b E b . . .",
@@ -55,7 +57,7 @@ export const LEVELS = [
     get story() {
       return `墨迹沿着格线蔓延开来。三道书墙只剩下几个缺口，墨渍堵在缺口上。${getHeroName()}握紧短剑，从第一排出发。`;
     },
-    tip: "[宝箱]中装有新武器。每道书墙的缺口均有怪物把守。",
+    tip: "带上新拿到的钩镰，和短剑换着用就能打出[连击]。[宝箱]中装有新武器。",
     goal: "reach",
     goalText: "打通三道缺口，抵达[出口]",
     hero: { rows: 5, cols: 5 },
@@ -428,10 +430,10 @@ export const LEGACY_ORDER = [
   "checkmate",
 ];
 
-/** 进入第 n 关时已经拥有的武器：初始武器 + 之前各关宝箱。 */
+/** 进入第 n 关时已经拥有的武器：初始武器 + 之前各关的通关奖励与宝箱。 */
 export function weaponsForLevel(index, starting) {
   const list = [...starting];
-  for (let i = 0; i < index; i += 1) if (LEVELS[i].chest) list.push(LEVELS[i].chest);
+  for (let i = 0; i < index; i += 1) for (const id of [LEVELS[i].reward, LEVELS[i].chest]) if (id && !list.includes(id)) list.push(id);
   return list;
 }
 

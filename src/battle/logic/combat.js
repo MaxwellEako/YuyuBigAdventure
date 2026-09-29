@@ -14,6 +14,7 @@ import {
 import { WEAPONS, SHIELD, POTION } from "../data/weapons.js";
 import { SKILLS } from "../data/skills.js";
 import { getHeroName } from "../data/heroName.js";
+import { ALL_FEATURES } from "../data/features.js";
 import { weaponShape, nextRotation, weaponCooldown } from "./arsenal.js";
 
 /**
@@ -54,8 +55,11 @@ export function createCombat({
   monster,
   heroFirst = true,
   rng = Math.random,
+  // 已经解锁的战斗机制（见 data/features.js）；没解锁的动作直接拒绝，连击也不计。
+  features = ALL_FEATURES,
 }) {
   const state = {
+    features,
     def: monster.def,
     heroMatrix: cloneMatrix(hero.matrix),
     monsterMatrix: cloneMatrix(monster.matrix),
@@ -246,6 +250,46 @@ export function previewHeal(state, r, c) {
   return resolveHeal(state.heroMatrix, POTION.shape, r, c);
 }
 
+/**
+ * 连击结算：连上就累计连击；从第二次连击起，每连上一次得一点充能；每到 ×3 的倍数追击一次。
+ * 返回这一击是否触发追击。事件与日志直接写进 events / state.log。
+ */
+function settleCombo(state, slot, outcome, wasBonus, events) {
+  const linksBefore = comboLinks(state.combo);
+  if (outcome === "break") {
+    if (linksBefore) {
+      state.log.push("连击中断。");
+      events.push({ type: "combo-break" });
+    }
+    state.combo = 0;
+    return false;
+  }
+  // 不挨着上一击或连用同一件武器：之前的连击断开，从这一击重新起手。
+  if (outcome !== "link") {
+    if (linksBefore) {
+      state.log.push(outcome === "repeat" ? "连续使用同一件武器，连击中断。" : "连击中断。");
+      events.push({ type: "combo-break" });
+    }
+    state.combo = 0;
+  }
+  const up = slot.kind === "weapon" ? state.upgrades[slot.id] ?? {} : {};
+  // 连锁：这件武器连上时连击多涨一次。
+  state.combo += outcome === "link" && up.chain ? 2 : 1;
+  state.bestCombo = Math.max(state.bestCombo, state.combo);
+  const links = comboLinks(state.combo);
+  let earn = 0;
+  if (outcome === "link" && links >= 2) earn += 1;
+  if (outcome === "link" && up.precise) earn += 1;
+  const before = state.energy;
+  state.energy = Math.min(ENERGY_MAX, state.energy + earn);
+  const gained = state.energy - before;
+  // 追击本身（以及疾风斩的追加攻击）不会再触发追击，避免一口气打到底。
+  const chase = outcome === "link" && !wasBonus && reachesChase(linksBefore, links);
+  if (links) state.log.push(`${comboLabel(links)}${gained ? `，充能 +${gained}` : ""}${chase ? "，追击！" : "。"}`);
+  events.push({ type: "combo", combo: state.combo, energy: gained, chase });
+  return chase;
+}
+
 export function heroAttack(state, weaponId, r, c) {
   if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
   const slot = slotOf(state, weaponId);
@@ -294,40 +338,8 @@ export function heroAttack(state, weaponId, r, c) {
     state.log.push(`${state.def.name}被定身，下回合无法行动。`);
   }
 
-  // 连击结算：连上就累计连击；从第二次连击起，每连上一次得一点充能；每到 ×3 的倍数追击一次。
-  const linksBefore = comboLinks(state.combo);
-  let chase = false;
-  if (outcome !== "break") {
-    // 不挨着上一击或连用同一件武器：之前的连击断开，从这一击重新起手。
-    if (outcome !== "link") {
-      if (linksBefore) {
-        state.log.push(outcome === "repeat" ? "连续使用同一件武器，连击中断。" : "连击中断。");
-        events.push({ type: "combo-break" });
-      }
-      state.combo = 0;
-    }
-    const up = slot.kind === "weapon" ? state.upgrades[slot.id] ?? {} : {};
-    // 连锁：这件武器连上时连击多涨一次。
-    state.combo += outcome === "link" && up.chain ? 2 : 1;
-    state.bestCombo = Math.max(state.bestCombo, state.combo);
-    const links = comboLinks(state.combo);
-    let earn = 0;
-    if (outcome === "link" && links >= 2) earn += 1;
-    if (outcome === "link" && up.precise) earn += 1;
-    const before = state.energy;
-    state.energy = Math.min(ENERGY_MAX, state.energy + earn);
-    const gained = state.energy - before;
-    // 追击本身（以及疾风斩的追加攻击）不会再触发追击，避免一口气打到底。
-    chase = outcome === "link" && !wasBonus && reachesChase(linksBefore, links);
-    if (links) state.log.push(`${comboLabel(links)}${gained ? `，充能 +${gained}` : ""}${chase ? "，追击！" : "。"}`);
-    events.push({ type: "combo", combo: state.combo, energy: gained, chase });
-  } else if (state.combo > 0) {
-    if (linksBefore) {
-      state.log.push("连击中断。");
-      events.push({ type: "combo-break" });
-    }
-    state.combo = 0;
-  }
+  // 还没学到连击（序章只有短剑）时不计连击。
+  const chase = state.features.has("combo") ? settleCombo(state, slot, outcome, wasBonus, events) : false;
 
   if (isDead(state.monsterMatrix)) {
     state.phase = "won";
@@ -348,8 +360,13 @@ export function heroAttack(state, weaponId, r, c) {
   return { ok: true, events };
 }
 
+/** 某项机制还没解锁时给出的拒绝结果；解锁了返回 null。 */
+const locked = (state, feature) => (state.features.has(feature) ? null : { ok: false, reason: "还没有学会这个动作" });
+
 export function heroHeal(state, r, c) {
   if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
+  const lock = locked(state, "potion");
+  if (lock) return lock;
   if (state.potions <= 0) return { ok: false, reason: "药水已用尽" };
   const heals = resolveHeal(state.heroMatrix, POTION.shape, r, c);
   if (!heals.length) return { ok: false, reason: "范围内没有需要恢复的红心" };
@@ -364,6 +381,8 @@ export function heroHeal(state, r, c) {
 
 export function heroShield(state) {
   if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
+  const lock = locked(state, "shield");
+  if (lock) return lock;
   if (state.shieldUp) return { ok: false, reason: "已处于防御状态" };
   if (state.shieldCd > 0)
     return { ok: false, reason: `防御还需冷却 ${state.shieldCd} 回合` };
@@ -379,6 +398,8 @@ export function heroShield(state) {
  */
 export function heroWait(state) {
   if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
+  const lock = locked(state, "wait");
+  if (lock) return lock;
   state.bonus = false;
   state.bonusReason = null;
   state.phase = "monster";
@@ -388,6 +409,8 @@ export function heroWait(state) {
 
 export function heroRetreat(state) {
   if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
+  const lock = locked(state, "retreat");
+  if (lock) return lock;
   if (!state.canRetreat) return { ok: false, reason: "暗王战无法撤退" };
   state.retreating = true;
   state.bonus = false;

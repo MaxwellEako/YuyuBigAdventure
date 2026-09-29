@@ -3,6 +3,7 @@ import { icon, shapeSvg, heartSvg } from "./icons.js";
 import { WEAPONS, SHIELD, POTION } from "../data/weapons.js";
 import { INTENT_TEXT } from "../data/monsters.js";
 import { getHeroName } from "../data/heroName.js";
+import { ALL_FEATURES } from "../data/features.js";
 import { countHearts, reach } from "../logic/shapes.js";
 import {
   heroAttack,
@@ -69,7 +70,7 @@ export const traitChips = (def) =>
  * 战斗窗口：左侧怪物心阵（悬停预览 / 点击出招），右侧主角心阵（显示怪物瞄准、药水治疗）。
  * 返回的 Promise 在玩家确认战斗结果后 resolve。
  */
-export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach = null, afterPerfectHit = null }) {
+export function runBattle({ root, combat, monster, world, sfx, heroFirst, features = ALL_FEATURES, coach = null, afterPerfectHit = null }) {
   const def = combat.def;
   root.innerHTML = `
   <div class="battle-modal" role="dialog" aria-modal="true" aria-label="战斗">
@@ -121,6 +122,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
 
   const $ = (sel) => root.querySelector(sel);
   const modal = $(".battle-modal");
+  hideLockedParts();
   modal.classList.toggle("landscape", innerHeight < 520 && innerWidth > innerHeight);
   modal.classList.toggle("portrait", innerWidth < 760 && !(innerHeight < 520 && innerWidth > innerHeight));
   // 手机横屏：心阵在左、招式在右；手机竖屏：两块心阵左右并排，各占一半宽度。
@@ -553,8 +555,20 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     await enemyPhase();
   }
 
+  /**
+   * 还没解锁的机制不出现在界面上：序章只有攻击，连击与充能、防御、药水、等待、撤退按章节陆续出现。
+   * 一排动作按钮全都没解锁时，整排收起来。
+   */
+  function hideLockedParts() {
+    const locked = (feature) => !features.has(feature);
+    $("[data-energy]").hidden = locked("energy");
+    $("[data-combo]").hidden = locked("combo");
+    for (const act of ["shield", "potion", "wait", "retreat"]) $(`[data-act=${act}]`).hidden = locked(act);
+    $(".action-bar").hidden = ["shield", "potion", "wait", "retreat"].every(locked);
+  }
+
   function shield() {
-    if (busy) return;
+    if (busy || !features.has("shield")) return;
     const result = heroShield(combat);
     if (!result.ok) {
       sfx.play("invalid");
@@ -565,7 +579,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
   }
 
   async function wait() {
-    if (busy) return;
+    if (busy || !features.has("wait")) return;
     const result = heroWait(combat);
     if (!result.ok) return;
     busy = true;
@@ -576,7 +590,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
   }
 
   async function retreat() {
-    if (busy) return;
+    if (busy || !features.has("retreat")) return;
     const result = heroRetreat(combat);
     if (!result.ok) {
       sfx.play("invalid");
@@ -708,7 +722,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
   }
 
   function togglePotion() {
-    if (busy || combat.phase !== "hero") return;
+    if (busy || combat.phase !== "hero" || !features.has("potion")) return;
     if (combat.potions <= 0) {
       sfx.play("invalid");
       return toast("药水已用尽");

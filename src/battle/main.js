@@ -22,6 +22,7 @@ import {
 import { createCoach, skillTopic, TOPICS } from "./ui/coach.js";
 import { rich, kw } from "./ui/keywords.js";
 import { getHeroName, setHeroName, validateName } from "./data/heroName.js";
+import { featuresAt } from "./data/features.js";
 import { nameEntryHtml, bindNameEntry } from "./ui/nameEntry.js";
 
 const TOPICS_SLOTS_UP = TOPICS["slots-up"];
@@ -229,7 +230,7 @@ function renderHud() {
   const alive = board.monsters.filter((m) => m.alive);
   $("#hud-strip").innerHTML = `
     <span class="strip-hp ${hearts / slots < 0.35 ? "low" : ""}">${heartSvg("heart")}<b>${hearts}</b><small>/${slots}</small></span>
-    <button class="strip-chip" data-cmd="potion" ${hero.potions && hearts < slots ? "" : "disabled"} aria-label="喝药水">${icon("potion")}<b>${hero.potions}</b></button>
+    ${unlockedFeatures().has("potion") ? `<button class="strip-chip" data-cmd="potion" ${hero.potions && hearts < slots ? "" : "disabled"} aria-label="喝药水">${icon("potion")}<b>${hero.potions}</b></button>` : ""}
     ${hero.keys ? `<span class="strip-chip">${icon("key")}<b>${hero.keys}</b></span>` : ""}
     ${hero.plates ? `<button class="strip-chip" data-cmd="armor" aria-label="使用护甲片">${icon("armor")}<b>${hero.plates}</b></button>` : ""}
     <span class="strip-gap"></span>
@@ -244,7 +245,7 @@ function renderHud() {
     </div>
     <div class="hud-matrix" title="你的红心矩阵">${matrixSvg(hero.matrix, { cell: 12, gap: 2.5 })}</div>
     <div class="hud-items">
-      <button class="chip-btn" data-cmd="potion" ${hero.potions && hearts < slots ? "" : "disabled"} title="喝药水（P）">${icon("potion")}<span>药水</span><b>${hero.potions}</b></button>
+      ${unlockedFeatures().has("potion") ? `<button class="chip-btn" data-cmd="potion" ${hero.potions && hearts < slots ? "" : "disabled"} title="喝药水（P）">${icon("potion")}<span>药水</span><b>${hero.potions}</b></button>` : ""}
       <span class="chip ${hero.keys ? "on" : ""}" title="钥匙">${icon("key")}<span>钥匙</span><b>${hero.keys}</b></span>
       ${hero.plates ? `<button class="chip-btn" data-cmd="armor" title="使用护甲片（G）">${icon("armor")}<span>护甲片</span><b>${hero.plates}</b></button>` : ""}
     </div>
@@ -793,6 +794,33 @@ async function pickup(item) {
   await explain(topics, { slots: board.hero.slots, weapon: w, weapons: board.hero.weapons, skills: Object.keys(board.hero.skills) });
 }
 
+/** 当前已经解锁的战斗机制：看玩家走到的最远章节，回头重玩旧章节不会“忘掉”学过的东西。 */
+const unlockedFeatures = () => featuresAt(Math.max(levelIndex, progress.unlocked - 1));
+
+/**
+ * 这场战斗要讲的说明：界面导览只讲已经解锁的部分（看过的会自动跳过，
+ * 所以每章第一场战斗只会讲这一章新解锁的按钮），再加上这只怪物自身的特性。
+ */
+function battleTopics(monster, features) {
+  const tour = [
+    ["tour-enemy"],
+    ["tour-hero"],
+    ["tour-intent"],
+    ["tour-attack"],
+    ["tour-energy", "energy"],
+    ["tour-shield", "shield"],
+    ["tour-potion", "potion"],
+    ["tour-retreat", "retreat"],
+  ];
+  // 暗王战不能撤退，也就不讲撤退。
+  const shown = ([id, feature]) => (!feature || features.has(feature)) && !(id === "tour-retreat" && monster.def.boss);
+  const topics = tour.filter(shown).map(([id]) => id);
+  if (monster.matrix.some((row) => row.some((v) => v >= 2))) topics.push("armor");
+  if (monster.def.pattern.some((p) => p.kind === "charge")) topics.push("charge");
+  if (monster.def.pattern.some((p) => p.kind === "heal")) topics.push("heal");
+  return topics;
+}
+
 async function battle(monster, heroFirst) {
   walkToken += 1;
   sfx.play("battle");
@@ -802,16 +830,13 @@ async function battle(monster, heroFirst) {
   world.faceToward(world.hero, monsterObj.position);
   world.faceToward(monsterObj, world.hero.position);
   await world.focusOn(world.hero.position, monsterObj.position);
-  const combat = createCombat({ hero: board.hero, monster, heroFirst });
+  const features = unlockedFeatures();
+  const combat = createCombat({ hero: board.hero, monster, heroFirst, features });
   currentCombat = combat;
   closeSheet();
   document.body.classList.add("in-battle");
-  // 第一场战斗逐个指着界面讲一遍；连击等第一次完美命中、心阵上出现虚线框之后再讲。
-  const topics = ["tour-enemy", "tour-hero", "tour-intent", "tour-attack", "tour-energy", "tour-shield", "tour-potion"];
-  if (!monster.def.boss) topics.push("tour-retreat");
-  if (monster.matrix.some((row) => row.some((v) => v >= 2))) topics.push("armor");
-  if (monster.def.pattern.some((p) => p.kind === "charge")) topics.push("charge");
-  if (monster.def.pattern.some((p) => p.kind === "heal")) topics.push("heal");
+  // 逐个指着界面讲已经解锁的部分；连击等第一次完美命中、心阵上出现虚线框之后再讲。
+  const topics = battleTopics(monster, features);
   const ctx = { weapons: board.hero.weapons, skills: Object.keys(board.hero.skills) };
   sfx.music.play(BATTLE_TRACK[monster.def.id] ?? "battle");
   await runBattle({
@@ -821,8 +846,9 @@ async function battle(monster, heroFirst) {
     world,
     sfx,
     heroFirst,
+    features,
     coach: () => explain(topics, ctx),
-    afterPerfectHit: () => explain(["combo-energy"]),
+    afterPerfectHit: features.has("combo") ? () => explain(["combo-energy"]) : null,
   });
   document.body.classList.remove("in-battle");
   sfx.music.play(combat.phase === "lost" ? null : boardTrack());
@@ -1129,6 +1155,12 @@ async function levelComplete() {
   progress.stars[level.key] = Math.max(progress.stars[level.key] ?? 0, earned);
   progress.unlocked = Math.max(progress.unlocked, Math.min(levelIndex + 2, LEVELS.length));
   const hero = board.hero;
+  // 通关奖励的武器（序章的钩镰）：直接放进构筑，有空槽就装上。
+  const reward = level.reward && !hero.weapons.includes(level.reward) ? WEAPONS[level.reward] : null;
+  if (reward) {
+    hero.weapons.push(reward.id);
+    if (hero.equipped.length < hero.slots) hero.equipped.push(reward.id);
+  }
   progress.profile = JSON.parse(
     JSON.stringify({
       weapons: hero.weapons,
@@ -1157,6 +1189,7 @@ async function levelComplete() {
         <div class="stat"><span class="t-meta">Hearts</span><b>${hearts}</b><small>/ ${slots}</small></div>
         <div class="stat"><span class="t-meta">Battles</span><b>${pad(board.stats.battles)}</b><small>撤退 ${board.stats.retreats}</small></div>
       </div>
+      ${reward ? `<p class="reward-line"><span class="t-meta">New weapon · 新武器</span><span class="inline-shape">${shapeSvg(reward.shape, { cell: 10 })}</span><b>${reward.name}</b>${reward.desc}</p>` : ""}
       <ul class="criteria">
         <li class="on"><i></i>抵达出口</li>
         <li class="${healthy ? "on" : ""}"><i></i>剩余红心不少于一半</li>
@@ -1233,7 +1266,7 @@ function showHelp() {
           <h3><span class="t-meta">01</span>红心矩阵</h3>
           <p>${rich(`${getHeroName()}与怪物的生命均以[红心矩阵]表示，红心全部消除的一方战败。带黑框的[护甲心]需要命中两次才会消除。`)}</p>
           <h3><span class="t-meta">02</span>形状攻击</h3>
-          <p>${rich(`每件[武器]具有固定的攻击形状，范围内的红心将被消除。<span class="inline-shape">${shapeSvg(hook.shape, { cell: 9 })}</span> L 钩镰瞄准 a00 时，消除 a00、a01、a10。`)}</p>
+          <p>${rich(`每件[武器]具有固定的攻击形状，范围内的红心将被消除。<span class="inline-shape">${shapeSvg(hook.shape, { cell: 9 })}</span> 钩镰瞄准 a00 时，消除 a00、a01、a10。`)}</p>
           ${demoGrid([[0, 0], [0, 1], [1, 0]])}
         </section>
         <section>
@@ -1318,7 +1351,7 @@ function showHeroPlacement({ name, kickerHtml, title, bodyHtml, shape, resolve, 
 
 /** 棋盘上喝药水：在自己的心阵上选择十字落点。 */
 function showFieldHeal() {
-  if (!playing || busy || board.hero.potions <= 0) return;
+  if (!playing || busy || board.hero.potions <= 0 || !unlockedFeatures().has("potion")) return;
   showHeroPlacement({
     name: "heal",
     kickerHtml: kicker("P", "治疗", "POTION", `<em>${board.hero.potions}</em>`),
