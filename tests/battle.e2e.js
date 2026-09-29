@@ -133,9 +133,10 @@ test("用真实键鼠通关序章：说明弹窗、移动、悬停预览、出�
   await page.screenshot({ path: ".playwright/battle-board.png" });
   await page.keyboard.press("ArrowUp");
   await expect(page.locator(".battle-modal")).toBeVisible();
+  // 第一场战斗逐个指着界面讲：心阵、下一招、攻击、充能、防御、药水、撤退。
+  await expect(page.locator(".coach.pointed .coach-spot")).toBeVisible();
   const seen = await dismissCoach(page);
-  expect(seen).toContain("红心矩阵");
-  expect(seen).toContain("形状攻击");
+  expect(seen).toEqual(["怪物的红心矩阵", "屿屿的红心矩阵", "怪物的下一招", "攻击", "充能", "防御", "药水", "撤退"]);
   expect(await fight(page, { screenshot: ".playwright/battle-preview.png" })).toBe("胜利");
 
   await clickTile(page, 0, 3);

@@ -29,6 +29,7 @@ const legend = (rows) =>
   `<ul class="coach-legend">${rows.map(([glyph, text]) => `<li><span class="legend-glyph">${glyph}</span><span>${text}</span></li>`).join("")}</ul>`;
 
 const inkSwatch = '<span class="swatch ink"></span>';
+const coarse = () => window.matchMedia?.("(pointer: coarse)").matches;
 
 /**
  * 每个新机制第一次出现时弹出的说明。文案按说明书的口吻写，关键词用 [ ] 标出。
@@ -39,31 +40,54 @@ export const TOPICS = {
     title: "移动",
     body: `使用方向键或 WASD 移动一格，点击棋盘上的格子可自动寻路前往。进入[出口]即完成本章。`,
   },
-  "battle-matrix": {
-    title: "红心矩阵",
-    body: `屿屿与怪物的生命均以[红心矩阵]表示。左侧为怪物，右侧为屿屿。红心全部消除的一方战败。${demoGrid()}`,
+  // 第一场战斗的引导：逐个高亮战斗界面上的区域，说明卡贴在旁边。
+  "tour-enemy": {
+    title: "怪物的红心矩阵",
+    target: "[data-side=enemy] .matrix-box",
+    body: `左侧为怪物的[红心矩阵]。消除全部红心即可获胜。`,
   },
-  "battle-shape": {
-    title: "形状攻击",
-    body: () =>
-      `每件[武器]具有固定的攻击形状。将指针移至怪物的红心矩阵上可预览攻击范围，范围内的红心将被消除。攻击范围可以越出矩阵边缘。<p class="coach-example"><span class="inline-shape">${shapeSvg(WEAPONS.hook.shape, { cell: 10 })}</span>L 钩镰瞄准 a00 时，消除 a00、a01、a10。</p>${demoGrid([[0, 0], [0, 1], [1, 0]], [0, 0])}`,
+  "tour-hero": {
+    title: "屿屿的红心矩阵",
+    target: "[data-side=hero] .matrix-box",
+    body: `右侧为屿屿的[红心矩阵]，红心全部消除即战败。${legend([[inkSwatch, "墨黑格为怪物下一招的攻击范围。"]])}`,
   },
-  "battle-intent": {
+  "tour-intent": {
     title: "怪物的下一招",
-    body: `怪物按固定顺序行动，下一招会提前显示。${legend([
-      [inkSwatch, "屿屿红心矩阵上的墨黑格为怪物下一招的攻击范围。"],
-      [icon("shield"), "[防御]抵挡下一次攻击，不消耗回合。"],
-      [icon("potion"), "[药水]恢复十字范围内的红心。"],
-    ])}`,
+    target: "[data-side=enemy] .intent",
+    body: `怪物按固定顺序行动。此处显示它的下一招，以及之后几招的顺序。`,
   },
-  // 开战时讲：钩镰这样的武器要花充能。获得方式留到第一次完美命中之后再讲。
-  energy: {
+  "tour-attack": {
+    title: "攻击",
+    target: "[data-weapons]",
+    body: () =>
+      `选择一件[武器]，${
+        coarse() ? "点击怪物红心矩阵上的格子预览攻击范围，再次点击同一格发动攻击" : "将指针移至怪物的红心矩阵上预览攻击范围，点击发动攻击"
+      }。范围内的红心将被消除，攻击范围可以越出矩阵边缘。<p class="coach-example"><span class="inline-shape">${shapeSvg(WEAPONS.hook.shape, { cell: 10 })}</span>L 钩镰：L 形攻击三格。</p>`,
+  },
+  "tour-energy": {
     title: "充能",
+    target: "[data-energy]",
     body: `L 钩镰等武器每次使用消耗 1 点[充能]。${legend([[icon("energy"), "每场战斗开始时持有 2 点，最多积蓄 5 点。"]])}`,
+  },
+  "tour-shield": {
+    title: "防御",
+    target: "[data-act=shield]",
+    body: `[防御]抵挡怪物的下一次攻击，不消耗回合。使用后需要[冷却] 3 回合。`,
+  },
+  "tour-potion": {
+    title: "药水",
+    target: "[data-act=potion]",
+    body: `[药水]恢复十字范围内的红心，消耗一回合。数字为剩余的瓶数。`,
+  },
+  "tour-retreat": {
+    title: "撤退",
+    target: "[data-act=retreat]",
+    body: `承受怪物的一次追击后返回棋盘，怪物晕眩两回合。`,
   },
   // 第一次打出完美命中、心阵上出现蓝色虚线框之后才弹出。
   "combo-energy": {
     title: "连击",
+    target: "[data-side=enemy] .matrix-box",
     body: `攻击范围内的每一格均为红心时，记为[完美命中]，命中位置以蓝色虚线框标记。更换武器，在紧邻虚线框的位置再次完美命中，即构成[连击]。${demoGrid([[1, 0], [1, 1], [2, 0]], [1, 0], 3, 4, [[0, 0], [0, 1]])}${steps([
       { glyph: icon("perfect"), title: "完美命中", note: "标记虚线框" },
       { glyph: icon("combo"), title: "连击", note: "更换武器，紧邻虚线框" },
@@ -102,6 +126,7 @@ export const TOPICS = {
   // 护甲只讲玩家手里已经有的破甲手段。
   armor: {
     title: "护甲心",
+    target: "[data-side=enemy] .matrix-box",
     body: (ctx) =>
       `带黑框的[护甲心]需要命中两次才会消除。命中护甲心同样计入[完美命中]。${legend(
         [
@@ -112,10 +137,12 @@ export const TOPICS = {
   },
   charge: {
     title: "蓄力",
+    target: "[data-side=enemy] .intent",
     body: `怪物蓄力后，下一招为[重击]。可使用[防御]抵挡。`,
   },
   heal: {
     title: "恢复红心",
+    target: "[data-side=enemy] .matrix-box",
     body: `部分怪物会恢复红心。恢复的位置以红色虚线框提前标出，且必须与现有红心相连。${legend([
       ['<span class="swatch heal-plan"></span>', "在怪物行动前消除与虚线框相邻的红心，可减少或阻止这次恢复。"],
     ])}`,
@@ -158,8 +185,62 @@ export function skillTopic(id) {
   };
 }
 
+/** 找到说明要指向的元素；不在页面上或看不见时返回 null，说明卡改为居中。 */
+function findTarget(selector) {
+  if (!selector) return null;
+  const el = document.querySelector(selector);
+  if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0 ? el : null;
+}
+
+/**
+ * 把说明卡放在高亮区域旁边：依次尝试下方、上方、右侧、左侧，放得下就用；
+ * 都放不下时贴在屏幕底部居中。箭头指向高亮区域的中心。
+ */
+function placeCard(card, arrow, spot, el) {
+  const pad = 6;
+  const gap = 14;
+  const margin = 12;
+  el.scrollIntoView({ block: "nearest", inline: "nearest" });
+  const t = el.getBoundingClientRect();
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  Object.assign(spot.style, {
+    left: `${t.left - pad}px`,
+    top: `${t.top - pad}px`,
+    width: `${t.width + pad * 2}px`,
+    height: `${t.height + pad * 2}px`,
+  });
+  const cw = card.offsetWidth;
+  const ch = card.offsetHeight;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
+  const cx = t.left + t.width / 2;
+  const cy = t.top + t.height / 2;
+  const sides = [
+    ["below", H - t.bottom - pad - gap - margin >= ch, () => [clamp(cx - cw / 2, margin, W - cw - margin), t.bottom + pad + gap]],
+    ["above", t.top - pad - gap - margin >= ch, () => [clamp(cx - cw / 2, margin, W - cw - margin), t.top - pad - gap - ch]],
+    ["right", W - t.right - pad - gap - margin >= cw, () => [t.right + pad + gap, clamp(cy - ch / 2, margin, H - ch - margin)]],
+    ["left", t.left - pad - gap - margin >= cw, () => [t.left - pad - gap - cw, clamp(cy - ch / 2, margin, H - ch - margin)]],
+  ];
+  const fit = sides.find(([, ok]) => ok);
+  const [side, , pos] = fit ?? ["none", true, () => [(W - cw) / 2, H - ch - margin]];
+  const [x, y] = pos();
+  card.style.left = `${x}px`;
+  card.style.top = `${y}px`;
+  arrow.dataset.side = side;
+  if (side === "below" || side === "above") {
+    arrow.style.left = `${clamp(cx - x, 18, cw - 18)}px`;
+    arrow.style.top = "";
+  } else if (side === "left" || side === "right") {
+    arrow.style.top = `${clamp(cy - y, 18, ch - 18)}px`;
+    arrow.style.left = "";
+  }
+}
+
 /**
  * 说明弹窗。依次展示尚未看过的主题；关闭提示时直接跳过。
+ * 主题带 target 时高亮界面上的对应区域，说明卡贴在旁边；否则居中显示。
  * 返回 Promise，全部看完后 resolve，方便在战斗开始前或进入章节后等待。
  */
 export function createCoach({ root, enabled, seen, markSeen, sfx }) {
@@ -168,23 +249,52 @@ export function createCoach({ root, enabled, seen, markSeen, sfx }) {
     const queue = items
       .map((item) => (typeof item === "string" ? { id: item, topic: TOPICS[item] } : item))
       .filter((item) => item.topic && !seen(item.id));
+    if (!queue.length) return;
+    // 指向式说明要等界面（如刚打开的战斗窗口）展开、排好版，才能准确指到位置。
+    if (queue.some((item) => item.topic.target)) await new Promise((r) => setTimeout(r, 360));
+    root.innerHTML = `<div class="coach" role="dialog" aria-modal="true">
+      <div class="coach-spot" hidden></div>
+      <div class="coach-card"><i class="coach-arrow" aria-hidden="true"></i><div class="coach-inner"></div></div>
+    </div>`;
+    const overlay = root.querySelector(".coach");
+    const spot = root.querySelector(".coach-spot");
+    const card = root.querySelector(".coach-card");
+    const arrow = root.querySelector(".coach-arrow");
+    const inner = root.querySelector(".coach-inner");
+    let target = null;
+    const relayout = () => target && placeCard(card, arrow, spot, target);
+    window.addEventListener("resize", relayout);
+
+    let skipped = false;
     for (const [index, item] of queue.entries()) {
+      if (skipped) {
+        markSeen(item.id);
+        continue;
+      }
       markSeen(item.id);
       const body = rich(typeof item.topic.body === "function" ? item.topic.body(ctx) : item.topic.body);
+      const last = index + 1 === queue.length;
+      target = findTarget(item.topic.target);
+      overlay.classList.toggle("pointed", Boolean(target));
+      spot.hidden = !target;
+      overlay.setAttribute("aria-label", item.topic.title);
+      inner.innerHTML = `<div class="coach-head"><span class="t-meta">New · 新机制</span>${queue.length > 1 ? `<span class="t-meta">${index + 1} / ${queue.length}</span>` : ""}</div>
+        <h3>${item.topic.title}</h3>
+        <div class="coach-body">${body}</div>
+        <div class="coach-actions">${!last ? '<button class="ghost" data-coach-skip>跳过</button>' : ""}<button class="primary" data-coach-ok>${last ? "知道了" : "下一条"}<span aria-hidden="true">→</span></button></div>`;
+      card.style.left = "";
+      card.style.top = "";
+      card.classList.remove("enter");
+      void card.offsetWidth;
+      card.classList.add("enter");
+      if (target) placeCard(card, arrow, spot, target);
+      sfx?.play("page");
       await new Promise((resolve) => {
-        root.innerHTML = `<div class="coach" role="dialog" aria-modal="true" aria-label="${item.topic.title}">
-          <div class="coach-card">
-            <div class="coach-head"><span class="t-meta">New · 新机制</span>${queue.length > 1 ? `<span class="t-meta">${index + 1} / ${queue.length}</span>` : ""}</div>
-            <h3>${item.topic.title}</h3>
-            <div class="coach-body">${body}</div>
-            <div class="coach-actions"><button class="primary" data-coach-ok>${index + 1 < queue.length ? "下一条" : "知道了"}<span aria-hidden="true">→</span></button></div>
-          </div>
-        </div>`;
-        const ok = root.querySelector("[data-coach-ok]");
-        sfx?.play("page");
-        const done = () => {
+        const ok = inner.querySelector("[data-coach-ok]");
+        const skip = inner.querySelector("[data-coach-skip]");
+        const done = (all = false) => {
           document.removeEventListener("keydown", onKey, true);
-          root.innerHTML = "";
+          skipped = all;
           sfx?.play("click");
           resolve();
         };
@@ -192,13 +302,16 @@ export function createCoach({ root, enabled, seen, markSeen, sfx }) {
           if (e.key === "Enter" || e.key === " " || e.key === "Escape") {
             e.preventDefault();
             e.stopPropagation();
-            done();
+            done(e.key === "Escape");
           } else e.stopPropagation();
         };
-        ok.addEventListener("click", done);
+        ok.addEventListener("click", () => done());
+        skip?.addEventListener("click", () => done(true));
         document.addEventListener("keydown", onKey, true);
         setTimeout(() => ok.focus(), 30);
       });
     }
+    window.removeEventListener("resize", relayout);
+    root.innerHTML = "";
   };
 }

@@ -789,8 +789,9 @@ async function battle(monster, heroFirst) {
   currentCombat = combat;
   closeSheet();
   document.body.classList.add("in-battle");
-  // 开战时只讲眼前用得上的；连击等第一次完美命中、心阵上出现虚线框之后再讲。
-  const topics = ["battle-matrix", "battle-shape", "battle-intent", "energy"];
+  // 第一场战斗逐个指着界面讲一遍；连击等第一次完美命中、心阵上出现虚线框之后再讲。
+  const topics = ["tour-enemy", "tour-hero", "tour-intent", "tour-attack", "tour-energy", "tour-shield", "tour-potion"];
+  if (!monster.def.boss) topics.push("tour-retreat");
   if (monster.matrix.some((row) => row.some((v) => v >= 2))) topics.push("armor");
   if (monster.def.pattern.some((p) => p.kind === "charge")) topics.push("charge");
   if (monster.def.pattern.some((p) => p.kind === "heal")) topics.push("heal");

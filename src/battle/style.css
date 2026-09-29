@@ -2542,7 +2542,137 @@ body:not(.in-level) .hint-bar {
 .coach-actions {
   display: flex;
   justify-content: flex-end;
+  gap: var(--sp-3);
   margin-top: var(--sp-6);
+}
+
+/* 指向式说明：高亮区域四周压暗，说明卡贴在旁边，箭头指向高亮区域。 */
+.coach.pointed {
+  display: block;
+  padding: 0;
+  background: transparent;
+}
+
+.coach-spot {
+  position: fixed;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 200vmax rgba(var(--ink-rgb), 0.42);
+  pointer-events: none;
+  transition:
+    left 0.32s var(--ease-prod),
+    top 0.32s var(--ease-prod),
+    width 0.32s var(--ease-prod),
+    height 0.32s var(--ease-prod);
+}
+
+.coach-spot::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border: 2px solid var(--accent);
+  animation: spot-pulse 1.6s var(--ease-prod) infinite;
+}
+
+@keyframes spot-pulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}
+
+.coach-card {
+  position: relative;
+}
+
+.coach.pointed .coach-card {
+  position: fixed;
+  width: min(360px, calc(100vw - 24px));
+  max-height: none;
+  overflow: visible;
+  padding: var(--sp-6);
+}
+
+.coach.pointed .coach-inner {
+  max-height: calc(100vh - 80px);
+  overflow: auto;
+}
+
+.coach.pointed .coach-card h3 {
+  margin: var(--sp-2) 0 var(--sp-3);
+  font-size: 26px;
+}
+
+.coach.pointed .coach-body {
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.coach.pointed .coach-actions {
+  margin-top: var(--sp-5);
+}
+
+.coach-card.enter {
+  animation: coach-in 0.26s var(--ease-entry);
+}
+
+@keyframes coach-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.coach-arrow {
+  display: none;
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.coach.pointed .coach-arrow[data-side="below"] {
+  display: block;
+  top: -3px;
+  border-right: 0;
+  border-bottom: 0;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.coach.pointed .coach-arrow[data-side="above"] {
+  display: block;
+  top: 100%;
+  border-left: 0;
+  border-top: 0;
+}
+
+.coach.pointed .coach-arrow[data-side="right"] {
+  display: block;
+  left: 0;
+  border-right: 0;
+  border-top: 0;
+}
+
+.coach.pointed .coach-arrow[data-side="left"] {
+  display: block;
+  left: 100%;
+  border-left: 0;
+  border-bottom: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coach-spot,
+  .coach-spot::after,
+  .coach-card.enter {
+    transition: none;
+    animation: none;
+  }
 }
 
 /* ——— 连击 ——— */
