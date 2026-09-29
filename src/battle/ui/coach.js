@@ -2,6 +2,7 @@ import { shapeSvg, heartSvg, icon } from "./icons.js";
 import { rich } from "./keywords.js";
 import { WEAPONS } from "../data/weapons.js";
 import { SKILLS } from "../data/skills.js";
+import { getHeroName } from "../data/heroName.js";
 
 /** 4×4 示意矩阵：hit 中的格子标为被消除，anchor 为锚点。 */
 function demoGrid(hitCells = [], anchor = null, rows = 4, cols = 4, prevCells = []) {
@@ -47,9 +48,13 @@ export const TOPICS = {
     body: `左侧为怪物的[红心矩阵]。消除全部红心即可获胜。`,
   },
   "tour-hero": {
-    title: "屿屿的红心矩阵",
+    get title() {
+      return `${getHeroName()}的红心矩阵`;
+    },
     target: "[data-side=hero] .matrix-box",
-    body: `右侧为屿屿的[红心矩阵]，红心全部消除即战败。${legend([[inkSwatch, "墨黑格为怪物下一招的攻击范围。"]])}`,
+    get body() {
+      return `右侧为${getHeroName()}的[红心矩阵]，红心全部消除即战败。${legend([[inkSwatch, "墨黑格为怪物下一招的攻击范围。"]])}`;
+    },
   },
   "tour-intent": {
     title: "怪物的下一招",
@@ -113,7 +118,9 @@ export const TOPICS = {
   },
   ambush: {
     title: "巡猎的怪物",
-    body: "部分怪物发现屿屿后会主动追击。被怪物接触时，由怪物先手。将指针停在怪物上，可查看其招式与移动方式。",
+    get body() {
+      return `部分怪物发现${getHeroName()}后会主动追击。被怪物接触时，由怪物先手。将指针停在怪物上，可查看其招式与移动方式。`;
+    },
   },
   skills: {
     title: "技能",
@@ -158,7 +165,9 @@ export const TOPICS = {
   },
   fog: {
     title: "战争迷雾",
-    body: "[迷雾]中仅显示屿屿周围的格子，障碍物会遮挡视线。已探索的区域保留地形，但不显示怪物。[出口]始终可见。",
+    get body() {
+      return `[迷雾]中仅显示${getHeroName()}周围的格子，障碍物会遮挡视线。已探索的区域保留地形，但不显示怪物。[出口]始终可见。`;
+    },
   },
   boss: {
     title: "暗王",

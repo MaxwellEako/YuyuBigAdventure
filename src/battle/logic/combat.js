@@ -13,6 +13,7 @@ import {
 } from "./shapes.js";
 import { WEAPONS, SHIELD, POTION } from "../data/weapons.js";
 import { SKILLS } from "../data/skills.js";
+import { getHeroName } from "../data/heroName.js";
 import { weaponShape, nextRotation, weaponCooldown } from "./arsenal.js";
 
 /**
@@ -92,7 +93,7 @@ export function createCombat({
   planIntent(state);
   state.log.push(
     heroFirst
-      ? `屿屿向${state.def.name}发起攻击。`
+      ? `${getHeroName()}向${state.def.name}发起攻击。`
       : `${state.def.name}发起突袭。`,
   );
   return state;
@@ -272,7 +273,7 @@ export function heroAttack(state, weaponId, r, c) {
   if (slot.kind === "skill" && def.effect === "drain" && broken) {
     const changes = drainHeal(state, broken);
     if (changes.length) {
-      state.log.push(`${def.name}为屿屿恢复了 ${changes.length} 颗红心。`);
+      state.log.push(`${def.name}为${getHeroName()}恢复了 ${changes.length} 颗红心。`);
       events.push({ type: "heal", side: "hero", changes });
     }
   }
@@ -345,7 +346,7 @@ export function heroShield(state) {
     return { ok: false, reason: `防御还需冷却 ${state.shieldCd} 回合` };
   state.shieldUp = true;
   state.shieldCd = SHIELD.cooldown + 1;
-  state.log.push("屿屿进入防御状态。");
+  state.log.push(`${getHeroName()}进入防御状态。`);
   return { ok: true, events: [{ type: "shield" }] };
 }
 
@@ -357,7 +358,7 @@ export function heroWait(state) {
   if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
   state.bonus = false;
   state.phase = "monster";
-  state.log.push("屿屿等待一回合。");
+  state.log.push(`${getHeroName()}等待一回合。`);
   return { ok: true, events: [{ type: "wait" }] };
 }
 
@@ -367,7 +368,7 @@ export function heroRetreat(state) {
   state.retreating = true;
   state.bonus = false;
   state.phase = "monster";
-  state.log.push(`屿屿撤退，${state.def.name}发起追击。`);
+  state.log.push(`${getHeroName()}撤退，${state.def.name}发起追击。`);
   return { ok: true, events: [{ type: "retreat" }] };
 }
 
@@ -536,7 +537,7 @@ export function monsterTurn(state) {
 
   if (isDead(state.heroMatrix)) {
     state.phase = "lost";
-    state.log.push("屿屿的红心已全部消除。");
+    state.log.push(`${getHeroName()}的红心已全部消除。`);
     events.push({ type: "lost" });
   } else if (state.retreating) {
     state.phase = "fled";

@@ -21,6 +21,8 @@ import {
 } from "./logic/arsenal.js";
 import { createCoach, skillTopic, TOPICS } from "./ui/coach.js";
 import { rich, kw } from "./ui/keywords.js";
+import { getHeroName, setHeroName, validateName } from "./data/heroName.js";
+import { nameEntryHtml, bindNameEntry } from "./ui/nameEntry.js";
 
 const TOPICS_SLOTS_UP = TOPICS["slots-up"];
 import { MONSTERS, INTENT_TEXT } from "./data/monsters.js";
@@ -59,7 +61,7 @@ const AI_TEXT = { static: "原地驻守", patrol: "来回巡逻", chase: "随处
  * forged：{ 章节 key: 用过的铁砧坐标 "r,c" 列表 }，重玩时这些铁砧不能再用。
  */
 const PROGRESS_VERSION = 4;
-const EMPTY_PROGRESS = { v: PROGRESS_VERSION, unlocked: 1, stars: {}, profile: null, forged: {}, seen: [], hints: true };
+const EMPTY_PROGRESS = { v: PROGRESS_VERSION, unlocked: 1, stars: {}, profile: null, forged: {}, seen: [], hints: true, name: "" };
 
 function loadProgress() {
   try {
@@ -160,6 +162,9 @@ const $ = (sel) => document.querySelector(sel);
 const world = new BoardWorld($("#stage"));
 const sfx = new Sfx();
 const progress = loadProgress();
+// 存档里的名字要重新校验（可能被手动改过）；没有合格的名字就留空，开局时让玩家起名。
+progress.name = validateName(progress.name).ok ? validateName(progress.name).name : "";
+setHeroName(progress.name);
 // 音效与音乐开关各自记住。
 sfx.enabled = progress.audio?.sfx !== false;
 sfx.musicEnabled = progress.audio?.music !== false;
@@ -230,7 +235,7 @@ function renderHud() {
     <button class="sheet-close icon-btn" data-cmd="closeSheet" aria-label="收起">${icon("close")}</button>
     ${kicker("01", "主角", "HERO")}
     <div class="hud-hero">
-      <div class="hud-name"><b>屿屿</b><small>白色小兵 · ${hero.matrix.length}×${hero.matrix[0].length} 红心矩阵</small></div>
+      <div class="hud-name"><b>${getHeroName()}</b><small>白色小兵 · ${hero.matrix.length}×${hero.matrix[0].length} 红心矩阵</small></div>
       <div class="hud-hp ${hearts / slots < 0.35 ? "low" : ""}"><span class="num">${hearts}</span><span class="of">/${slots}</span></div>
     </div>
     <div class="hud-matrix" title="你的红心矩阵">${matrixSvg(hero.matrix, { cell: 12, gap: 2.5 })}</div>
@@ -942,7 +947,7 @@ function showResetConfirm() {
     "reset",
     `<div class="panel reset-panel" role="alertdialog" aria-labelledby="reset-title">
       <header class="panel-head"><div>${kicker(icon("restart"), "重置", "RESET")}<h2 id="reset-title">重置进度</h2></div></header>
-      <p class="body">${rich("所有章节、星级、[武器]与强化都会清空，屿屿将从序章重新出发。")}</p>
+      <p class="body">${rich(`所有章节、星级、[武器]与强化都会清空，名字也需要重新填写，${getHeroName()}将从序章重新出发。`)}</p>
       <p class="reset-warn">${icon("close")}这一步无法撤销。</p>
       <div class="panel-actions">
         <button class="ghost" data-cmd="back" autofocus>取消</button>
@@ -974,7 +979,8 @@ function resetProgress() {
   board = null;
   currentCombat = null;
   document.body.classList.remove("in-level", "in-battle");
-  showTitle();
+  setHeroName("");
+  enterGame();
   toast(`${icon("restart")} 进度已重置`);
 }
 
@@ -995,14 +1001,15 @@ function showTitle() {
     "title",
     `<div class="title-card">
       <div class="dot-mat" aria-hidden="true"></div>
-      <div class="t-meta title-chrome"><span>YUYU'S ADVENTURE</span></div>
+      <div class="t-meta title-chrome"><span>ADVENTURER · ${getHeroName()}</span></div>
       <h1>心阵<br>棋局</h1>
       <p class="subtitle t-meta">HEART GAMBIT / A TURN-BASED BOARD GAME</p>
-      <p class="lede">墨水瓶打翻在棋盘上，被墨迹侵蚀的黑棋变成了怪物。白色小兵屿屿要穿过${cnNumber(LEVELS.length - 1)}个章节，找到墨迹的源头。</p>
+      <p class="lede">墨水瓶打翻在棋盘上，被墨迹侵蚀的黑棋变成了怪物。白色小兵${getHeroName()}要穿过${cnNumber(LEVELS.length - 1)}个章节，找到墨迹的源头。</p>
       <div class="title-actions">
         <button class="primary" data-cmd="continue">${progress.unlocked > 1 ? `继续冒险 · 第 ${continueIndex} 章` : "开始冒险"}<span aria-hidden="true">→</span></button>
         <button class="ghost" data-cmd="levels">选择关卡</button>
         <button class="ghost" data-cmd="help">玩法说明</button>
+        <button class="ghost" data-cmd="rename">更改名字</button>
         ${hasProgress() ? `<button class="ghost subtle" data-cmd="reset">${icon("restart")}重置进度</button>` : ""}
       </div>
       <dl class="title-specs">
@@ -1013,6 +1020,41 @@ function showTitle() {
       </dl>
     </div>`,
   );
+}
+
+/** 进入游戏的第一屏：还没起名就先起名，起过了直接看标题。 */
+function enterGame() {
+  if (progress.name) showTitle();
+  else showNameEntry();
+}
+
+/**
+ * 起名 / 改名界面。
+ * cancelable 为 true 时是从标题页点「更改名字」进来的，可以取消；首次起名必须填完才能继续。
+ */
+function showNameEntry({ cancelable = false } = {}) {
+  sfx.music.play("title");
+  document.body.classList.remove("in-level");
+  playing = false;
+  // 背景棋盘照常转起来，和标题页保持一致。
+  if (!board) {
+    board = createBoard(LEVELS[0], { weapons: STARTING_WEAPONS });
+    world.loadLevel(board);
+  }
+  world.controls.autoRotate = true;
+  world.controls.autoRotateSpeed = 0.6;
+  world.setScreenShift(0);
+  showScreen(
+    "name",
+    nameEntryHtml({ current: progress.name, cancelable, kickerHtml: kicker("00", "起名", "YOUR NAME") }),
+    { back: cancelable ? showTitle : null },
+  );
+  bindNameEntry($("#screen"), (name) => {
+    progress.name = setHeroName(name);
+    saveProgress();
+    sfx.play("click");
+    showTitle();
+  });
 }
 
 function showLevels() {
@@ -1133,7 +1175,7 @@ function showEnding(earned) {
       <p class="t-meta">Final chapter / Checkmate</p>
       <h2>将死。</h2>
       ${stars(earned)}
-      <p class="story">暗王被击败后，墨迹退回了墨水瓶，黑棋恢复了原样。屿屿回到了第一排。</p>
+      <p class="story">暗王被击败后，墨迹退回了墨水瓶，黑棋恢复了原样。${getHeroName()}回到了第一排。</p>
       <div class="stat-row">
         <div class="stat"><span class="t-meta">Stars</span><b>${pad(total)}</b><small>/ ${LEVELS.length * 3}</small></div>
         <div class="stat"><span class="t-meta">Chapters</span><b>${pad(LEVELS.length - 1)}</b><small>全部完成</small></div>
@@ -1154,7 +1196,7 @@ function gameOver() {
     `<div class="panel result lost">
       <p class="t-meta">Chapter ${pad(board.level.id)} / ${board.level.english}</p>
       <h2>挑战失败</h2>
-      <p class="story">${rich("屿屿倒下了。注意怪物的下一招，在重击到来前使用[防御]。")}</p>
+      <p class="story">${rich(`${getHeroName()}倒下了。注意怪物的下一招，在重击到来前使用[防御]。`)}</p>
       <div class="panel-actions">
         <button class="ghost" data-cmd="levels">选择关卡</button>
         <button class="primary" data-cmd="replay">重新挑战<span aria-hidden="true">→</span></button>
@@ -1185,7 +1227,7 @@ function showHelp() {
       <div class="help-grid">
         <section>
           <h3><span class="t-meta">01</span>红心矩阵</h3>
-          <p>${rich("屿屿与怪物的生命均以[红心矩阵]表示，红心全部消除的一方战败。带黑框的[护甲心]需要命中两次才会消除。")}</p>
+          <p>${rich(`${getHeroName()}与怪物的生命均以[红心矩阵]表示，红心全部消除的一方战败。带黑框的[护甲心]需要命中两次才会消除。`)}</p>
           <h3><span class="t-meta">02</span>形状攻击</h3>
           <p>${rich(`每件[武器]具有固定的攻击形状，范围内的红心将被消除。<span class="inline-shape">${shapeSvg(hook.shape, { cell: 9 })}</span> L 钩镰瞄准 a00 时，消除 a00、a01、a10。`)}</p>
           ${demoGrid([[0, 0], [0, 1], [1, 0]])}
@@ -1210,7 +1252,7 @@ function showHelp() {
           <ul class="help-legend">
             <li><span class="legend-glyph">${icon("chest")}</span><span>${rich("走到[宝箱]或[药水]所在格子可以拾取该物品。站在[铁砧]相邻的格子上点击铁砧即可使用。")}</span></li>
             <li><span class="legend-glyph">${icon("bag")}</span><span>${rich("[武器槽]数量决定可装备的武器数，[技能]最多装备三个。按 B 键[打开背包|背包]。")}</span></li>
-            <li><span class="legend-glyph">${icon("fog")}</span><span>${rich("[迷雾]中仅显示屿屿周围的格子。")}</span></li>
+            <li><span class="legend-glyph">${icon("fog")}</span><span>${rich(`[迷雾]中仅显示${getHeroName()}周围的格子。`)}</span></li>
           </ul>
           <h3><span class="t-meta">06</span>按键</h3>
           <p class="keys"><span><kbd>WASD</kbd>移动</span><span><kbd>C</kbd>转动视角</span><span><kbd>B</kbd>背包</span><span><kbd>P</kbd>喝药水</span><span><kbd>1</kbd>~<kbd>7</kbd>选武器</span><span><kbd>R</kbd>旋转</span><span><kbd>F</kbd>镜像</span><span><kbd>Q</kbd>防御</span><span><kbd>E</kbd>药水</span><span><kbd>Z</kbd>等待</span></p>
@@ -1281,6 +1323,7 @@ const commands = {
   sheetGoal: () => openSheet("goal"),
   closeSheet,
   reset: showResetConfirm,
+  rename: () => showNameEntry({ cancelable: true }),
   confirmReset: resetProgress,
   hints: () => {
     progress.hints = progress.hints === false;
@@ -1427,4 +1470,4 @@ window.__heartGambit = {
 // 网页字体加载完成后重绘 3D 铭牌，让 Canvas 里的数字也用上 Inter。
 document.fonts?.ready.then(() => board?.monsters.forEach((m) => world.updateMonster(m)));
 
-showTitle();
+enterGame();

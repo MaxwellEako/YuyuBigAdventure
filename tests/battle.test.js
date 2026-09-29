@@ -48,6 +48,14 @@ import { MONSTERS, heartsAt } from "../src/battle/data/monsters.js";
 import { LEVELS, weaponsForLevel, skillsForLevel } from "../src/battle/data/levels.js";
 import { SKILLS } from "../src/battle/data/skills.js";
 import {
+  DEFAULT_HERO_NAME,
+  NAME_MAX_WIDTH,
+  nameWidth,
+  validateName,
+  getHeroName,
+  setHeroName,
+} from "../src/battle/data/heroName.js";
+import {
   weaponShape,
   distinctRotations,
   upgradeOptions,
@@ -706,4 +714,57 @@ test("怪物心阵按章节分档成长：前期够连上几下，后期越来�
   const late = createBoard(LEVELS[9], { weapons: STARTING_WEAPONS });
   const rook = late.monsters.find((m) => m.def.id === "rook");
   assert.equal(countHearts(rook.matrix).slots, countHearts(heartsAt(MONSTERS.rook, 2)).slots, "棋盘按本章的档位生成怪物");
+});
+
+test("名字长度按显示宽度计：中文最多 9 个字，英文最多 18 个字母", () => {
+  assert.equal(nameWidth("屿屿"), 4);
+  assert.equal(nameWidth("Yuyu"), 4);
+  assert.equal(NAME_MAX_WIDTH, 18);
+
+  // 中文：9 个字刚好，10 个字超限
+  assert.equal(validateName("一二三四五六七八九").ok, true);
+  assert.equal(validateName("一二三四五六七八九十").ok, false);
+  // 英文：18 个字母刚好，19 个超限
+  assert.equal(validateName("a".repeat(18)).ok, true);
+  assert.equal(validateName("a".repeat(19)).ok, false);
+  // 中英混写按宽度折算：4 个汉字（8）+ 10 个字母（10）= 18 刚好，再多一个字母就超限
+  assert.equal(validateName("四个汉字" + "a".repeat(10)).ok, true);
+  assert.equal(validateName("四个汉字" + "a".repeat(11)).ok, false);
+});
+
+test("名字校验：去掉首尾空格、拒绝空名与危险字符", () => {
+  assert.deepEqual(validateName("  小 明  ").name, "小 明");
+  assert.equal(validateName("").ok, false);
+  assert.equal(validateName("   ").ok, false);
+  assert.equal(validateName(undefined).ok, false);
+  // 名字会被拼进页面，HTML 特殊字符一律拒绝
+  for (const bad of ["<b>", "a&b", 'a"b', "a'b", "<script>", "a/b", "😀"]) {
+    assert.equal(validateName(bad).ok, false, `${bad} 应被拒绝`);
+  }
+  // 其他语言的文字、数字和常见符号可以
+  for (const good of ["Yuyu", "Léa", "Никита", "さくら", "Tom_2", "A.B-C", "小明·大王"]) {
+    assert.equal(validateName(good).ok, true, `${good} 应被接受`);
+  }
+});
+
+test("主角名会出现在战斗日志与技能、章节文案里；不合格的名字退回默认名", () => {
+  try {
+    assert.equal(getHeroName(), DEFAULT_HERO_NAME);
+    assert.equal(setHeroName("阿福"), "阿福");
+    assert.equal(getHeroName(), "阿福");
+
+    const board = createBoard(LEVELS[0], { weapons: STARTING_WEAPONS });
+    const combat = createCombat({ hero: board.hero, monster: board.monsters[0], heroFirst: true, rng: createRng(1) });
+    assert.ok(combat.log.some((line) => line.includes("阿福")), "战斗日志应使用玩家的名字");
+    assert.ok(!combat.log.some((line) => line.includes(DEFAULT_HERO_NAME)), "不应再出现默认名");
+
+    assert.ok(SKILLS.drain.desc.includes("阿福"));
+    assert.ok(LEVELS[0].story.includes("阿福"));
+    assert.ok(LEVELS[1].story.includes("阿福"));
+
+    assert.equal(setHeroName("<b>"), DEFAULT_HERO_NAME);
+    assert.equal(setHeroName(""), DEFAULT_HERO_NAME);
+  } finally {
+    setHeroName("");
+  }
 });

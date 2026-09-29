@@ -35,7 +35,7 @@ async function skipHints(page) {
   await page.evaluate(() =>
     localStorage.setItem(
       "heart-gambit-progress-v3",
-      JSON.stringify({ unlocked: 1, stars: {}, loadouts: {}, seen: [], hints: false }),
+      JSON.stringify({ unlocked: 1, stars: {}, loadouts: {}, seen: [], hints: false, name: "屿屿" }),
     ),
   );
   await page.reload();
@@ -116,7 +116,12 @@ test("用真实键鼠通关序章：说明弹窗、移动、悬停预览、出�
   await page.goto("/");
   await page.evaluate(() => localStorage.clear());
   await page.reload();
+  // 第一次进游戏先起名，起完名才进入标题页。
+  await expect(page.locator(".name-panel h2")).toHaveText("你叫什么名字？");
+  await page.locator(".name-panel input").fill("阿福");
+  await page.getByRole("button", { name: /出发/ }).click();
   await expect(page.locator(".title-card h1")).toHaveText("心阵棋局");
+  await expect(page.locator(".title-card .lede")).toContainText("阿福");
   await page.screenshot({ path: ".playwright/battle-title.png" });
 
   await page.getByRole("button", { name: "开始冒险" }).click();
@@ -136,7 +141,7 @@ test("用真实键鼠通关序章：说明弹窗、移动、悬停预览、出�
   // 第一场战斗逐个指着界面讲：心阵、下一招、攻击、充能、防御、药水、撤退。
   await expect(page.locator(".coach.pointed .coach-spot")).toBeVisible();
   const seen = await dismissCoach(page);
-  expect(seen).toEqual(["怪物的红心矩阵", "屿屿的红心矩阵", "怪物的下一招", "攻击", "充能", "防御", "药水", "撤退"]);
+  expect(seen).toEqual(["怪物的红心矩阵", "阿福的红心矩阵", "怪物的下一招", "攻击", "充能", "防御", "药水", "撤退"]);
   expect(await fight(page, { screenshot: ".playwright/battle-preview.png" })).toBe("胜利");
 
   await clickTile(page, 0, 3);
@@ -146,6 +151,8 @@ test("用真实键鼠通关序章：说明弹窗、移动、悬停预览、出�
 
   await page.reload();
   await expect(page.getByRole("button", { name: /继续冒险 · 第 1 章/ })).toBeVisible();
+  // 名字随存档保存，刷新后不会再要求起名。
+  await expect(page.locator(".title-card .lede")).toContainText("阿福");
   expect(errors).toEqual([]);
 });
 
@@ -188,7 +195,7 @@ test("手机竖屏：棋盘与战斗窗口不出现横向滚动", async ({ page 
 });
 
 test("重置进度：先确认再清空，取消不丢进度，音乐音效开关保留", async ({ page }) => {
-  const saved = { v: 4, unlocked: 6, stars: { prologue: 3, "first-blot": 2 }, profile: { weapons: ["dagger", "hook", "slash"], skills: [], upgrades: { dagger: { extend: true } }, equipped: ["dagger", "hook"], equippedSkills: [], slots: 2 }, forged: {}, seen: ["move"], hints: false, audio: { music: false, sfx: true } };
+  const saved = { v: 4, unlocked: 6, stars: { prologue: 3, "first-blot": 2 }, profile: { weapons: ["dagger", "hook", "slash"], skills: [], upgrades: { dagger: { extend: true } }, equipped: ["dagger", "hook"], equippedSkills: [], slots: 2 }, forged: {}, seen: ["move"], hints: false, name: "屿屿", audio: { music: false, sfx: true } };
   await page.goto("/");
   await page.evaluate((data) => localStorage.setItem("heart-gambit-progress-v3", JSON.stringify(data)), saved);
   await page.reload();
@@ -216,13 +223,68 @@ test("重置进度：先确认再清空，取消不丢进度，音乐音效开�
   await page.keyboard.press("h");
   await page.locator(".help [data-cmd=reset]").click();
   await page.getByRole("button", { name: "确认重置" }).click();
+  // 名字随进度一起清空，重置后要重新起名。
+  await expect(page.locator(".name-panel h2")).toBeVisible();
+  await page.locator(".name-panel input").fill("Lily");
+  await page.getByRole("button", { name: /出发/ }).click();
   await expect(page.getByRole("button", { name: "开始冒险" })).toBeVisible();
   await expect(page.getByRole("button", { name: "重置进度" })).toHaveCount(0);
   const after = JSON.parse(await page.evaluate(() => localStorage.getItem("heart-gambit-progress-v3")));
+  expect(after.name).toBe("Lily");
   expect(after.unlocked).toBe(1);
   expect(after.stars).toEqual({});
   expect(after.profile).toBeNull();
   expect(after.seen).toEqual([]);
   expect(after.audio).toEqual({ music: false, sfx: true });
   await page.screenshot({ path: ".playwright/battle-after-reset.png" });
+});
+
+test("起名：中文最多 9 个字、英文最多 18 个，超长或非法时不能提交；名字用于各处文案", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+
+  const input = page.locator(".name-panel input");
+  const submit = page.getByRole("button", { name: /出发/ });
+  const hint = page.locator("[data-name-error]");
+  await expect(submit).toBeDisabled();
+
+  // 中文：9 个字可以，10 个字不行
+  await input.fill("一二三四五六七八九");
+  await expect(submit).toBeEnabled();
+  await expect(page.locator("[data-name-count]")).toHaveText("18 / 18");
+  await input.fill("一二三四五六七八九十");
+  await expect(submit).toBeDisabled();
+  await expect(hint).toContainText("太长");
+
+  // 英文：18 个字母可以，19 个不行
+  await input.fill("abcdefghijklmnopqr");
+  await expect(submit).toBeEnabled();
+  await input.fill("abcdefghijklmnopqrs");
+  await expect(submit).toBeDisabled();
+
+  // HTML 特殊字符被拒绝
+  await input.fill("<b>hi</b>");
+  await expect(submit).toBeDisabled();
+  await expect(hint).toContainText("只能使用");
+
+  // 回车提交；进入序章后，故事与战斗界面都使用新名字
+  await input.fill("Yuki");
+  await input.press("Enter");
+  await page.getByRole("button", { name: "开始冒险" }).click();
+  await expect(page.locator(".screen-intro .story")).toContainText("Yuki");
+  await expect(page.locator(".screen-intro .story")).not.toContainText("屿屿");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#hero-hud .hud-name b")).toHaveText("Yuki");
+
+  // 从标题页改名：可以取消，也可以改成新名字
+  await page.reload();
+  await page.getByRole("button", { name: "更改名字" }).click();
+  await expect(input).toHaveValue("Yuki");
+  await page.getByRole("button", { name: "取消" }).click();
+  await expect(page.locator(".title-card .lede")).toContainText("Yuki");
+  await page.getByRole("button", { name: "更改名字" }).click();
+  await input.fill("小满");
+  await submit.click();
+  await expect(page.locator(".title-card .lede")).toContainText("小满");
 });

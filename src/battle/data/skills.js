@@ -1,4 +1,5 @@
 import { parseShape } from "../logic/shapes.js";
+import { getHeroName } from "./heroName.js";
 
 /**
  * 技能：每章可用次数有限的特殊攻击，每章开始时次数恢复。
@@ -44,7 +45,9 @@ export const SKILLS = {
     art: ["#", "@", "#"],
     charges: 1,
     effect: "drain",
-    desc: "纵向攻击三格，每消除 1 颗红心，屿屿恢复 1 颗。",
+    get desc() {
+      return `纵向攻击三格，每消除 1 颗红心，${getHeroName()}恢复 1 颗。`;
+    },
   },
 };
 

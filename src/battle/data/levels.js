@@ -1,3 +1,5 @@
+import { getHeroName } from "./heroName.js";
+
 /**
  * 序章 + 十一个章节，全部在 8×8 棋盘上进行。第 0 行是离镜头最远的一侧。
  * key：稳定的章节标识，存档（星级、用过的铁砧）按它记录，插入新章节也不会错位。
@@ -21,7 +23,9 @@ export const LEVELS = [
     tutorial: true,
     name: "序章",
     english: "PROLOGUE",
-    story: "墨水瓶刚刚倒下，墨迹只漫过了一条走廊。走廊中间，一滴墨渍正等着屿屿。",
+    get story() {
+      return `墨水瓶刚刚倒下，墨迹只漫过了一条走廊。走廊中间，一滴墨渍正等着${getHeroName()}。`;
+    },
     tip: "沿走廊前进，与墨渍怪接触后进入战斗。",
     goal: "reach",
     goalText: "穿过走廊，走进[出口]",
@@ -48,7 +52,9 @@ export const LEVELS = [
     slots: 2,
     name: "墨迹初现",
     english: "THE FIRST BLOT",
-    story: "墨迹沿着格线蔓延开来。三道书墙只剩下几个缺口，墨渍堵在缺口上。屿屿握紧短剑，从第一排出发。",
+    get story() {
+      return `墨迹沿着格线蔓延开来。三道书墙只剩下几个缺口，墨渍堵在缺口上。${getHeroName()}握紧短剑，从第一排出发。`;
+    },
     tip: "[宝箱]中装有新武器。每道书墙的缺口均有怪物把守。",
     goal: "reach",
     goalText: "打通三道缺口，抵达[出口]",

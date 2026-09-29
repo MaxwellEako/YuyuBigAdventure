@@ -2,6 +2,7 @@ import { MatrixView } from "./matrixView.js";
 import { icon, shapeSvg, heartSvg } from "./icons.js";
 import { WEAPONS, SHIELD, POTION } from "../data/weapons.js";
 import { INTENT_TEXT } from "../data/monsters.js";
+import { getHeroName } from "../data/heroName.js";
 import { countHearts, reach } from "../logic/shapes.js";
 import {
   heroAttack,
@@ -95,7 +96,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
         <section class="side hero" data-side="hero">
           <div class="side-head">
             <div class="avatar hero">♙</div>
-            <div class="who"><span class="t-meta">Hero</span><h3>屿屿</h3><p data-hero-status>白色小兵</p></div>
+            <div class="who"><span class="t-meta">Hero</span><h3>${getHeroName()}</h3><p data-hero-status>白色小兵</p></div>
             <div class="hp" data-hero-hp></div>
           </div>
           <div class="aim-note" data-aim-note></div>
@@ -420,7 +421,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     refreshPreview();
   };
   enemyView.onPick = (r, c) => {
-    if (mode === "heal") return toast("药水只能用于屿屿的红心矩阵");
+    if (mode === "heal") return toast(`药水只能用于${getHeroName()}的红心矩阵`);
     attack(r, c);
   };
   heroView.onPick = (r, c) => {
@@ -652,8 +653,8 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     const box = $("[data-result]");
     const outcome = combat.phase;
     const text = {
-      won: ["胜利", combat.stats.taken ? `${def.name}被击败。本场战斗损失 ${combat.stats.taken} 颗红心。` : `${def.name}被击败。屿屿未损失红心。`, "继续"],
-      lost: ["战斗失败", "屿屿的红心已全部消除。", "查看结果"],
+      won: ["胜利", combat.stats.taken ? `${def.name}被击败。本场战斗损失 ${combat.stats.taken} 颗红心。` : `${def.name}被击败。${getHeroName()}未损失红心。`, "继续"],
+      lost: ["战斗失败", `${getHeroName()}的红心已全部消除。`, "查看结果"],
       fled: ["撤退成功", `${def.name}晕眩两回合。`, "返回棋盘"],
     }[outcome];
     sfx.play(outcome === "won" ? "victory" : outcome === "lost" ? "defeat" : "step");
