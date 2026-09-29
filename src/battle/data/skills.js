@@ -11,7 +11,7 @@ export const SKILLS = {
     art: ["@#"],
     charges: 2,
     effect: "extra",
-    desc: "横斩两格，随后再攻击一次。",
+    desc: "横向攻击两格，之后可追加一次攻击。",
   },
   stun: {
     id: "stun",
@@ -19,7 +19,7 @@ export const SKILLS = {
     art: ["@"],
     charges: 1,
     effect: "stun",
-    desc: "钉住一格，怪物停下一回合。",
+    desc: "攻击一格，使怪物停止行动一回合。",
   },
   crush: {
     id: "crush",
@@ -28,7 +28,7 @@ export const SKILLS = {
     charges: 2,
     effect: "pierce",
     pierce: true,
-    desc: "敲碎两格，护甲一击即碎。",
+    desc: "攻击两格，一击消除护甲心。",
   },
   meteor: {
     id: "meteor",
@@ -36,7 +36,7 @@ export const SKILLS = {
     art: ["###", "#@#", "###"],
     charges: 1,
     effect: "big",
-    desc: "砸下 3×3 的一片。",
+    desc: "攻击 3×3 范围。",
   },
   drain: {
     id: "drain",
@@ -44,7 +44,7 @@ export const SKILLS = {
     art: ["#", "@", "#"],
     charges: 1,
     effect: "drain",
-    desc: "竖刺三格，打碎几颗红心就补回几颗。",
+    desc: "纵向攻击三格，每消除 1 颗红心，屿屿恢复 1 颗。",
   },
 };
 

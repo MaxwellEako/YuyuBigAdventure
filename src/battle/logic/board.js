@@ -1,4 +1,4 @@
-import { MONSTERS, MOVE_SETS } from "../data/monsters.js";
+import { MONSTERS, MOVE_SETS, heartsAt } from "../data/monsters.js";
 import { cloneMatrix, filledMatrix, countHearts } from "./shapes.js";
 import { skillCharges } from "./combat.js";
 import { defaultEquip, SKILL_SLOTS } from "./arsenal.js";
@@ -64,7 +64,7 @@ export function createBoard(
       def,
       r: spec.at[0],
       c: spec.at[1],
-      matrix: cloneMatrix(def.matrixValues),
+      matrix: cloneMatrix(heartsAt(def, level.rank ?? 0)),
       step: 0,
       ai: spec.ai ?? "static",
       sight: spec.sight ?? 0,
@@ -189,7 +189,7 @@ export function heroCanEnter(state, r, c) {
   const item = state.items.get(key(r, c));
   if (item && NEARBY_PICKUP.has(item.type)) return { ok: false, reason: "无法到达" };
   if (state.doors.has(key(r, c)) && state.hero.keys <= 0)
-    return { ok: false, reason: "需要钥匙才能打开" };
+    return { ok: false, reason: "需要钥匙" };
   if (state.exit.r === r && state.exit.c === c && !state.exitOpen)
     return { ok: false, reason: "出口已被封印" };
   return { ok: true };
@@ -206,7 +206,7 @@ export function isAdjacent(a, b) {
  *  - moved：已移动，events 中是拾取/开门/抵达出口
  */
 export function heroMove(state, r, c) {
-  if (state.over) return { kind: "blocked", reason: "关卡已结束" };
+  if (state.over) return { kind: "blocked", reason: "本章已结束" };
   if (!isAdjacent(state.hero, { r, c }))
     return { kind: "blocked", reason: "无法到达" };
   const monster = monsterAt(state, r, c);
@@ -242,8 +242,8 @@ export function pickableAt(state, r, c) {
 
 export function pickupAt(state, r, c) {
   const item = pickableAt(state, r, c);
-  if (!item) return { ok: false, reason: "这里没有可以拾取的东西" };
-  if (!isAdjacent(state.hero, { r, c })) return { ok: false, reason: "需要先走到旁边" };
+  if (!item) return { ok: false, reason: "此处没有可拾取的物品" };
+  if (!isAdjacent(state.hero, { r, c })) return { ok: false, reason: "需要站在相邻的格子上" };
   // 铁砧：先让玩家从三项强化里选，选定后才算用掉（见 useForge）。
   return { ok: true, events: [{ type: "forge", item }] };
 }

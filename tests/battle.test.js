@@ -44,7 +44,7 @@ import {
   key,
 } from "../src/battle/logic/board.js";
 import { WEAPONS, STARTING_WEAPONS } from "../src/battle/data/weapons.js";
-import { MONSTERS } from "../src/battle/data/monsters.js";
+import { MONSTERS, heartsAt } from "../src/battle/data/monsters.js";
 import { LEVELS, weaponsForLevel, skillsForLevel } from "../src/battle/data/levels.js";
 import { SKILLS } from "../src/battle/data/skills.js";
 import {
@@ -436,7 +436,7 @@ test("技能按章节解锁，每章开始时次数恢复；铁砧选定强化�
   assert.equal(pickupAt(board, forge.r, forge.c).ok, false, "铁砧只能用一次");
 });
 
-test("连击与能量豆：从第二次连击起，每连上一次得一颗；中型花一颗，重型花两颗", () => {
+test("连击与充能：从第二次连击起，每连上一次得一颗；中型花一颗，重型花两颗", () => {
   const combat = createCombat({
     hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "slash", "hook", "hammer"], potions: 0 },
     monster: { def: MONSTERS.knight, matrix: parseMatrix(["#######", "#######", "#######", "#######", "#######"]) },
@@ -448,7 +448,7 @@ test("连击与能量豆：从第二次连击起，每连上一次得一颗；�
   monsterTurn(combat);
   heroAttack(combat, "slash", 1, 0);
   assert.equal(combat.combo, 2, "连击");
-  assert.equal(combat.energy, ENERGY_START, "第一次连击不给豆");
+  assert.equal(combat.energy, ENERGY_START, "第一次连击不给充能");
   monsterTurn(combat);
   heroAttack(combat, "dagger", 2, 2);
   assert.equal(combat.combo, 3, "连击 ×2");
@@ -458,11 +458,11 @@ test("连击与能量豆：从第二次连击起，每连上一次得一颗；�
   heroAttack(combat, "hammer", 1, 4);
   assert.equal(combat.energy, ENERGY_START, "战锤连上：花两颗、得一颗");
   monsterTurn(combat);
-  assert.match(slotBlocked(combat, combat.weapons[3]) ?? "", /冷却|能量豆/, "战锤要么在冷却，要么豆不够");
+  assert.match(slotBlocked(combat, combat.weapons[3]) ?? "", /冷却|充能/, "战锤要么在冷却，要么充能不足");
   combat.energy = 0;
   combat.weapons[2].cd = 0;
-  assert.match(slotBlocked(combat, combat.weapons[2]), /能量豆/, "钩镰没豆用不了");
-  assert.equal(slotBlocked(combat, combat.weapons[0]), null, "轻武器不花豆");
+  assert.match(slotBlocked(combat, combat.weapons[2]), /充能/, "钩镰充能不足时无法使用");
+  assert.equal(slotBlocked(combat, combat.weapons[0]), null, "轻武器不消耗充能");
 });
 test("连击：换武器且紧挨上一击才连上；连用同一件或离得远都从头起手；护甲不算落空", () => {
   const monster = { def: MONSTERS.knight, matrix: parseMatrix(["####A", "#####", "#####", "#####"]) };
@@ -487,20 +487,24 @@ test("连击：换武器且紧挨上一击才连上；连用同一件或离得�
   assert.equal(combat.combo, 2);
 });
 
-test("序章的墨渍怪：开局的能量豆够钩镰用两次，短剑、钩镰轮换三下打完", () => {
+test("序章的墨渍怪：短剑、钩镰轮换能连到 ×2，拿到第一点充能", () => {
   const combat = createCombat({
-    hero: { matrix: filledMatrix(4, 4), weapons: ["dagger", "hook"], potions: 0 },
+    hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "hook"], potions: 0 },
     monster: { def: MONSTERS.ink, matrix: MONSTERS.ink.matrixValues },
     rng: createRng(1),
   });
-  heroAttack(combat, "hook", 0, 0);
-  assert.equal(combat.energy, ENERGY_START - 1);
-  monsterTurn(combat);
-  heroAttack(combat, "dagger", 1, 1);
-  assert.equal(combat.combo, 2, "第二下就能看到「连击」");
+  heroAttack(combat, "dagger", 0, 0);
   monsterTurn(combat);
   heroAttack(combat, "hook", 0, 2);
-  assert.equal(combat.phase, "won", "钩镰、短剑、钩镰三下打完");
+  assert.equal(combat.combo, 2, "第二下就能看到「连击」");
+  assert.equal(combat.energy, ENERGY_START - 1);
+  monsterTurn(combat);
+  heroAttack(combat, "dagger", 1, 0);
+  assert.equal(combat.combo, 3, "连击 ×2");
+  assert.equal(combat.energy, ENERGY_START, "连击 ×2 得到一点充能");
+  monsterTurn(combat);
+  heroAttack(combat, "hook", 1, 3);
+  assert.equal(combat.phase, "won", "四下打完");
 });
 test("破甲强化：普通武器也能一击击碎护甲心", () => {
   const monster = { def: MONSTERS.rook, matrix: parseMatrix(["AA"]) };
@@ -599,7 +603,7 @@ test("怪物回血：补回的格子连成一片、挨着现有的心；伤口�
   monsterTurn(island);
   assert.equal(island.monsterMatrix[1][1], 0, "伤口四周的心都碎了，回血落空");
 });
-test("精准强化：这件武器连上时多得一颗能量豆；轻武器拿不到", () => {
+test("精准强化：这件武器连上时多得一点充能；轻武器拿不到", () => {
   const combat = createCombat({
     hero: { matrix: filledMatrix(4, 4), weapons: ["dagger", "hook"], potions: 0, upgrades: { hook: { precise: true } } },
     monster: { def: MONSTERS.knight, matrix: parseMatrix(["####", "####"]) },
@@ -609,7 +613,7 @@ test("精准强化：这件武器连上时多得一颗能量豆；轻武器拿�
   combat.phase = "hero";
   heroAttack(combat, "hook", 0, 2);
   assert.equal(combat.combo, 2);
-  assert.equal(combat.energy, ENERGY_START, "开局的豆 − 钩镰 1 + 精准 1");
+  assert.equal(combat.energy, ENERGY_START, "开局的充能 − 钩镰 1 + 精准 1");
   assert.deepEqual(sanitizeUpgrades({ dagger: { precise: true }, hook: { precise: true } }), { hook: { precise: true } });
 });
 test("铁砧：三项强化固定不变，每项只能刷新一次", () => {
@@ -691,4 +695,15 @@ test("等待：武器全部冷却、没有药水时也能结束回合，不会�
   assert.ok(slotBlocked(combat, combat.weapons[0]), "L 钩镰在冷却");
   assert.equal(heroWait(combat).ok, true);
   assert.equal(combat.phase, "monster");
+});
+
+test("怪物心阵按章节分档成长：前期够连上几下，后期越来越厚", () => {
+  const hearts = (id, rank) => countHearts(heartsAt(MONSTERS[id], rank)).hearts;
+  assert.equal(hearts("ink", 0), 8, "序章的墨渍怪能连到 ×2");
+  assert.ok(hearts("pawn", 0) < hearts("pawn", 1) && hearts("pawn", 1) < hearts("pawn", 2));
+  assert.ok(hearts("knight", 1) - hearts("knight", 0) < hearts("knight", 2) - hearts("knight", 1) + 2, "越往后涨得越多");
+  assert.equal(heartsAt(MONSTERS.bishop, 0), heartsAt(MONSTERS.bishop, 1), "没写的档位沿用最近的一档");
+  const late = createBoard(LEVELS[9], { weapons: STARTING_WEAPONS });
+  const rook = late.monsters.find((m) => m.def.id === "rook");
+  assert.equal(countHearts(rook.matrix).slots, countHearts(heartsAt(MONSTERS.rook, 2)).slots, "棋盘按本章的档位生成怪物");
 });

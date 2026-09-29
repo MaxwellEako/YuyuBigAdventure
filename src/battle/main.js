@@ -266,7 +266,7 @@ function renderHud() {
     <ul class="enemy-list">${board.monsters
       .map((m) => {
         const { hearts: h, slots: sl } = countHearts(m.matrix);
-        if (!m.seen) return `<li class="unseen"><span class="avatar-sm unknown">?</span><span class="wn"><b>未发现</b><small>藏在迷雾中</small></span><em>?</em></li>`;
+        if (!m.seen) return `<li class="unseen"><span class="avatar-sm unknown">?</span><span class="wn"><b>未发现</b><small>位于迷雾中</small></span><em>?</em></li>`;
         const hp = m.def.boss ? "?" : `${h}/${sl}`;
         return `<li class="${m.alive ? "" : "dead"} ${m.aggro && m.alive ? "alert" : ""}" data-uid="${m.uid}"><span class="avatar-sm ${m.def.model}">${GLYPH[m.def.model]}</span><span class="wn"><b>${m.def.name}${m.alive && !m.def.boss ? `<span class="traits mini">${traitChips(m.def)}</span>` : ""}</b><small>${m.alive ? `${m.def.boss ? "情报不明" : AI_TEXT[m.ai]}${m.stun ? " · 晕眩" : ""}` : "已击败"}</small></span><em>${m.alive ? hp : "0"}</em></li>`;
       })
@@ -279,10 +279,10 @@ function slotPips(used, total, tone = "") {
   return `<em class="slot-pips ${tone}" title="${used}/${total}">${Array.from({ length: total }, (_, i) => `<i class="${i < used ? "on" : ""}"></i>`).join("")}</em>`;
 }
 
-/** 中型、重型武器每用一次要消耗的能量豆，画成蓝色菱形。 */
+/** 中型、重型武器每用一次要消耗的充能，画成蓝色菱形。 */
 const costMark = (id) => {
   const n = ENERGY_COST[WEAPONS[id].weight] ?? 0;
-  return n ? `<span class="cost-mark" title="每次消耗 ${n} 颗能量豆">${Array.from({ length: n }, () => icon("energy")).join("")}</span>` : "";
+  return n ? `<span class="cost-mark" title="每次消耗 ${n} 点充能">${Array.from({ length: n }, () => icon("energy")).join("")}</span>` : "";
 };
 
 /** 冷却标记：沙漏 + 回合数；不需要冷却的武器不标。 */
@@ -369,7 +369,7 @@ function showItemTip(item, event) {
   const text = {
     chest: ["宝箱", w ? `<span class="inline-shape">${shapeSvg(w.shape, { cell: 7, gap: 1.5 })}</span>${w.name}` : ""],
     potion: ["红心药水", POTION.desc],
-    forge: ["铁砧", "三项强化，挑一项。"],
+    forge: ["铁砧", "从三项强化中选择一项。"],
   }[item.type];
   if (!text) return;
   tip.innerHTML = `<div class="tip-head tip-item"><span class="tip-icon">${icon({ chest: "chest", potion: "potion", forge: "anvil" }[item.type])}</span><div><b>${text[0]}</b><small>${text[1]}</small></div></div>`;
@@ -434,7 +434,7 @@ world.on("click", (r, c) => {
   }
   if (!isExplored(board, r, c)) {
     sfx.play("bump");
-    toast("雾里看不清");
+    toast("迷雾中无法查看");
     return;
   }
   if (pickableAt(board, r, c)) {
@@ -504,7 +504,7 @@ async function interact(r, c) {
 }
 
 /** 第一只护甲怪出场的章节。在那之前，铁砧不会刷出破甲。 */
-const FIRST_ARMOR_LEVEL = LEVELS.findIndex((l) => l.monsters.some((m) => MONSTERS[m.type].matrix.some((row) => row.includes("A"))));
+const FIRST_ARMOR_LEVEL = LEVELS.findIndex((l) => l.monsters.some((m) => MONSTERS[m.type].armored));
 const forgeRules = () => ({ pierce: levelIndex >= FIRST_ARMOR_LEVEL });
 
 /** 铁砧：随机给出三项强化，玩家选一项；也可以暂不强化，稍后再来。 */
@@ -523,14 +523,14 @@ function showForge(item) {
         <span class="t-meta forge-weapon">${w.name}${equipped ? "" : `<i class="in-bag" title="在背包里">${icon("bag")}</i>`}</span>
         <b>${icon(UPGRADE_TEXT[opt.kind].icon)}${UPGRADE_TEXT[opt.kind].name}</b>
         <span class="forge-shapes"><span>${shapeSvg(before, { cell: 14, gap: 3 })}</span><i aria-hidden="true">→</i><span>${shapeSvg(after, { cell: 14, gap: 3 })}</span></span>
-        <small>${opt.kind === "extend" ? `形状多出 ${WEAPONS[opt.weapon].plusShape.size - WEAPONS[opt.weapon].shape.size} 格。` : UPGRADE_TEXT[opt.kind].desc}</small>
+        <small>${opt.kind === "extend" ? `攻击范围增加 ${WEAPONS[opt.weapon].plusShape.size - WEAPONS[opt.weapon].shape.size} 格。` : UPGRADE_TEXT[opt.kind].desc}</small>
       </button>
       <button class="reroll" data-reroll="${i}" ${opt.rerolled ? "disabled" : ""}>${icon("restart")}${opt.rerolled ? "已重抽" : "重抽"}</button>`;
   };
   showScreen(
     "forge",
     `<div class="panel forge">
-      <header class="panel-head"><div>${kicker(icon("anvil"), "铁砧", "FORGE")}<h2>挑一项强化</h2></div><button class="icon-btn" data-cmd="back" aria-label="暂不强化">${icon("close")}</button></header>
+      <header class="panel-head"><div>${kicker(icon("anvil"), "铁砧", "FORGE")}<h2>选择一项强化</h2></div><button class="icon-btn" data-cmd="back" aria-label="暂不强化">${icon("close")}</button></header>
       <div class="forge-grid">${item.options.map((opt, i) => `<div class="forge-slot" data-slot="${i}">${cardHtml(opt, i)}</div>`).join("")}</div>
       <div class="panel-actions"><button class="ghost" data-cmd="back">暂不强化</button></div>
     </div>`,
@@ -699,7 +699,7 @@ async function step(r, c) {
     const result = heroMove(board, r, c);
     if (result.kind === "blocked") {
       sfx.play("bump");
-      toast(pickableAt(board, r, c) ? "站在旁边点一下铁砧" : result.reason);
+      toast(pickableAt(board, r, c) ? "站在相邻的格子上点击铁砧" : result.reason);
       await world.bump({ dr: r - board.hero.r, dc: c - board.hero.c });
       return "blocked";
     }
@@ -730,7 +730,7 @@ async function step(r, c) {
       sfx.play("alert");
       outcome = "event";
       const named = monsters.alerts.filter((m) => isVisible(board, m.r, m.c));
-      toast(named.length ? `<b>${named.map((m) => m.def.name).join("、")}</b> 发现了你` : "迷雾中有怪物发现了你", "danger");
+      toast(named.length ? `<b>${named.map((m) => m.def.name).join("、")}</b> 发现了你` : "迷雾中的怪物发现了你", "danger");
     }
     await Promise.all(monsters.moves.map((mv) => world.moveMonster(mv.monster, mv.to)));
     if (gen !== levelGen) return "over";
@@ -793,6 +793,7 @@ async function battle(monster, heroFirst) {
   const topics = ["battle-matrix", "battle-shape", "battle-intent", "energy"];
   if (monster.matrix.some((row) => row.some((v) => v >= 2))) topics.push("armor");
   if (monster.def.pattern.some((p) => p.kind === "charge")) topics.push("charge");
+  if (monster.def.pattern.some((p) => p.kind === "heal")) topics.push("heal");
   const ctx = { weapons: board.hero.weapons, skills: Object.keys(board.hero.skills) };
   sfx.music.play(BATTLE_TRACK[monster.def.id] ?? "battle");
   await runBattle({
@@ -812,11 +813,11 @@ async function battle(monster, heroFirst) {
   const restore = world.restoreView();
   for (const event of events) {
     if (event.type === "defeat") await world.defeatMonster(event.monster);
-    if (event.type === "drop") toast(`${event.monster.def.name}掉落了 <b>红心药水</b>`, "gold");
+    if (event.type === "drop") toast(`${event.monster.def.name}掉落 <b>红心药水</b>`, "gold");
     if (event.type === "exit-open") {
       world.setExitOpen(true);
       sfx.play("win");
-      toast("封印解除，出口已开启", "gold");
+      toast("封印解除，出口开启", "gold");
     }
     if (event.type === "move") await world.moveHero(event.to);
     if (event.type === "pickup") await pickup(event.item);
@@ -1152,7 +1153,7 @@ function gameOver() {
     `<div class="panel result lost">
       <p class="t-meta">Chapter ${pad(board.level.id)} / ${board.level.english}</p>
       <h2>挑战失败</h2>
-      <p class="story">${rich("屿屿倒下了。留意怪物的下一招，重击之前先[防御]。")}</p>
+      <p class="story">${rich("屿屿倒下了。注意怪物的下一招，在重击到来前使用[防御]。")}</p>
       <div class="panel-actions">
         <button class="ghost" data-cmd="levels">选择关卡</button>
         <button class="primary" data-cmd="replay">重新挑战<span aria-hidden="true">→</span></button>
@@ -1183,31 +1184,32 @@ function showHelp() {
       <div class="help-grid">
         <section>
           <h3><span class="t-meta">01</span>红心矩阵</h3>
-          <p>${rich("屿屿和怪物的生命都是一块[红心矩阵]，红心碎光的一方倒下。带黑框的[护甲心]要打两下。")}</p>
+          <p>${rich("屿屿与怪物的生命均以[红心矩阵]表示，红心全部消除的一方战败。带黑框的[护甲心]需要命中两次才会消除。")}</p>
           <h3><span class="t-meta">02</span>形状攻击</h3>
-          <p>${rich(`每件[武器]有自己的形状，形状盖住的红心就是这一击要打碎的红心。<span class="inline-shape">${shapeSvg(hook.shape, { cell: 9 })}</span> L 钩镰对准 a00，打碎 a00、a01、a10。`)}</p>
+          <p>${rich(`每件[武器]具有固定的攻击形状，范围内的红心将被消除。<span class="inline-shape">${shapeSvg(hook.shape, { cell: 9 })}</span> L 钩镰瞄准 a00 时，消除 a00、a01、a10。`)}</p>
           ${demoGrid([[0, 0], [0, 1], [1, 0]])}
         </section>
         <section>
           <h3><span class="t-meta">03</span>战斗</h3>
           <ul class="help-legend">
-            <li><span class="legend-glyph"><span class="swatch ink"></span></span><span>墨黑格是怪物下一招要打的地方。</span></li>
-            <li><span class="legend-glyph">${icon("shield")}</span><span>${rich("[防御]挡下一次攻击，不占回合。")}</span></li>
-            <li><span class="legend-glyph">${icon("potion")}</span><span>${rich("[药水]补回十字范围的红心。")}</span></li>
-            <li><span class="legend-glyph">${icon("cd")}</span><span>${rich("用过的武器要[冷却]几回合。")}</span></li>
-            <li><span class="legend-glyph">${icon("run")}</span><span>撤退时挨一次追击，怪物随后晕眩两回合。</span></li>
+            <li><span class="legend-glyph"><span class="swatch ink"></span></span><span>墨黑格为怪物下一招的攻击范围。</span></li>
+            <li><span class="legend-glyph"><span class="swatch heal-plan"></span></span><span>红色虚线框为怪物即将恢复红心的位置。</span></li>
+            <li><span class="legend-glyph">${icon("shield")}</span><span>${rich("[防御]抵挡下一次攻击，不消耗回合。")}</span></li>
+            <li><span class="legend-glyph">${icon("potion")}</span><span>${rich("[药水]恢复十字范围内的红心。")}</span></li>
+            <li><span class="legend-glyph">${icon("cd")}</span><span>${rich("中型与重型武器使用后需要[冷却] 1 回合。")}</span></li>
+            <li><span class="legend-glyph">${icon("run")}</span><span>撤退时承受一次追击，之后怪物晕眩两回合。</span></li>
           </ul>
           <h3><span class="t-meta">04</span>连击</h3>
           <ul class="help-legend">
-            <li><span class="legend-glyph">${icon("perfect")}</span><span>${rich("形状每一格都落在心上、没有落空，是[完美命中]。")}</span></li>
-            <li><span class="legend-glyph">${icon("combo")}</span><span>${rich("换一件武器、紧挨着上一击再完美命中，形成[连击]。")}</span></li>
-            <li><span class="legend-glyph">${icon("energy")}</span><span>${rich("连击 ×2 起，每连上一次得一颗[能量豆]。中型武器每次花一颗，战锤、圣十字花两颗。")}</span></li>
+            <li><span class="legend-glyph">${icon("perfect")}</span><span>${rich("攻击范围内的每一格均为红心时，记为[完美命中]。")}</span></li>
+            <li><span class="legend-glyph">${icon("combo")}</span><span>${rich("更换武器，在紧邻上一击的位置再次完美命中，构成[连击]。")}</span></li>
+            <li><span class="legend-glyph">${icon("energy")}</span><span>${rich("连击 ×2 起，每次连击获得 1 点[充能]。中型武器每次消耗 1 点，重型武器消耗 2 点。")}</span></li>
           </ul>
           <h3><span class="t-meta">05</span>棋盘</h3>
           <ul class="help-legend">
-            <li><span class="legend-glyph">${icon("chest")}</span><span>${rich("走到[宝箱]、[药水]上就能拿到；站在[铁砧]旁边点一下使用。")}</span></li>
-            <li><span class="legend-glyph">${icon("bag")}</span><span>${rich("[武器槽]决定带几件武器上阵，[技能]最多带三个。按 B [打开背包|背包]。")}</span></li>
-            <li><span class="legend-glyph">${icon("fog")}</span><span>${rich("[迷雾]里只看得见屿屿身边的格子。")}</span></li>
+            <li><span class="legend-glyph">${icon("chest")}</span><span>${rich("走到[宝箱]或[药水]所在格子可以拾取该物品。站在[铁砧]相邻的格子上点击铁砧即可使用。")}</span></li>
+            <li><span class="legend-glyph">${icon("bag")}</span><span>${rich("[武器槽]数量决定可装备的武器数，[技能]最多装备三个。按 B 键[打开背包|背包]。")}</span></li>
+            <li><span class="legend-glyph">${icon("fog")}</span><span>${rich("[迷雾]中仅显示屿屿周围的格子。")}</span></li>
           </ul>
           <h3><span class="t-meta">06</span>按键</h3>
           <p class="keys"><span><kbd>WASD</kbd>移动</span><span><kbd>C</kbd>转动视角</span><span><kbd>B</kbd>背包</span><span><kbd>P</kbd>喝药水</span><span><kbd>1</kbd>~<kbd>7</kbd>选武器</span><span><kbd>R</kbd>旋转</span><span><kbd>F</kbd>镜像</span><span><kbd>Q</kbd>防御</span><span><kbd>E</kbd>药水</span><span><kbd>Z</kbd>等待</span></p>
@@ -1234,7 +1236,7 @@ function showFieldHeal() {
     "heal",
     `<div class="panel heal-panel">
       <header class="panel-head"><div>${kicker("P", "治疗", "POTION", `<em>${board.hero.potions}</em>`)}<h2>红心药水</h2></div><button class="icon-btn" data-cmd="back" aria-label="关闭">${icon("close")}</button></header>
-      <p class="body">点一处，补回 <span class="inline-shape">${shapeSvg(POTION.shape, { cell: 9, tone: "heal" })}</span> 十字范围的红心。</p>
+      <p class="body">选择一个位置，恢复 <span class="inline-shape">${shapeSvg(POTION.shape, { cell: 9, tone: "heal" })}</span> 十字范围内的红心。</p>
       <div class="heal-matrix"><div id="heal-matrix"></div></div>
     </div>`,
   );
@@ -1299,7 +1301,7 @@ const commands = {
       "restart",
       `<div class="panel reset-panel" role="alertdialog" aria-labelledby="restart-title">
         <header class="panel-head"><div>${kicker(icon("restart"), "重来", "RESTART")}<h2 id="restart-title">重新开始本章</h2></div></header>
-        <p class="body">回到${board.level.name}的起点，打倒的怪物和拿到的东西都会复原。</p>
+        <p class="body">返回${board.level.name}的起点。本章已击败的怪物与已拾取的物品将全部复原。</p>
         <div class="panel-actions">
           <button class="ghost" data-cmd="back">取消</button>
           <button class="primary danger" data-cmd="confirmRestart">重新开始<span aria-hidden="true">→</span></button>

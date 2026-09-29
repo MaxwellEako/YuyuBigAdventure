@@ -16,14 +16,14 @@ import { SKILLS } from "../data/skills.js";
 import { weaponShape, nextRotation, weaponCooldown } from "./arsenal.js";
 
 /**
- * 能量豆：中型、重型武器每用一次要消耗能量豆，能量豆靠连击攒。
+ * 充能：中型、重型武器每用一次要消耗充能，充能靠连击攒。
  * 每场战斗开局给 ENERGY_START 颗，最多攒 ENERGY_MAX 颗。
  */
 export const ENERGY_START = 2;
 export const ENERGY_MAX = 5;
 export const ENERGY_COST = { light: 0, medium: 1, heavy: 2 };
 
-/** 招式要消耗几颗能量豆：技能不消耗。 */
+/** 招式要消耗几点充能：技能不消耗。 */
 export const energyCost = (slot) => (slot.kind === "weapon" ? ENERGY_COST[WEAPONS[slot.id].weight] ?? 0 : 0);
 
 /** 可复现的伪随机数，便于测试与平衡模拟。 */
@@ -93,7 +93,7 @@ export function createCombat({
   state.log.push(
     heroFirst
       ? `屿屿向${state.def.name}发起攻击。`
-      : `${state.def.name}突然扑了上来。`,
+      : `${state.def.name}发起突袭。`,
   );
   return state;
 }
@@ -131,13 +131,13 @@ export function slotShape(state, slot) {
 /** 招式此刻能否使用；不能时给出原因。 */
 export function slotBlocked(state, slot) {
   if (slot.kind === "skill") {
-    if (slot.charges <= 0) return `${SKILLS[slot.id].name}本章已用完`;
-    if (state.bonus) return "追加攻击只能使用普通武器";
+    if (slot.charges <= 0) return `${SKILLS[slot.id].name}本章次数已用尽`;
+    if (state.bonus) return "追加攻击只能使用武器";
     return null;
   }
   if (slot.cd > 0) return `${WEAPONS[slot.id].name}还需冷却 ${slot.cd} 回合`;
   const cost = energyCost(slot);
-  if (cost > state.energy) return `${WEAPONS[slot.id].name}要 ${cost} 颗能量豆`;
+  if (cost > state.energy) return `${WEAPONS[slot.id].name}需要 ${cost} 点充能`;
   return null;
 }
 
@@ -196,12 +196,9 @@ export function previewCombo(state, weaponId, r, c) {
   return comboOutcome(state, slotShape(state, slotOf(state, weaponId)), r, c, weaponId);
 }
 
-/** 连击的里程碑：3、5、7……每到一个就获得一次追击。 */
-export const isChaseMilestone = (n) => n >= 3 && n % 2 === 1;
-
 /**
  * 连击的显示：第一次完美命中只是起手，不提示；第二次起才算连上。
- * 内部的 combo 记连续完美命中的次数，界面显示 combo - 1，每连上两次获得一次追击。
+ * 内部的 combo 记连续完美命中的次数，界面显示 combo - 1；连击 ×2 起，每连上一次得一点充能。
  */
 export const comboLinks = (combo) => Math.max(0, combo - 1);
 export const comboLabel = (links) => (links <= 1 ? "连击" : `连击 ×${links}`);
@@ -214,7 +211,7 @@ export function previewAttack(state, weaponId, r, c) {
 /** 变形（不消耗回合）：旋转到下一个朝向，或左右翻转。只对拥有对应强化的武器生效。 */
 export function heroTransform(state, weaponId, kind) {
   const slot = slotOf(state, weaponId);
-  if (!slot || slot.kind !== "weapon") return { ok: false, reason: "技能不能变形" };
+  if (!slot || slot.kind !== "weapon") return { ok: false, reason: "技能无法变形" };
   if (!state.upgrades[weaponId]?.[kind]) return { ok: false, reason: `${WEAPONS[weaponId].name}没有这项强化` };
   if (kind === "rotate") slot.orient = { ...slot.orient, rot: nextRotation(weaponId, state.upgrades, slot.orient) };
   else slot.orient = { ...slot.orient, flip: !slot.orient.flip };
@@ -240,13 +237,13 @@ export function previewHeal(state, r, c) {
 export function heroAttack(state, weaponId, r, c) {
   if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
   const slot = slotOf(state, weaponId);
-  if (!slot) return { ok: false, reason: "没有这件武器" };
+  if (!slot) return { ok: false, reason: "未装备该武器" };
   const blocked = slotBlocked(state, slot);
   if (blocked) return { ok: false, reason: blocked };
   const def = slotDef(slot);
   const shape = slotShape(state, slot);
   const hits = resolveHits(state.monsterMatrix, shape, r, c, { pierce: slotPierce(state, slot) });
-  if (!hits.length) return { ok: false, reason: "这里没有可以打碎的红心" };
+  if (!hits.length) return { ok: false, reason: "范围内没有可消除的红心" };
   const outcome = comboOutcome(state, shape, r, c, weaponId);
   state.lastFootprint = footprint(shape, r, c);
   state.lastWeaponId = weaponId;
@@ -268,7 +265,7 @@ export function heroAttack(state, weaponId, r, c) {
   const events = [{ type: "hero-attack", weapon: def, hits, anchor: [r, c] }];
   if (interrupts) {
     state.interrupted = true;
-    state.log.push(`${def.name}砸断了「${state.intent.name}」的来势。`);
+    state.log.push(`${def.name}打断了「${state.intent.name}」。`);
     events.push({ type: "interrupt", intent: state.intent });
   }
 
@@ -284,13 +281,13 @@ export function heroAttack(state, weaponId, r, c) {
     state.log.push(`${state.def.name}被定身，下回合无法行动。`);
   }
 
-  // 连击结算：连上就累计连击；从第二次连击起，每连上一次得一颗能量豆。
+  // 连击结算：连上就累计连击；从第二次连击起，每连上一次得一点充能。
   const linksBefore = comboLinks(state.combo);
   if (outcome !== "break") {
     // 不挨着上一击或连用同一件武器：之前的连击断开，从这一击重新起手。
     if (outcome !== "link") {
       if (linksBefore) {
-        state.log.push(outcome === "repeat" ? "连用同一件武器，连击中断。" : "连击中断。");
+        state.log.push(outcome === "repeat" ? "连续使用同一件武器，连击中断。" : "连击中断。");
         events.push({ type: "combo-break" });
       }
       state.combo = 0;
@@ -305,7 +302,7 @@ export function heroAttack(state, weaponId, r, c) {
     const before = state.energy;
     state.energy = Math.min(ENERGY_MAX, state.energy + earn);
     const gained = state.energy - before;
-    if (links) state.log.push(`${comboLabel(links)}${gained ? `，能量豆 +${gained}` : ""}。`);
+    if (links) state.log.push(`${comboLabel(links)}${gained ? `，充能 +${gained}` : ""}。`);
     events.push({ type: "combo", combo: state.combo, energy: gained });
   } else if (state.combo > 0) {
     if (linksBefore) {
@@ -322,7 +319,7 @@ export function heroAttack(state, weaponId, r, c) {
   } else if (slot.kind === "skill" && def.effect === "extra" && !wasBonus) {
     // 疾风斩：本回合还可以再用一次普通武器，怪物暂不行动。
     state.bonus = true;
-    state.log.push("疾风未歇，再攻击一次。");
+    state.log.push("疾风斩生效，可追加一次攻击。");
     events.push({ type: "bonus" });
   } else state.phase = "monster";
   return { ok: true, events };
@@ -330,9 +327,9 @@ export function heroAttack(state, weaponId, r, c) {
 
 export function heroHeal(state, r, c) {
   if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
-  if (state.potions <= 0) return { ok: false, reason: "药水已用完" };
+  if (state.potions <= 0) return { ok: false, reason: "药水已用尽" };
   const heals = resolveHeal(state.heroMatrix, POTION.shape, r, c);
-  if (!heals.length) return { ok: false, reason: "该位置没有需要恢复的红心" };
+  if (!heals.length) return { ok: false, reason: "范围内没有需要恢复的红心" };
   state.heroMatrix = applyChanges(state.heroMatrix, heals);
   state.potions -= 1;
   state.bonus = false;
@@ -343,12 +340,12 @@ export function heroHeal(state, r, c) {
 
 export function heroShield(state) {
   if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
-  if (state.shieldUp) return { ok: false, reason: "已经在防御了" };
+  if (state.shieldUp) return { ok: false, reason: "已处于防御状态" };
   if (state.shieldCd > 0)
     return { ok: false, reason: `防御还需冷却 ${state.shieldCd} 回合` };
   state.shieldUp = true;
   state.shieldCd = SHIELD.cooldown + 1;
-  state.log.push("屿屿摆好架势，准备挡下一次攻击。");
+  state.log.push("屿屿进入防御状态。");
   return { ok: true, events: [{ type: "shield" }] };
 }
 
@@ -360,7 +357,7 @@ export function heroWait(state) {
   if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
   state.bonus = false;
   state.phase = "monster";
-  state.log.push("屿屿按兵不动。");
+  state.log.push("屿屿等待一回合。");
   return { ok: true, events: [{ type: "wait" }] };
 }
 
@@ -470,7 +467,7 @@ export function monsterTurn(state) {
   if (state.stunned) {
     // 定身：本次行动作废，招式顺序也不前进。
     state.stunned = false;
-    state.log.push(`${name}被定身，这回合没有行动。`);
+    state.log.push(`${name}被定身，本回合无法行动。`);
     events.push({ type: "stunned" });
     if (state.retreating) {
       state.phase = "fled";
@@ -514,7 +511,7 @@ export function monsterTurn(state) {
     state.log.push(
       changes.length
         ? `${name}使用「${intent.name}」，恢复了 ${changes.length} 颗红心。`
-        : `${name}使用「${intent.name}」，红心已满。`,
+        : `${name}使用「${intent.name}」，没有恢复任何红心。`,
     );
     events.push({ type: "heal", side: "monster", changes });
   } else if (intent.kind === "armor") {

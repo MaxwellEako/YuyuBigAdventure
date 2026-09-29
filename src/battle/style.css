@@ -2547,7 +2547,7 @@ body:not(.in-level) .hint-bar {
 
 /* ——— 连击 ——— */
 
-/* 左上角的连击标记：没连上时隐藏，连上后显示「≫ ×N」和两格追击进度。 */
+/* 左上角的连击标记：没连上时隐藏，连上后显示「≫ ×N」。 */
 .combo-badge {
   justify-self: start;
   display: flex;
@@ -3248,6 +3248,12 @@ body:not(.in-level) .hint-bar {
 
 .swatch.ink {
   background: var(--ink);
+}
+
+.swatch.heal-plan {
+  outline: 2px dashed var(--heart);
+  outline-offset: -2px;
+  background: rgba(224, 38, 47, 0.08);
 }
 
 .coach-legend,
@@ -4824,7 +4830,7 @@ body:not(.in-level) .hint-bar {
   display: none;
 }
 
-/* ——— 能量豆：蓝色菱形 ——— */
+/* ——— 充能：蓝色菱形 ——— */
 
 .head-left {
   justify-self: start;
@@ -4905,7 +4911,7 @@ body:not(.in-level) .hint-bar {
   }
 }
 
-/* 武器卡上的消耗；能量豆不够时菱形变空心。 */
+/* 武器卡上的消耗；充能不够时菱形变空心。 */
 .weapon .cost {
   display: inline-flex;
   gap: 1px;
@@ -4920,9 +4926,6 @@ body:not(.in-level) .hint-bar {
   opacity: 0.3;
 }
 
-.weapon.selected .cost .icon path:first-child {
-  fill: var(--accent-on);
-}
 
 /* ——— 出手视效 ——— */
 
@@ -5102,6 +5105,3 @@ body:not(.in-level) .hint-bar {
   height: 12px;
 }
 
-.build-card.on .cost-mark .icon path:first-child {
-  fill: var(--accent-on);
-}

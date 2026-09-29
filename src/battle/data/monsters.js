@@ -53,8 +53,8 @@ export const MONSTERS = {
     name: "墨渍怪",
     title: "墨水凝成的怪物",
     model: "ink",
-    // 两行三列的整块：短剑和钩镰轮换，能连出好几下，序章里就能攒到能量豆。
-    matrix: ["###", "###"],
+    // 两行四列：短剑、钩镰轮换能连到 ×2，序章里就能拿到第一点充能。
+    ranks: { 0: ["####", "####"] },
     moves: "orth",
     aim: 0.35,
     pattern: [atk("溅射", ["##"])],
@@ -64,7 +64,11 @@ export const MONSTERS = {
     name: "暗影兵",
     title: "守在关口的步兵",
     model: "pawn",
-    matrix: [".##.", "####", "####"],
+    ranks: {
+      0: [".##.", "####", "####"],
+      1: [".##.", ".##.", "####", "####"],
+      2: [".##.", "####", "####", "####"],
+    },
     moves: "orth",
     aim: 0.6,
     pattern: [atk("斜刺", ["#.#"]), atk("突刺", ["#", "#"])],
@@ -74,7 +78,11 @@ export const MONSTERS = {
     name: "暗影骑士",
     title: "踏着马步巡夜",
     model: "knight",
-    matrix: [".##.", "####", "####", ".##."],
+    ranks: {
+      0: [".##.", "####", "####", ".##."],
+      1: [".###", "####", "####", ".##."],
+      2: [".###.", "#####", "#####", ".###."],
+    },
     moves: "knight",
     aim: 0.75,
     pattern: [
@@ -89,8 +97,11 @@ export const MONSTERS = {
     name: "暗影主教",
     title: "斜行祷告的主教",
     model: "bishop",
-    // 12 颗心能一条链清空，但祷告会把打出的缺口补回来，拖久了就连不上。
-    matrix: [".####.", "######", ".####."],
+    // 祷告会把打出的缺口补回来，拖久了就连不上。
+    ranks: {
+      1: [".####.", "######", ".####.", "..##.."],
+      2: [".####.", "######", "######", ".####."],
+    },
     moves: "diag",
     aim: 0.8,
     pattern: [
@@ -104,7 +115,10 @@ export const MONSTERS = {
     name: "暗影城堡",
     title: "披着护甲的城堡",
     model: "rook",
-    matrix: ["A###A", "#####", "#####", "A###A"],
+    ranks: {
+      1: ["A###A", "#####", "#####", "A###A"],
+      2: ["A####A", "######", "######", "A####A"],
+    },
     moves: "orth",
     aim: 0.85,
     pattern: [
@@ -118,7 +132,7 @@ export const MONSTERS = {
     name: "暗影王后",
     title: "暗王的护卫",
     model: "queen",
-    matrix: [".###.", "##A##", "#####", "##A##", ".###."],
+    ranks: { 2: [".####.", "#A##A#", "######", "#A##A#", ".####."] },
     moves: "king",
     aim: 0.9,
     pattern: [
@@ -134,7 +148,7 @@ export const MONSTERS = {
     title: "墨迹的源头",
     model: "king",
     boss: true,
-    matrix: ["A#####", "##AA##", "#A##A#", "######", "#A##A#", "##AA##", "#####A"],
+    ranks: { 2: ["A#####A", "#######", "##A#A##", "#######", "##A#A##", "#######", "A#####A"] },
     moves: "king",
     aim: 1,
     // 王座崩落和王之审判紧挨着：防御只能挡住一招，另一招得靠定身钉或者硬扛。
@@ -144,13 +158,27 @@ export const MONSTERS = {
       atk("王之审判", ["###", "#.#", "###"]),
       { kind: "curse", name: "将军！", amount: 2 },
       atk("十字刑", [".#.", "###", ".#."]),
-      { kind: "heal", name: "吞墨", amount: 5 },
+      { kind: "heal", name: "吞墨", amount: 4 },
     ],
   },
 };
 
-for (const monster of Object.values(MONSTERS))
-  monster.matrixValues = parseMatrix(monster.matrix);
+/**
+ * 怪物的心阵按章节分档成长：前期刚好够连上几下，越往后越厚，
+ * 由更多的武器、技能和强化来应付。ranks 里没写的档位沿用最近的较低档。
+ */
+export function heartsAt(def, rank = 0) {
+  const defined = Object.keys(def.ranks).map(Number).sort((a, b) => a - b);
+  const pick = defined.filter((k) => k <= rank).at(-1) ?? defined[0];
+  return def.rankValues[pick];
+}
+
+for (const monster of Object.values(MONSTERS)) {
+  monster.rankValues = Object.fromEntries(Object.entries(monster.ranks).map(([k, art]) => [k, parseMatrix(art)]));
+  monster.matrix = Object.values(monster.ranks)[0];
+  monster.matrixValues = heartsAt(monster, 0);
+  monster.armored = Object.values(monster.ranks).some((art) => art.some((row) => row.includes("A")));
+}
 
 /** 招式效果的短描述（不含招式名）。 */
 export const INTENT_TEXT = {

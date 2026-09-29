@@ -52,7 +52,7 @@ function intentHtml(intent) {
 export function monsterTraits(def) {
   const has = (kind) => def.pattern.some((p) => p.kind === kind);
   const traits = [];
-  if (def.matrix.some((row) => row.includes("A")) || has("armor")) traits.push({ key: "armor", glyph: heartSvg("armor"), label: "护甲" });
+  if (def.armored || has("armor")) traits.push({ key: "armor", glyph: heartSvg("armor"), label: "护甲" });
   if (has("heal")) traits.push({ key: "heal", glyph: `${heartSvg("heart")}<b class="plus">+</b>`, label: "回血" });
   if (has("charge")) traits.push({ key: "charge", glyph: icon("stagger"), label: "蓄力重击" });
   if (has("curse")) traits.push({ key: "curse", glyph: icon("cd"), label: "打断连击" });
@@ -75,7 +75,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     <div class="battle-card ${def.boss ? "boss" : ""}">
       <header class="battle-head">
         <div class="head-left">
-          <div class="energy" data-energy title="能量豆 · 从第二次连击起，每连上一次得一颗"></div>
+          <div class="energy" data-energy title="充能 · 连击 ×2 起，每次连击获得 1 点"></div>
           <div class="combo-badge" data-combo title="连击">${icon("combo", "combo-icon")}<b data-combo-count></b></div>
         </div>
         <div class="turn-banner" data-banner>你的回合</div>
@@ -246,7 +246,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
         .map((k) => `<i class="up-icon" title="${UPGRADE_TEXT[k].name}">${icon(UPGRADE_TEXT[k].icon)}</i>`),
       ...(def.pierce ? [`<i class="up-icon" title="破甲">${icon("pierce")}</i>`] : []),
     ].join("");
-    // 中型、重型武器标出要消耗几颗能量豆；冷却中显示沙漏。
+    // 中型、重型武器标出要消耗几点充能；冷却中显示沙漏。
     const cost = energyCost(slot);
     const starved = slot.kind === "weapon" && !slot.cd && cost > combat.energy;
     const status =
@@ -269,7 +269,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
       slot.kind === "skill" && slot.charges <= 0 ? "spent" : "",
       starved ? "starved" : "",
     ].join(" ");
-    return `<button class="${classes}" data-weapon="${slot.id}" title="${def.name} · ${def.desc}${lastUsed ? " · 刚用过，换一件才能接上连击" : ""}">
+    return `<button class="${classes}" data-weapon="${slot.id}" title="${def.name} · ${def.desc}${lastUsed ? " · 上一击所用武器，无法接续连击" : ""}">
       <kbd>${keyLabel(i)}</kbd>
       <span class="weapon-ups">${ups}</span>
       <span class="weapon-shape">${shapeSvg(shape, { cell: cardCell(shape), gap: 2, tone: slot.kind === "skill" ? "skill" : "attack" })}</span>
@@ -307,13 +307,13 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     potion.classList.toggle("active", mode === "heal");
     const retreat = $("[data-act=retreat]");
     retreat.disabled = !combat.canRetreat;
-    retreat.title = combat.canRetreat ? "挨一次追击后脱身，怪物晕眩两回合" : "这一战没有退路";
+    retreat.title = combat.canRetreat ? "承受一次追击后脱离战斗，怪物晕眩两回合" : "这一战没有退路";
   }
 
   function renderIntent() {
     $("[data-intent]").innerHTML =
       intentHtml(combat.intent) +
-      (interruptible(combat) ? `<i class="fx-interrupt" title="重武器一下打碎 3 颗心就能打断">${icon("stagger")}</i>` : "");
+      (interruptible(combat) ? `<i class="fx-interrupt" title="重型武器单次消除不少于 3 颗红心即可打断">${icon("stagger")}</i>` : "");
     const len = def.pattern.length;
     // 招式循环画成一排小方块，当前这一招涂黑；名字放在悬停提示里。
     $("[data-pattern]").innerHTML = def.boss
@@ -347,7 +347,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     return n;
   }
 
-  // 左上角：能量豆一排蓝色菱形，连击标记连上之后才出现。
+  // 左上角：充能一排蓝色菱形，连击标记连上之后才出现。
   function renderCombo() {
     const links = comboLinks(combat.combo);
     const badge = $("[data-combo]");
@@ -366,7 +366,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     $("[data-hero-status]").textContent = combat.shieldUp ? "防御中" : "白色小兵";
     const banner = $("[data-banner]");
     const heroTurn = combat.phase === "hero" && !busy;
-    banner.textContent = heroTurn ? (mode === "heal" ? "选择治疗位置" : combat.bonus ? "再攻击一次" : "你的回合") : "敌方回合";
+    banner.textContent = heroTurn ? (mode === "heal" ? "选择治疗位置" : combat.bonus ? "追加攻击" : "你的回合") : "敌方回合";
     banner.classList.toggle("enemy-turn", !heroTurn);
     modal.classList.toggle("heal-mode", mode === "heal");
     modal.classList.toggle("locked", !heroTurn);
@@ -420,12 +420,12 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     refreshPreview();
   };
   enemyView.onPick = (r, c) => {
-    if (mode === "heal") return toast("药水要用在自己的心阵上");
+    if (mode === "heal") return toast("药水只能用于屿屿的红心矩阵");
     attack(r, c);
   };
   heroView.onPick = (r, c) => {
     if (mode === "heal") heal(r, c);
-    else toast("攻击要落在怪物的心阵上");
+    else toast("请在怪物的红心矩阵上选择攻击位置");
   };
 
   function selectWeapon(id) {
@@ -488,7 +488,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
       void $("[data-combo]").offsetWidth;
       $("[data-combo]").classList.add("pulse");
       if (comboEvent.energy) {
-        // 得到能量豆：一颗蓝色菱形从心阵飞向左上角的能量条。
+        // 得到充能：一颗蓝色菱形从心阵飞向左上角的能量条。
         setTimeout(() => {
           sfx.play("energy", comboEvent.energy);
           flyBean(comboEvent.energy);
@@ -517,7 +517,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
       await explainCombo();
     }
     if (combat.phase === "hero") {
-      // 追击（连击里程碑）或疾风斩之后：仍是主角回合，换一件可用的普通武器。
+      // 疾风斩之后：仍是主角回合，换一件可用的普通武器。
       if (slotBlocked(combat, slotOf(combat, selected))) selected = firstReady() ?? selected;
       busy = false;
       render();
@@ -652,8 +652,8 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     const box = $("[data-result]");
     const outcome = combat.phase;
     const text = {
-      won: ["胜利", combat.stats.taken ? `${def.name}倒下了。这一战失去 ${combat.stats.taken} 颗红心。` : `${def.name}倒下了。屿屿毫发无伤。`, "继续"],
-      lost: ["战斗失败", "屿屿的红心全部碎了。", "查看结果"],
+      won: ["胜利", combat.stats.taken ? `${def.name}被击败。本场战斗损失 ${combat.stats.taken} 颗红心。` : `${def.name}被击败。屿屿未损失红心。`, "继续"],
+      lost: ["战斗失败", "屿屿的红心已全部消除。", "查看结果"],
       fled: ["撤退成功", `${def.name}晕眩两回合。`, "返回棋盘"],
     }[outcome];
     sfx.play(outcome === "won" ? "victory" : outcome === "lost" ? "defeat" : "step");
@@ -703,7 +703,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     if (busy || combat.phase !== "hero") return;
     if (combat.potions <= 0) {
       sfx.play("invalid");
-      return toast("药水已用完");
+      return toast("药水已用尽");
     }
     mode = mode === "heal" ? "attack" : "heal";
     sfx.play("click");

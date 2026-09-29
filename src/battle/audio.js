@@ -189,7 +189,7 @@ export class Sfx {
         break;
       }
       case "energy":
-        // 能量豆：两声上行的清亮音，外加一点闪光。
+        // 充能：两声上行的清亮音，外加一点闪光。
         for (let i = 0; i < Math.min(amount, 3); i += 1) {
           [0, 7].forEach((iv, n) => this.tone(midi(84 + iv + i * 2), 0.28, { delay: i * 0.09 + n * 0.06, volume: 0.03, type: "sine" }));
           this.noise(0.18, { delay: i * 0.09 + 0.05, volume: 0.012, filter: 9000, type: "highpass" });

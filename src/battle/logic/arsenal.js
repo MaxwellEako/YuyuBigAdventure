@@ -4,12 +4,12 @@ import { transformShape, shapeKey } from "./shapes.js";
 
 /** 强化种类的文字说明（界面与测试共用）。 */
 export const UPGRADE_TEXT = {
-  rotate: { name: "旋转", icon: "rotate", desc: "战斗中按 R，形状转过 90°。" },
-  mirror: { name: "镜像", icon: "mirror", desc: "战斗中按 F，形状左右翻转。" },
-  extend: { name: "延长", icon: "extend", desc: "形状变大。" },
-  precise: { name: "精准", icon: "energy", desc: "这件武器连上时，多得一颗能量豆。" },
-  pierce: { name: "破甲", icon: "pierce", desc: "护甲心一击即碎。" },
-  stagger: { name: "震慑", icon: "stagger", desc: "打碎 2 颗心就能打断重击。" },
+  rotate: { name: "旋转", icon: "rotate", desc: "战斗中按 R 键，攻击形状旋转 90°。" },
+  mirror: { name: "镜像", icon: "mirror", desc: "战斗中按 F 键，攻击形状左右翻转。" },
+  extend: { name: "延长", icon: "extend", desc: "攻击范围扩大。" },
+  precise: { name: "精准", icon: "energy", desc: "该武器构成连击时，额外获得 1 点充能。" },
+  pierce: { name: "破甲", icon: "pierce", desc: "一击消除护甲心。" },
+  stagger: { name: "震慑", icon: "stagger", desc: "单次消除不少于 2 颗红心即可打断重击。" },
 };
 
 /** 武器槽与技能槽。技能不占武器槽，但最多只能携带 SKILL_SLOTS 个。 */
@@ -127,9 +127,9 @@ export function createForgeOptions(hero, rng = Math.random, opts = {}) {
 
 export function rerollForgeOption(hero, options, index, rng = Math.random, opts = {}) {
   const current = options[index];
-  if (!current || current.rerolled) return { ok: false, reason: "每项强化只能刷新一次" };
+  if (!current || current.rerolled) return { ok: false, reason: "每项强化仅能重抽一次" };
   const pool = upgradeOptions(hero, rng, 99, opts).filter((o) => !options.some((x) => sameOption(x, o)));
-  if (!pool.length) return { ok: false, reason: "没有其他可选的强化了" };
+  if (!pool.length) return { ok: false, reason: "没有其他可选的强化" };
   options[index] = { ...pool[0], rerolled: true };
   return { ok: true };
 }
@@ -145,9 +145,9 @@ export function defaultEquip(owned, saved = null, slots = 2) {
 }
 
 export function toggleEquip(hero, id) {
-  if (!hero.weapons.includes(id)) return { ok: false, reason: "还没有这件武器" };
+  if (!hero.weapons.includes(id)) return { ok: false, reason: "尚未获得该武器" };
   if (hero.equipped.includes(id)) {
-    if (hero.equipped.length <= 1) return { ok: false, reason: "至少带一件武器" };
+    if (hero.equipped.length <= 1) return { ok: false, reason: "至少需要装备一件武器" };
     hero.equipped = hero.equipped.filter((w) => w !== id);
     return { ok: true };
   }
@@ -157,7 +157,7 @@ export function toggleEquip(hero, id) {
 }
 
 export function toggleSkill(hero, id) {
-  if (!(id in hero.skills)) return { ok: false, reason: "还没有学会这个技能" };
+  if (!(id in hero.skills)) return { ok: false, reason: "尚未习得该技能" };
   if (hero.equippedSkills.includes(id)) {
     hero.equippedSkills = hero.equippedSkills.filter((s) => s !== id);
     return { ok: true };
