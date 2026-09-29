@@ -145,17 +145,6 @@ html {
     bottom: calc(14px + var(--safe-bottom));
   }
 
-  /* ——— 抽屉（主角 / 目标）：说明文字放大 ——— */
-  .hero-hud,
-  .goal-hud {
-    padding-bottom: calc(var(--sp-5) + var(--safe-bottom));
-    font-size: 15px;
-  }
-  .hero-hud .weapon-list li,
-  .goal-hud li {
-    min-height: 48px;
-  }
-
   /* ——— 全屏面板：让开顶栏与底部横条，贴满宽度 ——— */
   .screen {
     padding: calc(var(--topbar) + 16px) calc(12px + var(--safe-right)) calc(16px + var(--safe-bottom)) calc(12px + var(--safe-left));
@@ -298,6 +287,177 @@ html {
   }
   .menu-row:active {
     background: var(--grey-1);
+  }
+}
+
+/*
+ * ——— 手机与窄屏的底部抽屉（武器 / 目标）———
+ * 不是把桌面侧栏原样塞进抽屉：顶部一条标题栏（标题 + 大号关闭）滚动时吸顶；
+ * 主角的心阵缩成缩略图放在名字旁边，药水、钥匙、护甲片排成一行；
+ * 武器一行一件、行高 52px；最重要的操作“构筑”是底部一整条主按钮。
+ */
+@media (max-width: 900px) {
+  .hero-hud,
+  .goal-hud {
+    max-height: min(82vh, 680px);
+    max-height: min(82dvh, 680px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 calc(20px + var(--safe-right)) calc(20px + var(--safe-bottom)) calc(20px + var(--safe-left));
+    font-size: 15px;
+  }
+  .sheet-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    grid-column: 1 / -1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 60px;
+    margin: 0 -20px 16px;
+    padding: 0 10px 0 20px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--ink);
+  }
+  .sheet-head b {
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .sheet-head .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+  /* 抽屉标题已经说明了是什么，第一个小标题不再重复。 */
+  .hero-hud > .kicker:first-of-type,
+  .goal-hud > .kicker:first-of-type {
+    display: none;
+  }
+
+  /* 主角：缩略心阵在左，名字、红心、道具在右 */
+  .hero-hud {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-content: start;
+    column-gap: 16px;
+  }
+  .hero-hud > * {
+    grid-column: 1 / -1;
+  }
+  .hero-hud > .hud-matrix {
+    grid-column: 1;
+    grid-row: 2 / span 2;
+    align-self: start;
+    margin: 0;
+    padding: 10px;
+  }
+  .hero-hud > .hud-hero {
+    grid-column: 2;
+    grid-row: 2;
+    align-items: baseline;
+  }
+  .hero-hud > .hud-items {
+    grid-column: 2;
+    grid-row: 3;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0 0;
+    background: none;
+    border: 0;
+  }
+  .hud-name b {
+    font-size: 20px;
+    font-weight: 600;
+  }
+  .hud-name small {
+    display: none;
+  }
+  .hud-hp .num {
+    font-size: 34px;
+  }
+  .hud-items .chip,
+  .hud-items .chip-btn {
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 15px;
+    border: 1px solid var(--grey-2);
+  }
+  .hud-items .chip-btn:not(:disabled) {
+    border-color: var(--accent);
+  }
+  .hud-items .chip b,
+  .hud-items .chip-btn b {
+    margin-left: 8px;
+    font-size: 20px;
+  }
+  .hero-hud > .kicker {
+    margin-top: 22px;
+  }
+
+  /* 列表：一行一件，行高 52px，名字 16px。三列：形状 / 名字 / 状态（快捷键序号在抽屉里不需要）。 */
+  .hero-hud .wi {
+    display: none;
+  }
+  .hero-hud .weapon-list li,
+  .goal-hud .enemy-list li {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    column-gap: 12px;
+    min-height: 52px;
+    padding: 6px 0;
+  }
+  .hero-hud .wn b,
+  .goal-hud .wn b {
+    font-size: 16px;
+  }
+  .goal-hud .wn small {
+    font-size: 13px;
+  }
+  .hero-hud .weapon-list em,
+  .goal-hud .enemy-list em {
+    font-size: 13px;
+  }
+  .goal-hud .goal {
+    font-size: 17px;
+    line-height: 1.6;
+  }
+  .goal-hud .hud-foot {
+    font-size: 14px;
+  }
+
+  /* “构筑”：标题旁的小按钮收起，换成底部一整条主按钮。 */
+  .hero-hud .build-chip {
+    display: none;
+  }
+  .sheet-build {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 54px;
+    margin-top: 20px;
+    font-size: 16px;
+  }
+  .sheet-build span:first-of-type {
+    flex: 1;
+    text-align: left;
+  }
+}
+
+/* 开场的“目标”：标签和文字各占一行，文字不再被拆成一列一个字。 */
+.intro-goal-text {
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .intro-goal {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .intro-goal-text {
+    font-size: 17px;
+    line-height: 1.6;
   }
 }
 

@@ -223,6 +223,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const kicker = (nb, zh, en, extra = "") =>
   `<div class="kicker"><span class="kicker-nb">${nb}</span><span>${zh}</span><span class="kicker-en">${en}</span>${extra}</div>`;
 
+/** 手机抽屉顶部的标题栏：标题 + 大号关闭按钮（桌面上两块面板常驻，不显示）。 */
+const sheetHead = (title) =>
+  `<header class="sheet-head"><b>${title}</b><button class="icon-btn" data-cmd="closeSheet" aria-label="收起">${icon("close")}</button></header>`;
+
 function renderHud() {
   if (!board) return;
   const level = board.level;
@@ -241,7 +245,7 @@ function renderHud() {
     <button class="strip-btn" data-cmd="sheetHero">${icon("sword")}武器</button>
     <button class="strip-btn" data-cmd="sheetGoal">${icon("exit")}目标<em>${alive.length}</em></button>`;
   $("#hero-hud").innerHTML = `
-    <button class="sheet-close icon-btn" data-cmd="closeSheet" aria-label="收起">${icon("close")}</button>
+    ${sheetHead("武器与构筑")}
     ${kicker("01", "主角", "HERO")}
     <div class="hud-hero">
       <div class="hud-name"><b>${getHeroName()}</b><small>白色小兵 · ${hero.matrix.length}×${hero.matrix[0].length} 红心矩阵</small></div>
@@ -257,10 +261,10 @@ function renderHud() {
     <ul class="weapon-list">${hero.equipped
       .map((id, i) => {
         const w = WEAPONS[id];
-        return `<li title="${w.desc}"><span class="wi">${i + 1}</span><span class="ws">${shapeSvg(weaponShape(id, hero.upgrades), { cell: 8, gap: 1.5 })}</span><span class="wn"><b>${w.name}${upIcons(id, hero.upgrades)}</b></span><em>${costMark(id)}</em></li>`;
+        return `<li title="${w.desc}"><span class="wi key-hint">${i + 1}</span><span class="ws">${shapeSvg(weaponShape(id, hero.upgrades), { cell: 8, gap: 1.5 })}</span><span class="wn"><b>${w.name}${upIcons(id, hero.upgrades)}</b></span><em>${costMark(id)}</em></li>`;
       })
       .join("")}
-      <li class="shield-row" title="${SHIELD.desc}"><span class="wi">Q</span><span class="ws">${icon("shield")}</span><span class="wn"><b>${SHIELD.name}</b></span><em>${cdMark(SHIELD.cooldown)}</em></li>
+      <li class="shield-row" title="${SHIELD.desc}"><span class="wi key-hint">Q</span><span class="ws">${icon("shield")}</span><span class="wn"><b>${SHIELD.name}</b></span><em>${cdMark(SHIELD.cooldown)}</em></li>
     </ul>
     ${hero.weapons.length > hero.equipped.length ? `<p class="bag-line" title="背包">${icon("bag")}${hero.weapons.filter((id) => !hero.equipped.includes(id)).map((id) => `<span title="${WEAPONS[id].name}">${shapeSvg(weaponShape(id, hero.upgrades), { cell: 6, gap: 1.5 })}</span>`).join("")}</p>` : ""}
     ${Object.keys(hero.skills).length ? `${kicker("03", "技能", "SKILLS", slotPips(hero.equippedSkills.length, SKILL_SLOTS, "skill"))}
@@ -271,10 +275,11 @@ function renderHud() {
         return `<li class="${charges ? "" : "spent"}" title="${sk.desc}"><span class="wi">${icon("skill")}</span><span class="ws">${shapeSvg(sk.shape, { cell: 8, gap: 1.5, tone: "skill" })}</span><span class="wn"><b>${sk.name}</b></span><em>×${charges}</em></li>`;
       })
       .join("")}</ul>` : ""}
+    <button class="primary sheet-build" data-cmd="armory">${icon("bag")}<span>构筑 · 更换出战武器与技能</span><span aria-hidden="true">→</span></button>
 `;
 
   $("#goal-hud").innerHTML = `
-    <button class="sheet-close icon-btn" data-cmd="closeSheet" aria-label="收起">${icon("close")}</button>
+    ${sheetHead("目标")}
     ${kicker("04", "目标", "OBJECTIVE")}
     <p class="goal">${rich(level.goalText)}</p>
     ${kicker("05", "敌人", "HOSTILES", `<em>${alive.length}/${board.monsters.length}</em>`)}
@@ -1139,7 +1144,7 @@ function showIntro() {
           <p class="story">${level.story}</p>
         </div>
       </div>
-      <p class="intro-goal"><span class="t-meta">Objective · 目标</span>${rich(level.goalText)}</p>
+      <p class="intro-goal"><span class="t-meta">Objective · 目标</span><span class="intro-goal-text">${rich(level.goalText)}</span></p>
       <p class="tip"><span class="t-meta">Note</span>${rich(level.tip)}</p>
       <div class="panel-actions"><button class="primary" data-cmd="begin">${level.tutorial ? "开始序章" : `开始第 ${level.id} 章`}<span aria-hidden="true">→</span></button></div>
     </div>`,

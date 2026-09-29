@@ -4369,7 +4369,8 @@ body:not(.in-level) .hint-bar {
 
 .hud-strip,
 .sheet-backdrop,
-.sheet-close {
+.sheet-head,
+.sheet-build {
   display: none;
 }
 
@@ -4405,11 +4406,6 @@ body:not(.in-level) .hint-bar {
     opacity: 1;
     pointer-events: auto;
     transform: none;
-  }
-  .sheet-close {
-    display: grid;
-    float: right;
-    margin: -6px -6px 0 var(--sp-3);
   }
   .sheet-backdrop {
     position: fixed;
