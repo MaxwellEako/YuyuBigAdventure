@@ -367,7 +367,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     $("[data-hero-status]").textContent = combat.shieldUp ? "防御中" : "白色小兵";
     const banner = $("[data-banner]");
     const heroTurn = combat.phase === "hero" && !busy;
-    banner.textContent = heroTurn ? (mode === "heal" ? "选择治疗位置" : combat.bonus ? "追加攻击" : "你的回合") : "敌方回合";
+    banner.textContent = heroTurn ? (mode === "heal" ? "选择治疗位置" : combat.bonus ? (combat.bonusReason === "chase" ? "追击" : "追加攻击") : "你的回合") : "敌方回合";
     banner.classList.toggle("enemy-turn", !heroTurn);
     modal.classList.toggle("heal-mode", mode === "heal");
     modal.classList.toggle("locked", !heroTurn);
@@ -499,6 +499,13 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
       floatText("enemy", "连击中断", "miss");
       sfx.play("combo-break");
     }
+    if (comboEvent?.chase) {
+      // 连击 ×3 的倍数：追击，怪物行动前再出一招。
+      setTimeout(() => {
+        sfx.play("chase");
+        floatText("enemy", "追击！", "chase");
+      }, 300);
+    }
     if (result.events.some((e) => e.type === "interrupt")) {
       sfx.play("stun");
       setTimeout(() => floatText("enemy", "打断！", "chase"), 420);
@@ -518,7 +525,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
       await explainCombo();
     }
     if (combat.phase === "hero") {
-      // 疾风斩之后：仍是主角回合，换一件可用的普通武器。
+      // 追击或疾风斩之后：仍是主角回合，换一件可用的普通武器。
       if (slotBlocked(combat, slotOf(combat, selected))) selected = firstReady() ?? selected;
       busy = false;
       render();

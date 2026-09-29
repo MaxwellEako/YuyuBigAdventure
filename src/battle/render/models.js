@@ -635,6 +635,30 @@ export function makeKey() {
   return group;
 }
 
+/**
+ * 护甲片：一块墨黑漆面的方牌，上面凸起 2×2 四块小方甲（田字），悬浮旋转。
+ * 田字形正好对应它在红心矩阵上覆盖的范围，看模型就知道拾取后能护住哪一片。
+ */
+export function makePlate() {
+  const group = new THREE.Group();
+  const inner = new THREE.Group();
+  const base = rounded(0.34, 0.34, 0.05, 0.012, PIECE.lacquer);
+  inner.add(base);
+  const size = 0.13;
+  for (const [x, y] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const scale = rounded(size, size, 0.05, 0.01, PIECE.steel);
+    scale.position.set(x * 0.075, y * 0.075, 0.045);
+    inner.add(scale);
+  }
+  // 方牌立起来，微微后仰，正面朝向镜头一侧。
+  inner.rotation.x = -0.35;
+  inner.position.y = 0.42;
+  inner.userData.baseY = 0.42;
+  group.add(inner, pickupMarker());
+  group.userData = { spin: inner };
+  return group;
+}
+
 /** 铁栅门：墨黑细栅。 */
 export function makeDoor() {
   const group = new THREE.Group();

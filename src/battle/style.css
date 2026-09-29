@@ -1158,37 +1158,21 @@ body:not(.in-level) .hint-bar {
   margin: var(--sp-3) 0 var(--sp-4);
 }
 
-.intro-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  margin-top: var(--sp-7);
-  background: var(--grey-2);
-  border: 1px solid var(--grey-2);
+/* 开场目标：一条细线分隔的醒目单行，替代原来四宫格的信息表。 */
+.intro-goal {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-5);
+  margin: var(--sp-6) 0 0;
+  padding: var(--sp-4) 0;
+  font-size: 17px;
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--grey-2);
 }
 
-.intro-grid > div {
-  padding: var(--sp-4) var(--sp-5);
-  background: var(--paper);
-}
-
-.intro-grid h4 {
-  margin: 0 0 var(--sp-3);
+.intro-goal .t-meta {
+  flex: none;
   font-size: 10.5px;
-}
-
-.intro-grid p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.intro-grid .big {
-  display: block;
-  font-size: 30px;
-  font-weight: 200;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
 }
 
 .foes {
@@ -1878,7 +1862,8 @@ body:not(.in-level) .hint-bar {
 
 .matrix-enemy .cell,
 .heal-mode .matrix-hero .cell,
-.screen-heal .cell {
+.screen-heal .cell,
+.screen-armor .cell {
   cursor: crosshair;
 }
 
@@ -3246,8 +3231,7 @@ body:not(.in-level) .hint-bar {
   .battle-foot {
     flex-direction: column;
   }
-  .help-grid,
-  .intro-grid {
+  .help-grid {
     grid-template-columns: 1fr;
   }
   .title-card {

@@ -8,6 +8,7 @@ const GLOSSARY = {
   红心: { svg: () => heartSvg("heart"), tone: "heart" },
   红心矩阵: { svg: () => heartSvg("heart"), tone: "heart" },
   护甲心: { svg: () => heartSvg("armor"), tone: "ink" },
+  护甲片: { icon: "armor", tone: "ink" },
   武器: { icon: "sword" },
   武器槽: { icon: "sword" },
   背包: { icon: "bag" },

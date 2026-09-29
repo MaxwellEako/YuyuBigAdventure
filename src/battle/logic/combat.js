@@ -19,10 +19,14 @@ import { weaponShape, nextRotation, weaponCooldown } from "./arsenal.js";
 /**
  * 充能：中型、重型武器每用一次要消耗充能，充能靠连击攒。
  * 每场战斗开局给 ENERGY_START 颗，最多攒 ENERGY_MAX 颗。
+ * 重武器要 3 颗，比开局多一颗：必须先打出连击才能抡起来，不能开场就砸。
  */
 export const ENERGY_START = 2;
 export const ENERGY_MAX = 5;
-export const ENERGY_COST = { light: 0, medium: 1, heavy: 2 };
+export const ENERGY_COST = { light: 0, medium: 1, heavy: 3 };
+
+/** 每连上 CHASE_EVERY 次（连击 ×3、×6、×9……）获得一次追击：怪物行动前再出一招。 */
+export const CHASE_EVERY = 3;
 
 /** 招式要消耗几点充能：技能不消耗。 */
 export const energyCost = (slot) => (slot.kind === "weapon" ? ENERGY_COST[WEAPONS[slot.id].weight] ?? 0 : 0);
@@ -73,7 +77,9 @@ export function createCombat({
     // 上一击用的招式：连续两次用同一件武器（或同一个技能）不算连上。
     lastWeaponId: null,
     upgrades: hero.upgrades ?? {},
+    // 追加攻击：bonus 为 true 时怪物暂不行动，主角再出一招。bonusReason：chase 追击 / swift 疾风斩。
     bonus: false,
+    bonusReason: null,
     stunned: false,
     potions: hero.potions,
     shieldCd: 0,
@@ -183,13 +189,14 @@ export function touches(a, b) {
  * break：落空，连击清零。
  * repeat：没落空，但和上一击用的是同一件武器，从这一击重新起手（照常造成伤害，只是刷不了连击）。
  * start：没落空，但不挨着上一击（或还没有连击），从这一击重新起手。
- * link：没落空、换了武器、并且紧挨着上一击，连击 +1。
+ * link：没落空、换了武器、并且紧挨着上一击，连击 +1。带「灵巧」的武器不必紧挨上一击。
  */
 export function comboOutcome(state, shape, r, c, weaponId) {
   const cells = footprint(shape, r, c);
   if (!isClean(state.monsterMatrix, cells)) return "break";
   if (state.combo === 0 || !state.lastFootprint) return "start";
   if (weaponId && weaponId === state.lastWeaponId) return "repeat";
+  if (weaponId && state.upgrades[weaponId]?.nimble) return "link";
   return touches(cells, state.lastFootprint) ? "link" : "start";
 }
 
@@ -199,9 +206,13 @@ export function previewCombo(state, weaponId, r, c) {
 
 /**
  * 连击的显示：第一次完美命中只是起手，不提示；第二次起才算连上。
- * 内部的 combo 记连续完美命中的次数，界面显示 combo - 1；连击 ×2 起，每连上一次得一点充能。
+ * 内部的 combo 记连续完美命中的次数，界面显示 combo - 1；连击 ×2 起，每连上一次得一点充能；
+ * 每到 ×3 的倍数获得一次追击。
  */
 export const comboLinks = (combo) => Math.max(0, combo - 1);
+
+/** 连击数从 before 涨到 after 时，有没有跨过一个追击点（×3、×6……）。 */
+export const reachesChase = (before, after) => Math.floor(after / CHASE_EVERY) > Math.floor(before / CHASE_EVERY);
 export const comboLabel = (links) => (links <= 1 ? "连击" : `连击 ×${links}`);
 
 export function previewAttack(state, weaponId, r, c) {
@@ -251,6 +262,7 @@ export function heroAttack(state, weaponId, r, c) {
   state.monsterMatrix = applyChanges(state.monsterMatrix, hits);
   const wasBonus = state.bonus;
   state.bonus = false;
+  state.bonusReason = null;
   state.energy -= energyCost(slot);
   if (slot.kind === "skill") slot.charges -= 1;
   // 新回合开始时会先减 1，因此存 cooldown+1，保证之后整整 cooldown 个回合不可用。
@@ -282,8 +294,9 @@ export function heroAttack(state, weaponId, r, c) {
     state.log.push(`${state.def.name}被定身，下回合无法行动。`);
   }
 
-  // 连击结算：连上就累计连击；从第二次连击起，每连上一次得一点充能。
+  // 连击结算：连上就累计连击；从第二次连击起，每连上一次得一点充能；每到 ×3 的倍数追击一次。
   const linksBefore = comboLinks(state.combo);
+  let chase = false;
   if (outcome !== "break") {
     // 不挨着上一击或连用同一件武器：之前的连击断开，从这一击重新起手。
     if (outcome !== "link") {
@@ -293,18 +306,21 @@ export function heroAttack(state, weaponId, r, c) {
       }
       state.combo = 0;
     }
-    state.combo += 1;
+    const up = slot.kind === "weapon" ? state.upgrades[slot.id] ?? {} : {};
+    // 连锁：这件武器连上时连击多涨一次。
+    state.combo += outcome === "link" && up.chain ? 2 : 1;
     state.bestCombo = Math.max(state.bestCombo, state.combo);
     const links = comboLinks(state.combo);
-    const precise = slot.kind === "weapon" && state.upgrades[slot.id]?.precise;
     let earn = 0;
     if (outcome === "link" && links >= 2) earn += 1;
-    if (outcome === "link" && precise) earn += 1;
+    if (outcome === "link" && up.precise) earn += 1;
     const before = state.energy;
     state.energy = Math.min(ENERGY_MAX, state.energy + earn);
     const gained = state.energy - before;
-    if (links) state.log.push(`${comboLabel(links)}${gained ? `，充能 +${gained}` : ""}。`);
-    events.push({ type: "combo", combo: state.combo, energy: gained });
+    // 追击本身（以及疾风斩的追加攻击）不会再触发追击，避免一口气打到底。
+    chase = outcome === "link" && !wasBonus && reachesChase(linksBefore, links);
+    if (links) state.log.push(`${comboLabel(links)}${gained ? `，充能 +${gained}` : ""}${chase ? "，追击！" : "。"}`);
+    events.push({ type: "combo", combo: state.combo, energy: gained, chase });
   } else if (state.combo > 0) {
     if (linksBefore) {
       state.log.push("连击中断。");
@@ -317,11 +333,17 @@ export function heroAttack(state, weaponId, r, c) {
     state.phase = "won";
     state.log.push(`${state.def.name}被击败。`);
     events.push({ type: "won" });
+  } else if (chase) {
+    // 追击：怪物行动前，立刻再用一次武器。
+    state.bonus = true;
+    state.bonusReason = "chase";
+    events.push({ type: "bonus", reason: "chase" });
   } else if (slot.kind === "skill" && def.effect === "extra" && !wasBonus) {
     // 疾风斩：本回合还可以再用一次普通武器，怪物暂不行动。
     state.bonus = true;
+    state.bonusReason = "swift";
     state.log.push("疾风斩生效，可追加一次攻击。");
-    events.push({ type: "bonus" });
+    events.push({ type: "bonus", reason: "swift" });
   } else state.phase = "monster";
   return { ok: true, events };
 }
@@ -334,6 +356,7 @@ export function heroHeal(state, r, c) {
   state.heroMatrix = applyChanges(state.heroMatrix, heals);
   state.potions -= 1;
   state.bonus = false;
+  state.bonusReason = null;
   state.log.push(`使用红心药水，恢复了 ${heals.length} 颗红心。`);
   state.phase = "monster";
   return { ok: true, events: [{ type: "heal", side: "hero", changes: heals }] };
@@ -357,6 +380,7 @@ export function heroShield(state) {
 export function heroWait(state) {
   if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
   state.bonus = false;
+  state.bonusReason = null;
   state.phase = "monster";
   state.log.push(`${getHeroName()}等待一回合。`);
   return { ok: true, events: [{ type: "wait" }] };
@@ -367,6 +391,7 @@ export function heroRetreat(state) {
   if (!state.canRetreat) return { ok: false, reason: "暗王战无法撤退" };
   state.retreating = true;
   state.bonus = false;
+  state.bonusReason = null;
   state.phase = "monster";
   state.log.push(`${getHeroName()}撤退，${state.def.name}发起追击。`);
   return { ok: true, events: [{ type: "retreat" }] };

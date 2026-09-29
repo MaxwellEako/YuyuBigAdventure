@@ -8,6 +8,8 @@ export const UPGRADE_TEXT = {
   mirror: { name: "镜像", icon: "mirror", desc: "战斗中按 F 键，攻击形状左右翻转。" },
   extend: { name: "延长", icon: "extend", desc: "攻击范围扩大。" },
   precise: { name: "精准", icon: "energy", desc: "该武器构成连击时，额外获得 1 点充能。" },
+  chain: { name: "连锁", icon: "combo", desc: "该武器构成连击时，连击数额外 +1，更快触发追击。" },
+  nimble: { name: "灵巧", icon: "run", desc: "该武器不必紧挨上一击，只要不落空、换了武器就能连上。" },
   pierce: { name: "破甲", icon: "pierce", desc: "一击消除护甲心。" },
   stagger: { name: "震慑", icon: "stagger", desc: "单次消除不少于 2 颗红心即可打断重击。" },
 };
@@ -52,19 +54,28 @@ export function nextRotation(id, upgrades = {}, orient = {}) {
 }
 
 /**
+ * 每种定位能拿到的强化（旋转、镜像另看武器自己的 transforms）：
+ *  - 轻武器“灵活”：连锁（连击涨得更快）、灵巧（不必紧挨上一击）。不延长、不破甲，保持两格的小巧。
+ *  - 中型“接招”：延长、精准（连上时多得充能）、破甲。
+ *  - 重武器“范围大”：延长、破甲、震慑（降低打断重击的门槛）。不给精准：它是花充能的终结技，不是攒充能的。
+ */
+const ROLE_UPGRADES = {
+  light: ["chain", "nimble"],
+  medium: ["extend", "precise", "pierce"],
+  heavy: ["extend", "pierce", "stagger"],
+};
+
+/**
  * 某件武器能不能拿到某项强化。
- * 轻武器（短剑、斜刃）不能延长、不能破甲、不能精准：它们是刷连击的主力，再加这些就没有取舍了。
- * 破甲要等护甲怪出现以后才会在铁砧上刷出来（opts.pierce）。震慑只给重武器（降低打断重击的门槛）。
+ * 破甲要等护甲怪出现以后才会在铁砧上刷出来（opts.pierce 为 false 时不出）；天生破甲的破甲锥不再出破甲。
  */
 export function upgradeAllowed(id, kind, opts = {}) {
   const w = WEAPONS[id];
   if (!w) return false;
   if (kind === "rotate" || kind === "mirror") return w.transforms.includes(kind);
-  if (kind === "extend") return w.weight !== "light";
-  if (kind === "precise") return w.weight !== "light";
-  if (kind === "pierce") return w.weight !== "light" && !w.pierce && opts.pierce !== false;
-  if (kind === "stagger") return w.weight === "heavy";
-  return false;
+  if (!ROLE_UPGRADES[w.weight]?.includes(kind)) return false;
+  if (kind === "pierce") return !w.pierce && opts.pierce !== false;
+  return true;
 }
 
 /** 去掉规则调整后不再允许的强化（旧存档里可能有）。 */
@@ -77,8 +88,8 @@ export function sanitizeUpgrades(upgrades = {}) {
   return clean;
 }
 
-/** 各类强化出现的相对概率。精准对连击的收益大，出得少一些。 */
-const UPGRADE_WEIGHT = { rotate: 1, mirror: 1, extend: 1, precise: 0.35, pierce: 1, stagger: 1 };
+/** 各类强化出现的相对概率。精准、连锁对连击的收益大，出得少一些；延长直接加伤害，也压低一些。 */
+const UPGRADE_WEIGHT = { rotate: 1, mirror: 1, extend: 0.6, precise: 0.5, chain: 0.5, nimble: 1, pierce: 1, stagger: 1 };
 
 /**
  * 武器强化格随机给出的候选项：只从已经拿到的武器里出，已拥有的强化不再出现。

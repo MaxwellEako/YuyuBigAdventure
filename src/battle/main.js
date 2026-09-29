@@ -43,6 +43,9 @@ import {
   isAdjacent,
   ORTHO,
   key,
+  PLATE_SHAPE,
+  previewPlate,
+  armorHero,
 } from "./logic/board.js";
 import { createCombat, ENERGY_COST } from "./logic/combat.js";
 import { countHearts, resolveHeal, applyChanges } from "./logic/shapes.js";
@@ -228,6 +231,7 @@ function renderHud() {
     <span class="strip-hp ${hearts / slots < 0.35 ? "low" : ""}">${heartSvg("heart")}<b>${hearts}</b><small>/${slots}</small></span>
     <button class="strip-chip" data-cmd="potion" ${hero.potions && hearts < slots ? "" : "disabled"} aria-label="喝药水">${icon("potion")}<b>${hero.potions}</b></button>
     ${hero.keys ? `<span class="strip-chip">${icon("key")}<b>${hero.keys}</b></span>` : ""}
+    ${hero.plates ? `<button class="strip-chip" data-cmd="armor" aria-label="使用护甲片">${icon("armor")}<b>${hero.plates}</b></button>` : ""}
     <span class="strip-gap"></span>
     <button class="strip-btn" data-cmd="sheetHero">${icon("sword")}武器</button>
     <button class="strip-btn" data-cmd="sheetGoal">${icon("exit")}目标<em>${alive.length}</em></button>`;
@@ -242,8 +246,9 @@ function renderHud() {
     <div class="hud-items">
       <button class="chip-btn" data-cmd="potion" ${hero.potions && hearts < slots ? "" : "disabled"} title="喝药水（P）">${icon("potion")}<span>药水</span><b>${hero.potions}</b></button>
       <span class="chip ${hero.keys ? "on" : ""}" title="钥匙">${icon("key")}<span>钥匙</span><b>${hero.keys}</b></span>
+      ${hero.plates ? `<button class="chip-btn" data-cmd="armor" title="使用护甲片（G）">${icon("armor")}<span>护甲片</span><b>${hero.plates}</b></button>` : ""}
     </div>
-    ${kicker("02", "武器", "ARSENAL", `${slotPips(hero.equipped.length, hero.slots)}<button class="build-chip" data-cmd="armory" title="打开背包（B）">${icon("bag")}打开背包<kbd>B</kbd></button>`)}
+    ${kicker("02", "武器", "ARSENAL", `${slotPips(hero.equipped.length, hero.slots)}<button class="build-chip" data-cmd="armory" title="构筑（B）">${icon("bag")}构筑<kbd>B</kbd></button>`)}
     <ul class="weapon-list">${hero.equipped
       .map((id, i) => {
         const w = WEAPONS[id];
@@ -635,7 +640,7 @@ function showArmory() {
     showScreen(
       "armory",
       `<div class="panel armory ${pending ? `swapping swap-${pending.kind}` : ""}">
-        <header class="panel-head"><div>${kicker(icon("bag"), "背包", "BAG")}<h2>背包</h2></div><button class="icon-btn" data-cmd="back" aria-label="完成">${icon("close")}</button></header>
+        <header class="panel-head"><div>${kicker(icon("bag"), "构筑", "BUILD")}<h2>构筑</h2></div><button class="icon-btn" data-cmd="back" aria-label="完成">${icon("close")}</button></header>
         <div class="loadout">
           <section class="loadout-col">
             <h4 class="build-title">${kw("武器槽")}${slotPips(hero.equipped.length, hero.slots)}</h4>
@@ -765,12 +770,19 @@ async function pickup(item) {
   } else if (item.type === "key") {
     sfx.play("pickup");
     toast(`${icon("key")} 获得 <b>钥匙</b>`);
+  } else if (item.type === "plate") {
+    sfx.play("pickup");
+    toast(`${icon("armor")} 获得 <b>护甲片</b>`);
   } else if (item.type === "chest") {
     sfx.play("chest");
     const w = WEAPONS[item.weapon];
     toast(`<span class="toast-shape">${shapeSvg(w.shape, { cell: 10 })}</span>获得新武器 <b>${w.name}</b>`, "gold");
   }
   await world.collectItem(item.r, item.c);
+  if (item.type === "plate") {
+    await explain(["plate"], {});
+    return;
+  }
   if (item.type !== "chest") return;
   // 拿到新武器时，才讲这件武器带来的新概念：武器槽不够、重武器、护甲。
   const w = WEAPONS[item.weapon];
@@ -1080,13 +1092,12 @@ function showLevels() {
   screenBack = back === "resume" ? () => ((playing = was), hideScreen(), refreshMarks()) : showTitle;
 }
 
+/**
+ * 章节开场：只交代“这一章讲什么、要做什么”。
+ * 红心、敌人、新武器等细节留给棋盘上的信息面板和第一次遇到时的说明卡，不在开场堆一屏。
+ */
 function showIntro() {
   const level = board.level;
-  const prevChest = levelIndex > 0 && LEVELS[levelIndex - 1].chest ? WEAPONS[LEVELS[levelIndex - 1].chest] : null;
-  const newSkill = level.skill ? SKILLS[level.skill] : null;
-  const forgeCount = level.map.join("").split("U").length - 1;
-  const kinds = [...new Set(level.monsters.map((m) => m.type))];
-  const hero = level.hero;
   showScreen(
     "intro",
     `<div class="panel intro">
@@ -1098,14 +1109,7 @@ function showIntro() {
           <p class="story">${level.story}</p>
         </div>
       </div>
-      <div class="intro-grid">
-        <div><h4 class="t-meta">Objective · 目标</h4><p>${rich(level.goalText)}</p></div>
-        <div><h4 class="t-meta">Hearts · 红心矩阵</h4><p><span class="big">${hero.rows}×${hero.cols}</span>${kw(`${hero.rows * hero.cols}`, "红心")} ${kw(`×${level.potions}`, "药水")}</p></div>
-        <div><h4 class="t-meta">Hostiles · 敌人</h4><p class="foes">${kinds.map((k) => `<span><i class="avatar-sm ${MONSTERS[k].model}">${GLYPH[MONSTERS[k].model]}</i>${MONSTERS[k].name}</span>`).join("")}</p></div>
-        ${prevChest ? `<div><h4 class="t-meta">New weapon · 新武器</h4><p><span class="inline-shape">${shapeSvg(prevChest.shape, { cell: 9 })}</span>${prevChest.name}<br>${prevChest.desc}</p></div>` : levelIndex === 0 ? `<div><h4 class="t-meta">Arsenal · 武器</h4><p>短剑、L 钩镰</p></div>` : ""}
-        ${newSkill ? `<div><h4 class="t-meta">New skill · 新技能</h4><p><span class="inline-shape">${shapeSvg(newSkill.shape, { cell: 9, tone: "skill" })}</span>${newSkill.name}<br>${newSkill.desc}<br>${kw(`每章 ×${newSkill.charges}`, "技能")}</p></div>` : ""}
-        ${forgeCount ? `<div><h4 class="t-meta">Forge · 铁砧</h4><p>${kw(`铁砧 ×${forgeCount}`, "铁砧")}</p></div>` : ""}
-      </div>
+      <p class="intro-goal"><span class="t-meta">Objective · 目标</span>${rich(level.goalText)}</p>
       <p class="tip"><span class="t-meta">Note</span>${rich(level.tip)}</p>
       <div class="panel-actions"><button class="primary" data-cmd="begin">${level.tutorial ? "开始序章" : `开始第 ${level.id} 章`}<span aria-hidden="true">→</span></button></div>
     </div>`,
@@ -1251,11 +1255,11 @@ function showHelp() {
           <h3><span class="t-meta">05</span>棋盘</h3>
           <ul class="help-legend">
             <li><span class="legend-glyph">${icon("chest")}</span><span>${rich("走到[宝箱]或[药水]所在格子可以拾取该物品。站在[铁砧]相邻的格子上点击铁砧即可使用。")}</span></li>
-            <li><span class="legend-glyph">${icon("bag")}</span><span>${rich("[武器槽]数量决定可装备的武器数，[技能]最多装备三个。按 B 键[打开背包|背包]。")}</span></li>
+            <li><span class="legend-glyph">${icon("bag")}</span><span>${rich("[武器槽]数量决定可装备的武器数，[技能]最多装备三个。按 B 键打开[构筑]。")}</span></li>
             <li><span class="legend-glyph">${icon("fog")}</span><span>${rich(`[迷雾]中仅显示${getHeroName()}周围的格子。`)}</span></li>
           </ul>
           <h3><span class="t-meta">06</span>按键</h3>
-          <p class="keys"><span><kbd>WASD</kbd>移动</span><span><kbd>C</kbd>转动视角</span><span><kbd>B</kbd>背包</span><span><kbd>P</kbd>喝药水</span><span><kbd>1</kbd>~<kbd>7</kbd>选武器</span><span><kbd>R</kbd>旋转</span><span><kbd>F</kbd>镜像</span><span><kbd>Q</kbd>防御</span><span><kbd>E</kbd>药水</span><span><kbd>Z</kbd>等待</span></p>
+          <p class="keys"><span><kbd>WASD</kbd>移动</span><span><kbd>C</kbd>转动视角</span><span><kbd>B</kbd>构筑</span><span><kbd>G</kbd>护甲片</span><span><kbd>P</kbd>喝药水</span><span><kbd>1</kbd>~<kbd>7</kbd>选武器</span><span><kbd>R</kbd>旋转</span><span><kbd>F</kbd>镜像</span><span><kbd>Q</kbd>防御</span><span><kbd>E</kbd>药水</span><span><kbd>Z</kbd>等待</span></p>
           <div class="panel-actions"><button class="ghost" data-cmd="hints">新手提示 · ${progress.hints === false ? "关" : "开"}</button><button class="ghost subtle" data-cmd="reset">${icon("restart")}重置进度</button></div>
         </section>
       </div>
@@ -1271,46 +1275,84 @@ function showHelp() {
   };
 }
 
-/** 棋盘上喝药水：不消耗回合，在自己的心阵上选择十字落点。 */
-function showFieldHeal() {
-  if (!playing || busy || board.hero.potions <= 0) return;
+/**
+ * 在自己的心阵上摆放一个形状（棋盘上喝药水、上护甲共用）。不消耗回合。
+ * resolve(r, c) 给出落在 (r,c) 时会改变的格子；apply(r, c) 真正生效并返回这些改动。
+ */
+function showHeroPlacement({ name, kickerHtml, title, bodyHtml, shape, resolve, apply, tone, anim, sound }) {
   playing = false;
   showScreen(
-    "heal",
+    name,
     `<div class="panel heal-panel">
-      <header class="panel-head"><div>${kicker("P", "治疗", "POTION", `<em>${board.hero.potions}</em>`)}<h2>红心药水</h2></div><button class="icon-btn" data-cmd="back" aria-label="关闭">${icon("close")}</button></header>
-      <p class="body">选择一个位置，恢复 <span class="inline-shape">${shapeSvg(POTION.shape, { cell: 9, tone: "heal" })}</span> 十字范围内的红心。</p>
-      <div class="heal-matrix"><div id="heal-matrix"></div></div>
+      <header class="panel-head"><div>${kickerHtml}<h2>${title}</h2></div><button class="icon-btn" data-cmd="back" aria-label="关闭">${icon("close")}</button></header>
+      <p class="body">${bodyHtml}</p>
+      <div class="heal-matrix"><div id="place-matrix"></div></div>
     </div>`,
   );
-  const view = new MatrixView($("#heal-matrix"), { margin: 1, maxSize: 300, side: "hero" });
+  const view = new MatrixView($("#place-matrix"), { margin: 1, maxSize: 300, side: "hero" });
+  const resume = () => {
+    hideScreen();
+    playing = true;
+    refreshMarks();
+  };
   view.set(board.hero.matrix);
   view.onHover = (r, c) => {
-    const heals = resolveHeal(board.hero.matrix, POTION.shape, r, c);
-    view.preview(POTION.shape, r, c, heals, { tone: "heal", valid: heals.length > 0 });
+    const changes = resolve(r, c);
+    view.preview(shape, r, c, changes, { tone, valid: changes.length > 0 });
   };
   view.onLeave = () => view.clearPreview();
   view.onPick = async (r, c) => {
-    const heals = resolveHeal(board.hero.matrix, POTION.shape, r, c);
-    if (!heals.length) {
+    if (!resolve(r, c).length) {
       sfx.play("invalid");
       return;
     }
-    board.hero.matrix = applyChanges(board.hero.matrix, heals);
-    board.hero.potions -= 1;
-    sfx.play("heal");
+    const changes = apply(r, c);
+    sfx.play(sound);
     view.clearPreview();
-    await view.animate(heals, "heal", board.hero.matrix);
+    await view.animate(changes, anim, board.hero.matrix);
     renderHud();
-    hideScreen();
-    playing = true;
-    refreshMarks();
+    resume();
   };
-  screenBack = () => {
-    hideScreen();
-    playing = true;
-    refreshMarks();
-  };
+  screenBack = resume;
+}
+
+/** 棋盘上喝药水：在自己的心阵上选择十字落点。 */
+function showFieldHeal() {
+  if (!playing || busy || board.hero.potions <= 0) return;
+  showHeroPlacement({
+    name: "heal",
+    kickerHtml: kicker("P", "治疗", "POTION", `<em>${board.hero.potions}</em>`),
+    title: "红心药水",
+    bodyHtml: `选择一个位置，恢复 <span class="inline-shape">${shapeSvg(POTION.shape, { cell: 9, tone: "heal" })}</span> 十字范围内的红心。`,
+    shape: POTION.shape,
+    resolve: (r, c) => resolveHeal(board.hero.matrix, POTION.shape, r, c),
+    apply: (r, c) => {
+      const heals = resolveHeal(board.hero.matrix, POTION.shape, r, c);
+      board.hero.matrix = applyChanges(board.hero.matrix, heals);
+      board.hero.potions -= 1;
+      return heals;
+    },
+    tone: "heal",
+    anim: "heal",
+    sound: "heal",
+  });
+}
+
+/** 棋盘上使用护甲片：在自己的心阵上选择一块田字区域，披上护甲。 */
+function showFieldArmor() {
+  if (!playing || busy || board.hero.plates <= 0) return;
+  showHeroPlacement({
+    name: "armor",
+    kickerHtml: kicker(icon("armor"), "护甲", "ARMOR", `<em>${board.hero.plates}</em>`),
+    title: "护甲片",
+    bodyHtml: rich(`选择一个位置，为 <span class="inline-shape">${shapeSvg(PLATE_SHAPE, { cell: 9 })}</span> 田字范围内的红心加上护甲。[护甲心]被击中时先掉护甲，需要两次命中才会消除。`),
+    shape: PLATE_SHAPE,
+    resolve: (r, c) => previewPlate(board, r, c),
+    apply: (r, c) => armorHero(board, r, c).changes,
+    tone: "armor",
+    anim: "armor",
+    sound: "pickup",
+  });
 }
 
 // ——— 命令与输入 ———
@@ -1365,6 +1407,7 @@ const commands = {
   },
   rotate: () => world.rotateView(),
   potion: showFieldHeal,
+  armor: showFieldArmor,
   sound: () => {
     sfx.setEnabled(!sfx.enabled);
     progress.audio = { ...(progress.audio ?? {}), sfx: sfx.enabled };
@@ -1441,6 +1484,7 @@ document.addEventListener("keydown", (e) => {
   else if (k === "h") showHelp();
   else if (k === "r") commands.restart();
   else if (k === "p") showFieldHeal();
+  else if (k === "g") showFieldArmor();
   else if (k === "b") showArmory();
   else if (k === "escape") showLevels();
 });

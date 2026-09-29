@@ -13,10 +13,14 @@ import {
   makeDoor,
   makeExit,
   makeForge,
+  makePlate,
   MATERIALS,
 } from "./models.js";
 import { countHearts } from "../logic/shapes.js";
 import { key, isVisible, isExplored } from "../logic/board.js";
+
+/** 棋盘道具种类 → 模型工厂。新增道具只需在这里登记一行。 */
+const ITEM_MODELS = { chest: makeChest, potion: makePotion, forge: makeForge, key: makeKey, plate: makePlate };
 
 const SIZE = 8;
 const SURFACE = 0.05;
@@ -366,8 +370,7 @@ export class BoardWorld {
       }),
     );
     for (const item of board.items.values()) {
-      const model =
-        item.type === "chest" ? makeChest() : item.type === "potion" ? makePotion() : item.type === "forge" ? makeForge() : makeKey();
+      const model = (ITEM_MODELS[item.type] ?? makeKey)();
       model.position.copy(tileCenter(item.r, item.c));
       model.userData.type = item.type;
       model.userData.tile = [item.r, item.c];

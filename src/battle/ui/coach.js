@@ -3,6 +3,7 @@ import { rich } from "./keywords.js";
 import { WEAPONS } from "../data/weapons.js";
 import { SKILLS } from "../data/skills.js";
 import { getHeroName } from "../data/heroName.js";
+import { CHASE_EVERY, ENERGY_COST, ENERGY_START, ENERGY_MAX } from "../logic/combat.js";
 
 /** 4×4 示意矩阵：hit 中的格子标为被消除，anchor 为锚点。 */
 function demoGrid(hitCells = [], anchor = null, rows = 4, cols = 4, prevCells = []) {
@@ -72,7 +73,7 @@ export const TOPICS = {
   "tour-energy": {
     title: "充能",
     target: "[data-energy]",
-    body: `L 钩镰等武器每次使用消耗 1 点[充能]。${legend([[icon("energy"), "每场战斗开始时持有 2 点，最多积蓄 5 点。"]])}`,
+    body: `L 钩镰等武器每次使用消耗 1 点[充能]。${legend([[icon("energy"), `每场战斗开始时持有 ${ENERGY_START} 点，最多积蓄 ${ENERGY_MAX} 点。`]])}`,
   },
   "tour-shield": {
     title: "防御",
@@ -97,7 +98,8 @@ export const TOPICS = {
       { glyph: icon("perfect"), title: "完美命中", note: "标记虚线框" },
       { glyph: icon("combo"), title: "连击", note: "更换武器，紧邻虚线框" },
       { glyph: icon("energy"), title: "连击 ×2 起", note: "每次连击获得 1 点充能", tone: "accent" },
-    ])}攻击落空、未紧邻虚线框或连续使用同一件武器时，连击中断。`,
+      { glyph: icon("chase"), title: `连击 ×${CHASE_EVERY}`, note: "追击：怪物行动前再攻击一次", tone: "accent" },
+    ])}顺着怪物心阵的形状换着武器“拼”下去，比一件武器慢慢磨快得多。攻击落空、未紧邻虚线框或连续使用同一件武器时，连击中断；[追击]中不会再触发追击。`,
   },
   chest: {
     title: "宝箱与药水",
@@ -106,7 +108,7 @@ export const TOPICS = {
   slots: {
     title: "武器槽",
     body: (ctx) =>
-      `出战的武器置于[武器槽]中，本章共有 ${ctx.slots} 个武器槽，其余武器存放在[背包]中。${slotDiagram(ctx.slots)}在棋盘上按 B 键[打开背包|背包]，可随时更换出战武器。`,
+      `出战的武器置于[武器槽]中，本章共有 ${ctx.slots} 个武器槽，其余武器存放在[背包]中。${slotDiagram(ctx.slots)}在棋盘上按 B 键打开[构筑]，可随时更换出战武器。`,
   },
   "slots-up": {
     title: "武器槽增加",
@@ -155,11 +157,18 @@ export const TOPICS = {
     ])}`,
   },
   // 第一次拿到战锤这样的重武器时弹出。
+  plate: {
+    title: "护甲片",
+    body: `${legend([
+      [icon("armor"), "护甲片可为自己[红心矩阵]中一块田字（2×2）范围的红心加上护甲。"],
+      [heartSvg("armor"), "[护甲心]被击中时先失去护甲，需要两次命中才会消除。"],
+    ])}在棋盘上按 G 键或点击信息栏的护甲片图标，选择位置使用。`,
+  },
   heavy: {
     title: "重型武器",
     body: (ctx) =>
       `${ctx.weapon ? `<p class="coach-example"><span class="inline-shape">${shapeSvg(ctx.weapon.shape, { cell: 12 })}</span>${ctx.weapon.name}可一次消除大片红心。</p>` : ""}${legend([
-        [`${icon("energy")}${icon("energy")}`, "每次使用消耗 2 点[充能]。"],
+        [icon("energy").repeat(ENERGY_COST.heavy), `每次使用消耗 ${ENERGY_COST.heavy} 点[充能]，比开局持有的多，需要先打出[连击]。`],
         [icon("stagger"), "单次消除不少于 3 颗红心，可[打断]怪物蓄力后的[重击]。可打断时，怪物的下一招旁显示此标记。"],
       ])}`,
   },

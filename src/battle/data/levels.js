@@ -4,7 +4,7 @@ import { getHeroName } from "./heroName.js";
  * 序章 + 十一个章节，全部在 8×8 棋盘上进行。第 0 行是离镜头最远的一侧。
  * key：稳定的章节标识，存档（星级、用过的铁砧）按它记录，插入新章节也不会错位。
  * slots：本章的武器槽数量（2 起步，最多 5，始终少于拥有的武器种类）。
- *   S 起点  E 出口  K 钥匙  L 铁栅门  P 红心药水  H 宝箱（内含 chest 指定的武器）  U 武器强化格（铁砧）
+ *   S 起点  E 出口  K 钥匙  L 铁栅门  P 红心药水  A 护甲片  H 宝箱（内含 chest 指定的武器）  U 武器强化格（铁砧）
  *   b 书堆  c 蜡烛  i 墨水瓶  d 骰子  t 茶杯  w 怀表  . 空地
  * 怪物 ai：static 原地驻守；patrol 沿 path 往返；chase 发现主角（sight 格内）后追击。
  * fog：开启战争迷雾，radius 为主角的视野半径（障碍会遮挡视线）。
@@ -87,7 +87,7 @@ export const LEVELS = [
     name: "兵阵",
     english: "THE PAWN LINE",
     story: "一排书堆拦腰截断了棋盘，只留下两个缺口，暗影兵守在缺口上，缺口后面还有一名步兵来回游荡。",
-    tip: "起点附近有一座[铁砧]，可在出发前强化武器。",
+    tip: "起点附近有一座[铁砧]，可在出发前强化武器。右侧有一块[护甲片]。",
     goal: "reach",
     goalText: "闯过兵阵，抵达[出口]",
     hero: { rows: 5, cols: 5 },
@@ -99,7 +99,7 @@ export const LEVELS = [
       ". . . . . . b .",
       ". b . . . . . .",
       "b b . b b . b b",
-      ". . . . . . . .",
+      ". . . . . . . A",
       ". . . . . U . .",
       ". . . . . . H .",
       "P . . S . . . .",
@@ -125,7 +125,7 @@ export const LEVELS = [
     goalText: "找到[钥匙]，打开[铁栅门]",
     hero: { rows: 5, cols: 5 },
     potions: 1,
-    chest: "hammer",
+    chest: "scythe",
     par: 30,
     map: [
       "E c . . . . . U",
@@ -157,7 +157,7 @@ export const LEVELS = [
     goalText: "穿过长廊，抵达[出口]",
     hero: { rows: 5, cols: 6 },
     potions: 2,
-    chest: "scythe",
+    chest: "hammer",
     par: 30,
     map: [
       ". . b . . . . E",
@@ -200,7 +200,7 @@ export const LEVELS = [
       ". . . . i . b .",
       ". b . . . . H .",
       ". . . i . . P .",
-      "S . . . . b . .",
+      "S . . . . b . A",
     ],
     monsters: [
       { type: "pawn", at: [0, 6], ai: "static" },
@@ -263,7 +263,7 @@ export const LEVELS = [
     map: [
       ". . . . . . . E",
       ". b . b . b . .",
-      ". . . . . . . .",
+      "A . . . . . . .",
       "U . b . b . b .",
       ". . . . . . . .",
       ". b . b . b . U",
@@ -337,7 +337,7 @@ export const LEVELS = [
       "i i . i i . i i",
       ". . . . . . . .",
       ". U . i i . . .",
-      ". . . . . . b .",
+      "A . . . . . b .",
       "P . . S . . . .",
     ],
     monsters: [
@@ -369,7 +369,7 @@ export const LEVELS = [
       ". b b . . b b .",
       "U . . . . . . U",
       ". . b . . b . .",
-      ". . . . . . . .",
+      "A . . . . . . .",
       "P . . S . . . K",
     ],
     monsters: [

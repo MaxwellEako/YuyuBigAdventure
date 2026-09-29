@@ -1,5 +1,5 @@
 import { MONSTERS, MOVE_SETS, heartsAt } from "../data/monsters.js";
-import { cloneMatrix, filledMatrix, countHearts } from "./shapes.js";
+import { cloneMatrix, filledMatrix, countHearts, parseShape, footprint, applyChanges, HEART, ARMOR } from "./shapes.js";
 import { skillCharges } from "./combat.js";
 import { defaultEquip, SKILL_SLOTS } from "./arsenal.js";
 
@@ -48,6 +48,7 @@ export function createBoard(
       if (ch === "E") exit = { r, c };
       if (ch === "P") items.set(key(r, c), { type: "potion", r, c });
       if (ch === "K") items.set(key(r, c), { type: "key", r, c });
+      if (ch === "A") items.set(key(r, c), { type: "plate", r, c });
       // 宝箱里的武器已经拿过（重玩时），这一格就是空的。
       if (ch === "H" && level.chest && !weapons.includes(level.chest))
         items.set(key(r, c), { type: "chest", r, c, weapon: level.chest });
@@ -98,6 +99,8 @@ export function createBoard(
       skills: { ...skills },
       equippedSkills: skillPick,
       potions: level.potions ?? 0,
+      // 护甲片：拾取后可以给自己红心矩阵的一块田字区域加上护甲（见 armorHero）。
+      plates: 0,
       keys: 0,
     },
     monsters,
@@ -267,6 +270,7 @@ function collectAt(state, r, c) {
   state.items.delete(k);
   if (item.type === "potion") state.hero.potions += 1;
   if (item.type === "key") state.hero.keys += 1;
+  if (item.type === "plate") state.hero.plates += 1;
   if (item.type === "chest" && item.weapon && !state.hero.weapons.includes(item.weapon)) {
     state.hero.weapons.push(item.weapon);
     // 有空的武器槽就直接装上，否则先放进背包。
@@ -274,6 +278,26 @@ function collectAt(state, r, c) {
   }
   events.push({ type: "pickup", item });
   return events;
+}
+
+/** 护甲片覆盖的范围：锚点在左上角的田字（2×2）。 */
+export const PLATE_SHAPE = parseShape(["@#", "##"]);
+
+/** 预览：护甲片放在 (r,c) 时，哪些红心会披上护甲（只有还在的普通红心才会，空位与已有护甲的不变）。 */
+export function previewPlate(state, r, c) {
+  return footprint(PLATE_SHAPE, r, c)
+    .filter(([hr, hc]) => state.hero.matrix[hr]?.[hc] === HEART)
+    .map(([hr, hc]) => ({ r: hr, c: hc, before: HEART, after: ARMOR }));
+}
+
+/** 用掉一块护甲片，给田字范围内的红心加上护甲。护甲心被击中一次先掉护甲，再掉红心。 */
+export function armorHero(state, r, c) {
+  if (state.hero.plates <= 0) return { ok: false, reason: "没有护甲片" };
+  const changes = previewPlate(state, r, c);
+  if (!changes.length) return { ok: false, reason: "范围内没有可以加护甲的红心" };
+  state.hero.matrix = applyChanges(state.hero.matrix, changes);
+  state.hero.plates -= 1;
+  return { ok: true, changes };
 }
 
 /** 在怪物自身的移动规则下做广度优先搜索，返回走向主角的第一步。 */

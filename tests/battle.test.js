@@ -25,6 +25,11 @@ import {
   slotBlocked,
   ENERGY_START,
   ENERGY_MAX,
+  ENERGY_COST,
+  slotOf,
+  comboLinks,
+  previewCombo,
+  reachesChase,
 } from "../src/battle/logic/combat.js";
 import {
   createBoard,
@@ -42,7 +47,10 @@ import {
   isExplored,
   visibleMonsterAt,
   key,
+  previewPlate,
+  armorHero,
 } from "../src/battle/logic/board.js";
+import { solveChain, grindTurns } from "./helpers/chainSolver.js";
 import { WEAPONS, STARTING_WEAPONS } from "../src/battle/data/weapons.js";
 import { MONSTERS, heartsAt } from "../src/battle/data/monsters.js";
 import { LEVELS, weaponsForLevel, skillsForLevel } from "../src/battle/data/levels.js";
@@ -146,7 +154,7 @@ test("战斗流程：主角出招 → 怪物行动 → 冷却递减 → 胜利",
   assert.equal(heroAttack(combat, "hook", 1, 1).ok, false);
   assert.equal(countHearts(combat.heroMatrix).hearts, 14);
   assert.equal(heroAttack(combat, "dagger", 5, 5).ok, false);
-  heroAttack(combat, "dagger", 1, 0);
+  assert.equal(heroAttack(combat, "dagger", 2, 1).ok, true);
   monsterTurn(combat);
   assert.equal(combat.weapons[1].cd, 0, "再过一回合恢复");
   while (combat.phase !== "won") {
@@ -380,13 +388,29 @@ test("强化：延长让形状变大；候选项不会重复已有的强化；�
   // 中型武器延长一格；重武器延长得更多（战锤 +2，圣十字 +4）；轻武器不能延长。
   for (const [id, weapon] of Object.entries(WEAPONS))
     if (weapon.weight === "medium") assert.equal(weapon.plusShape.size, weapon.shape.size + 1, id);
-  assert.equal(WEAPONS.hammer.shape.size, 9);
-  assert.equal(WEAPONS.hammer.plusShape.size, 12);
-  assert.equal(WEAPONS.cross.shape.size, 9);
-  assert.equal(WEAPONS.cross.plusShape.size, 13);
-  const hero = { weapons: ["dagger", "hammer"], upgrades: {} };
-  const all = upgradeOptions(hero, createRng(1), 10).map((o) => `${o.weapon}:${o.kind}`).sort();
-  assert.deepEqual(all, ["dagger:rotate", "hammer:extend", "hammer:pierce", "hammer:precise", "hammer:stagger"], "轻武器不能延长、不能破甲、不能精准；震慑只给重武器");
+  assert.equal(WEAPONS.hammer.shape.size, 4, "战锤 2×2");
+  assert.equal(WEAPONS.hammer.plusShape.size, 6, "延长后 2×3");
+  assert.equal(WEAPONS.cross.shape.size, 5);
+  assert.equal(WEAPONS.cross.plusShape.size, 9);
+  const hero = { weapons: ["dagger", "hook", "hammer"], upgrades: {} };
+  const all = upgradeOptions(hero, createRng(1), 20).map((o) => `${o.weapon}:${o.kind}`).sort();
+  assert.deepEqual(
+    all,
+    [
+      "dagger:chain",
+      "dagger:nimble",
+      "dagger:rotate",
+      "hammer:extend",
+      "hammer:pierce",
+      "hammer:stagger",
+      "hook:extend",
+      "hook:mirror",
+      "hook:pierce",
+      "hook:precise",
+      "hook:rotate",
+    ],
+    "轻武器走灵活路线（连锁、灵巧）；中型延长、精准、破甲；重武器延长、破甲、震慑",
+  );
   applyUpgrade(hero, { weapon: "dagger", kind: "rotate" });
   assert.equal(upgradeOptions(hero, createRng(1), 10).some((o) => o.weapon === "dagger" && o.kind === "rotate"), false);
   const combat = createCombat({
@@ -444,13 +468,15 @@ test("技能按章节解锁，每章开始时次数恢复；铁砧选定强化�
   assert.equal(pickupAt(board, forge.r, forge.c).ok, false, "铁砧只能用一次");
 });
 
-test("连击与充能：从第二次连击起，每连上一次得一颗；中型花一颗，重型花两颗", () => {
+test("连击与充能：从第二次连击起，每连上一次得一颗；中型花一颗，重型花三颗，开局抡不动", () => {
   const combat = createCombat({
     hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "slash", "hook", "hammer"], potions: 0 },
     monster: { def: MONSTERS.knight, matrix: parseMatrix(["#######", "#######", "#######", "#######", "#######"]) },
     rng: createRng(3),
   });
   assert.equal(combat.energy, ENERGY_START);
+  assert.ok(ENERGY_COST.heavy > ENERGY_START, "重武器比开局的充能贵");
+  assert.match(slotBlocked(combat, slotOf(combat, "hammer")), /充能/, "开局不能直接抡战锤");
   heroAttack(combat, "dagger", 0, 0);
   assert.equal(combat.combo, 1, "起手");
   monsterTurn(combat);
@@ -461,17 +487,75 @@ test("连击与充能：从第二次连击起，每连上一次得一颗；中�
   heroAttack(combat, "dagger", 2, 2);
   assert.equal(combat.combo, 3, "连击 ×2");
   assert.equal(combat.energy, ENERGY_START + 1, "第二次连击起每次一颗");
-  assert.equal(combat.phase, "monster", "不再追击");
+  assert.equal(combat.phase, "monster", "×2 还不追击");
   monsterTurn(combat);
+  assert.equal(slotBlocked(combat, slotOf(combat, "hammer")), null, "攒够三颗，战锤可以出手");
   heroAttack(combat, "hammer", 1, 4);
-  assert.equal(combat.energy, ENERGY_START, "战锤连上：花两颗、得一颗");
-  monsterTurn(combat);
-  assert.match(slotBlocked(combat, combat.weapons[3]) ?? "", /冷却|充能/, "战锤要么在冷却，要么充能不足");
+  assert.equal(combat.energy, 1, "战锤连上：花三颗、得一颗");
   combat.energy = 0;
   combat.weapons[2].cd = 0;
   assert.match(slotBlocked(combat, combat.weapons[2]), /充能/, "钩镰充能不足时无法使用");
   assert.equal(slotBlocked(combat, combat.weapons[0]), null, "轻武器不消耗充能");
 });
+
+test("追击：连击 ×3、×6 时怪物行动前再出一招；追击中不会再触发追击", () => {
+  const combat = createCombat({
+    hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "slash"], potions: 0 },
+    monster: { def: MONSTERS.pawn, matrix: parseMatrix(["########", "########", "########", "########"]) },
+    rng: createRng(5),
+  });
+  // 短剑、斜刃轮换，顺着心阵往右下方拼：每一击都紧挨上一击。
+  const route = [["dagger", 0, 0], ["slash", 1, 0], ["dagger", 2, 2], ["slash", 1, 3]];
+  for (const [id, r, c] of route.slice(0, 3)) {
+    heroAttack(combat, id, r, c);
+    monsterTurn(combat);
+  }
+  assert.equal(comboLinks(combat.combo), 2);
+  const res = heroAttack(combat, ...route[3]);
+  assert.equal(comboLinks(combat.combo), 3);
+  assert.ok(res.events.some((e) => e.type === "combo" && e.chase), "连击 ×3 触发追击");
+  assert.equal(combat.phase, "hero", "怪物还没行动");
+  assert.equal(combat.bonusReason, "chase");
+  heroAttack(combat, "dagger", 2, 5);
+  assert.equal(comboLinks(combat.combo), 4, "追击也能接着连");
+  assert.equal(combat.phase, "monster", "追击之后轮到怪物");
+
+  // 追击中即使连到 ×6 也不会再追击。
+  combat.phase = "hero";
+  combat.combo = 6;
+  combat.bonus = true;
+  combat.bonusReason = "chase";
+  const again = heroAttack(combat, "slash", 1, 6);
+  assert.equal(comboLinks(combat.combo), 6);
+  assert.equal(again.events.find((e) => e.type === "combo").chase, false);
+  assert.equal(combat.phase, "monster");
+  assert.ok(reachesChase(5, 6) && reachesChase(2, 4) && !reachesChase(3, 5));
+});
+
+test("轻武器强化：连锁让连击多涨一次，灵巧不必紧挨上一击", () => {
+  const make = (upgrades) =>
+    createCombat({
+      hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "slash"], potions: 0, upgrades },
+      monster: { def: MONSTERS.pawn, matrix: parseMatrix(["######", "######", "######", "######"]) },
+      rng: createRng(5),
+    });
+  const chained = make({ slash: { chain: true } });
+  heroAttack(chained, "dagger", 0, 0);
+  chained.phase = "hero";
+  heroAttack(chained, "slash", 1, 0);
+  assert.equal(comboLinks(chained.combo), 2, "连锁：一次连上算两次");
+
+  const plain = make({});
+  heroAttack(plain, "dagger", 0, 0);
+  plain.phase = "hero";
+  assert.equal(previewCombo(plain, "slash", 2, 4), "start", "离得远：重新起手");
+  const nimble = make({ slash: { nimble: true } });
+  heroAttack(nimble, "dagger", 0, 0);
+  nimble.phase = "hero";
+  assert.equal(previewCombo(nimble, "slash", 2, 4), "link", "灵巧：不挨着也能连上");
+  assert.equal(previewCombo(nimble, "slash", 3, 5), "break", "但不能落空");
+});
+
 test("连击：换武器且紧挨上一击才连上；连用同一件或离得远都从头起手；护甲不算落空", () => {
   const monster = { def: MONSTERS.knight, matrix: parseMatrix(["####A", "#####", "#####", "#####"]) };
   const combat = createCombat({
@@ -495,7 +579,7 @@ test("连击：换武器且紧挨上一击才连上；连用同一件或离得�
   assert.equal(combat.combo, 2);
 });
 
-test("序章的墨渍怪：短剑、钩镰轮换能连到 ×2，拿到第一点充能", () => {
+test("序章的墨渍怪：短剑 → 钩镰 → 短剑三下连成一串，拿到第一点充能", () => {
   const combat = createCombat({
     hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "hook"], potions: 0 },
     monster: { def: MONSTERS.ink, matrix: MONSTERS.ink.matrixValues },
@@ -503,17 +587,16 @@ test("序章的墨渍怪：短剑、钩镰轮换能连到 ×2，拿到第一点�
   });
   heroAttack(combat, "dagger", 0, 0);
   monsterTurn(combat);
-  heroAttack(combat, "hook", 0, 2);
+  heroAttack(combat, "hook", 1, 1);
   assert.equal(combat.combo, 2, "第二下就能看到「连击」");
   assert.equal(combat.energy, ENERGY_START - 1);
   monsterTurn(combat);
-  heroAttack(combat, "dagger", 1, 0);
+  heroAttack(combat, "dagger", 2, 2);
   assert.equal(combat.combo, 3, "连击 ×2");
   assert.equal(combat.energy, ENERGY_START, "连击 ×2 得到一点充能");
-  monsterTurn(combat);
-  heroAttack(combat, "hook", 1, 3);
-  assert.equal(combat.phase, "won", "四下打完");
+  assert.equal(combat.phase, "won", "三下拼完");
 });
+
 test("破甲强化：普通武器也能一击击碎护甲心", () => {
   const monster = { def: MONSTERS.rook, matrix: parseMatrix(["AA"]) };
   const combat = createCombat({
@@ -707,7 +790,7 @@ test("等待：武器全部冷却、没有药水时也能结束回合，不会�
 
 test("怪物心阵按章节分档成长：前期够连上几下，后期越来越厚", () => {
   const hearts = (id, rank) => countHearts(heartsAt(MONSTERS[id], rank)).hearts;
-  assert.equal(hearts("ink", 0), 8, "序章的墨渍怪能连到 ×2");
+  assert.equal(hearts("ink", 0), 7, "序章的墨渍怪三下能拼完");
   assert.ok(hearts("pawn", 0) < hearts("pawn", 1) && hearts("pawn", 1) < hearts("pawn", 2));
   assert.ok(hearts("knight", 1) - hearts("knight", 0) < hearts("knight", 2) - hearts("knight", 1) + 2, "越往后涨得越多");
   assert.equal(heartsAt(MONSTERS.bishop, 0), heartsAt(MONSTERS.bishop, 1), "没写的档位沿用最近的一档");
@@ -767,4 +850,46 @@ test("主角名会出现在战斗日志与技能、章节文案里；不合格�
   } finally {
     setHeroName("");
   }
+});
+
+/**
+ * 前期、中期（rank 0、1）的怪物要求能用一条不断的连击整片拼完；
+ * 后期（rank 2）心阵大、招式多，整片搜索太慢也太吃内存，只要求能连出一次追击。
+ */
+test("怪物心阵是给武器拼的：首次登场时，用当时的武器能一条连击拼完（后期至少能打出追击），且比短剑硬磨快", () => {
+  const checked = new Set();
+  LEVELS.forEach((level, index) => {
+    const owned = weaponsForLevel(index, STARTING_WEAPONS);
+    for (const spec of level.monsters) {
+      const def = MONSTERS[spec.type];
+      const matrix = heartsAt(def, level.rank);
+      const id = `${def.id}:${JSON.stringify(matrix)}`;
+      if (checked.has(id)) continue;
+      checked.add(id);
+      const late = level.rank >= 2;
+      const best = solveChain({ def, matrix, weapons: owned, slots: level.slots, maxTurns: late ? 4 : 6, until: late ? "chase" : "won" });
+      assert.ok(best, `${level.name}的${def.name}找不到连击路线`);
+      if (!late) {
+        const grind = grindTurns({ def, matrix, weapon: "dagger" });
+        assert.ok(best.turns < grind, `${level.name}的${def.name}：连击 ${best.turns} 回合，短剑硬磨 ${grind} 回合`);
+      }
+    }
+  });
+});
+
+test("护甲片：走上去拾取；给田字范围内的红心加护甲，空位不受影响；护甲心要挨两下", () => {
+  const board = createBoard(LEVELS[2], { weapons: weaponsForLevel(2, STARTING_WEAPONS) });
+  const plate = [...board.items.values()].find((i) => i.type === "plate");
+  assert.ok(plate, "第 2 章有护甲片");
+  board.items.delete(key(plate.r, plate.c));
+  board.hero.plates = 1;
+  board.hero.matrix[0][1] = 0;
+  assert.deepEqual(hitSet(previewPlate(board, 0, 0)), ["0,0", "1,0", "1,1"], "空掉的格子不会长出护甲");
+  assert.equal(armorHero(board, -5, -5).ok, false, "完全落在界外");
+  assert.equal(armorHero(board, 0, 0).ok, true);
+  assert.equal(board.hero.plates, 0);
+  assert.equal(countHearts(board.hero.matrix).armor, 3);
+  assert.equal(armorHero(board, 2, 2).ok, false, "护甲片用完了");
+  const hits = resolveHits(board.hero.matrix, WEAPONS.dagger.shape, 1, 0);
+  assert.deepEqual(hits.map((h) => h.after), [1, 1], "先掉护甲，红心还在");
 });
