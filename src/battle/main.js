@@ -23,6 +23,7 @@ import { createCoach, skillTopic, TOPICS } from "./ui/coach.js";
 import { rich, kw } from "./ui/keywords.js";
 import { getHeroName, setHeroName, validateName } from "./data/heroName.js";
 import { featuresAt } from "./data/features.js";
+import { isTouch } from "./ui/device.js";
 import { nameEntryHtml, bindNameEntry } from "./ui/nameEntry.js";
 
 const TOPICS_SLOTS_UP = TOPICS["slots-up"];
@@ -249,7 +250,7 @@ function renderHud() {
       <span class="chip ${hero.keys ? "on" : ""}" title="钥匙">${icon("key")}<span>钥匙</span><b>${hero.keys}</b></span>
       ${hero.plates ? `<button class="chip-btn" data-cmd="armor" title="使用护甲片（G）">${icon("armor")}<span>护甲片</span><b>${hero.plates}</b></button>` : ""}
     </div>
-    ${kicker("02", "武器", "ARSENAL", `${slotPips(hero.equipped.length, hero.slots)}<button class="build-chip" data-cmd="armory" title="构筑（B）">${icon("bag")}构筑<kbd>B</kbd></button>`)}
+    ${kicker("02", "武器", "ARSENAL", `${slotPips(hero.equipped.length, hero.slots)}<button class="build-chip" data-cmd="armory" title="构筑（B）">${icon("bag")}构筑<kbd class="key-hint">B</kbd></button>`)}
     <ul class="weapon-list">${hero.equipped
       .map((id, i) => {
         const w = WEAPONS[id];
@@ -1253,6 +1254,15 @@ function demoGrid(hitCells, rows = 4, cols = 4, anchor = [0, 0]) {
   return `<div class="demo-grid" style="grid-template-columns:repeat(${cols}, 1fr)">${html}</div>`;
 }
 
+/** 玩法说明里的操作一节：键盘设备列按键，触屏设备讲手势。 */
+function controlsHelp() {
+  if (isTouch())
+    return `<h3><span class="t-meta">06</span>操作</h3>
+          <p class="keys"><span>方向键 移动</span><span>点格子 自动寻路</span><span>单指拖动 转动视角</span><span>双指 缩放</span><span>攻击：点一下预览范围，再点同一格确认</span><span>信息栏按钮 武器 / 目标 / 药水 / 护甲片</span></p>`;
+  return `<h3><span class="t-meta">06</span>按键</h3>
+          <p class="keys"><span><kbd>WASD</kbd>移动</span><span><kbd>C</kbd>转动视角</span><span><kbd>B</kbd>构筑</span><span><kbd>G</kbd>护甲片</span><span><kbd>P</kbd>喝药水</span><span><kbd>1</kbd>~<kbd>7</kbd>选武器</span><span><kbd>R</kbd>旋转</span><span><kbd>F</kbd>镜像</span><span><kbd>Q</kbd>防御</span><span><kbd>E</kbd>药水</span><span><kbd>Z</kbd>等待</span></p>`;
+}
+
 function showHelp() {
   const was = playing;
   playing = false;
@@ -1291,8 +1301,7 @@ function showHelp() {
             <li><span class="legend-glyph">${icon("bag")}</span><span>${rich("[武器槽]数量决定可装备的武器数，[技能]最多装备三个。按 B 键打开[构筑]。")}</span></li>
             <li><span class="legend-glyph">${icon("fog")}</span><span>${rich(`[迷雾]中仅显示${getHeroName()}周围的格子。`)}</span></li>
           </ul>
-          <h3><span class="t-meta">06</span>按键</h3>
-          <p class="keys"><span><kbd>WASD</kbd>移动</span><span><kbd>C</kbd>转动视角</span><span><kbd>B</kbd>构筑</span><span><kbd>G</kbd>护甲片</span><span><kbd>P</kbd>喝药水</span><span><kbd>1</kbd>~<kbd>7</kbd>选武器</span><span><kbd>R</kbd>旋转</span><span><kbd>F</kbd>镜像</span><span><kbd>Q</kbd>防御</span><span><kbd>E</kbd>药水</span><span><kbd>Z</kbd>等待</span></p>
+          ${controlsHelp()}
           <div class="panel-actions"><button class="ghost" data-cmd="hints">新手提示 · ${progress.hints === false ? "关" : "开"}</button><button class="ghost subtle" data-cmd="reset">${icon("restart")}重置进度</button></div>
         </section>
       </div>

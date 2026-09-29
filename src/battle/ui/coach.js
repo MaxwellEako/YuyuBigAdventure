@@ -31,7 +31,7 @@ const legend = (rows) =>
   `<ul class="coach-legend">${rows.map(([glyph, text]) => `<li><span class="legend-glyph">${glyph}</span><span>${text}</span></li>`).join("")}</ul>`;
 
 const inkSwatch = '<span class="swatch ink"></span>';
-const coarse = () => window.matchMedia?.("(pointer: coarse)").matches;
+import { isTouch as coarse } from "./device.js";
 
 /**
  * 每个新机制第一次出现时弹出的说明。文案按说明书的口吻写，关键词用 [ ] 标出。
@@ -40,7 +40,10 @@ const coarse = () => window.matchMedia?.("(pointer: coarse)").matches;
 export const TOPICS = {
   move: {
     title: "移动",
-    body: `使用方向键或 WASD 移动一格，点击棋盘上的格子可自动寻路前往。进入[出口]即完成本章。`,
+    body: () =>
+      coarse()
+        ? `点击屏幕右下角的方向键移动一格，也可以直接点棋盘上的格子，自动寻路前往。进入[出口]即完成本章。`
+        : `使用方向键或 WASD 移动一格，点击棋盘上的格子可自动寻路前往。进入[出口]即完成本章。`,
   },
   // 第一场战斗的引导：逐个高亮战斗界面上的区域，说明卡贴在旁边。
   "tour-enemy": {

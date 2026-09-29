@@ -22,31 +22,45 @@ export class MatrixView {
     this.onHover = null;
     this.onPick = null;
     this.onLeave = null;
-    this.lastTouchKey = null;
+    // 触屏第一次点下的格子（"r,c"）：再点同一格才算确认。onArm 在第一次点下时回调，界面可以提示“再点一次”。
+    this.armedKey = null;
+    this.onArm = null;
 
     this.el.addEventListener("pointermove", (e) => {
+      if (e.pointerType !== "mouse") return;
       const cell = e.target.closest?.(".cell");
       if (!cell || !this.onHover) return;
       this.onHover(Number(cell.dataset.r), Number(cell.dataset.c));
     });
-    this.el.addEventListener("pointerleave", () => this.onLeave?.());
+    // 手指抬起后浏览器会立刻补发 pointerleave，不能因此把刚显示的预览清掉。
+    this.el.addEventListener("pointerleave", (e) => {
+      if (e.pointerType === "mouse") this.onLeave?.();
+    });
     this.el.addEventListener("pointerup", (e) => {
       const cell = e.target.closest?.(".cell");
       if (!cell || !this.onPick) return;
       const r = Number(cell.dataset.r);
       const c = Number(cell.dataset.c);
-      // 触屏没有悬停：第一次点击只预览，再点同一格才确认。
-      if (e.pointerType === "touch") {
+      // 鼠标有悬停预览，一点就出手；触屏、触控笔没有悬停：第一下只预览范围，再点同一格才确认。
+      if (e.pointerType !== "mouse") {
         const k = `${r},${c}`;
-        if (this.lastTouchKey !== k) {
-          this.lastTouchKey = k;
+        if (this.armedKey !== k) {
           this.onHover?.(r, c);
+          this.armedKey = k;
+          this.el.classList.add("armed");
+          this.onArm?.(r, c);
           return;
         }
-        this.lastTouchKey = null;
+        this.disarm();
       }
       this.onPick(r, c);
     });
+  }
+
+  /** 取消“已点过一次”的状态：预览消失、换武器、心阵变化之后都要重新点两下。 */
+  disarm() {
+    this.armedKey = null;
+    this.el.classList.remove("armed");
   }
 
   /** 外框尺寸变了之后按新尺寸重建网格。 */
@@ -137,6 +151,7 @@ export class MatrixView {
   }
 
   clearPreview() {
+    this.disarm();
     for (const cell of this.cells.values())
       cell.classList.remove("pv", "pv-hit", "pv-crack", "pv-heal", "pv-anchor", "pv-miss", "pv-off");
   }

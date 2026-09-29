@@ -70,6 +70,10 @@ export const traitChips = (def) =>
  * 战斗窗口：左侧怪物心阵（悬停预览 / 点击出招），右侧主角心阵（显示怪物瞄准、药水治疗）。
  * 返回的 Promise 在玩家确认战斗结果后 resolve。
  */
+/** 触屏“再点一次确认”的提示只在前几次出现，玩家熟悉之后就不再打扰。 */
+const ARM_HINT_TIMES = 3;
+let armHints = 0;
+
 export function runBattle({ root, combat, monster, world, sfx, heroFirst, features = ALL_FEATURES, coach = null, afterPerfectHit = null }) {
   const def = combat.def;
   root.innerHTML = `
@@ -110,7 +114,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
         <div class="action-bar">
           <button class="action shield" data-act="shield"></button>
           <button class="action potion" data-act="potion"></button>
-          <button class="action wait" data-act="wait" title="跳过本回合">${icon("wait")}<span>等待</span><small>Z</small></button>
+          <button class="action wait" data-act="wait" title="跳过本回合">${icon("wait")}<span>等待</span><small class="key-hint">Z</small></button>
           <button class="action retreat" data-act="retreat">${icon("run")}<span>撤退</span></button>
         </div>
       </footer>
@@ -273,7 +277,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
       starved ? "starved" : "",
     ].join(" ");
     return `<button class="${classes}" data-weapon="${slot.id}" title="${def.name} · ${def.desc}${lastUsed ? " · 上一击所用武器，无法接续连击" : ""}">
-      <kbd>${keyLabel(i)}</kbd>
+      <kbd class="key-hint">${keyLabel(i)}</kbd>
       <span class="weapon-ups">${ups}</span>
       <span class="weapon-shape">${shapeSvg(shape, { cell: cardCell(shape), gap: 2, tone: slot.kind === "skill" ? "skill" : "attack" })}</span>
       <span class="weapon-name">${def.name}</span>
@@ -293,19 +297,19 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     const up = slot?.kind === "weapon" ? combat.upgrades[slot.id] ?? {} : {};
     $("[data-transform]").innerHTML = ["rotate", "mirror"]
       .filter((k) => up[k])
-      .map((k) => `<button class="action transform" data-transform-kind="${k}">${icon(UPGRADE_TEXT[k].icon)}<span>${UPGRADE_TEXT[k].name}</span><small>${k === "rotate" ? "R" : "F"}</small></button>`)
+      .map((k) => `<button class="action transform" data-transform-kind="${k}">${icon(UPGRADE_TEXT[k].icon)}<span>${UPGRADE_TEXT[k].name}</span><small class="key-hint">${k === "rotate" ? "R" : "F"}</small></button>`)
       .join("");
   }
 
   function renderActions() {
     const shield = $("[data-act=shield]");
-    shield.innerHTML = `${icon("shield")}<span>${SHIELD.name}</span><small>${
-      combat.shieldUp ? "防御中" : combat.shieldCd ? `冷却 ${combat.shieldCd}` : "Q"
-    }</small>`;
+    // 防御中、冷却中显示状态；可用时显示快捷键 Q（触屏上隐藏）。
+    const shieldState = combat.shieldUp ? "防御中" : combat.shieldCd ? `冷却 ${combat.shieldCd}` : null;
+    shield.innerHTML = `${icon("shield")}<span>${SHIELD.name}</span>${shieldState ? `<small>${shieldState}</small>` : `<small class="key-hint">Q</small>`}`;
     shield.disabled = combat.shieldUp || combat.shieldCd > 0;
     shield.classList.toggle("up", combat.shieldUp);
     const potion = $("[data-act=potion]");
-    potion.innerHTML = `${icon("potion")}<span>药水</span><b class="count">${combat.potions}</b><small>${mode === "heal" ? "Esc" : "E"}</small>`;
+    potion.innerHTML = `${icon("potion")}<span>药水</span><b class="count">${combat.potions}</b><small class="key-hint">${mode === "heal" ? "Esc" : "E"}</small>`;
     potion.disabled = combat.potions <= 0;
     potion.classList.toggle("active", mode === "heal");
     const retreat = $("[data-act=retreat]");
@@ -421,6 +425,12 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   enemyView.onLeave = heroView.onLeave = () => {
     hover = null;
     refreshPreview();
+  };
+  // 触屏第一次点下只预览：前几次提醒玩家再点同一格才会出手。
+  enemyView.onArm = heroView.onArm = () => {
+    if (armHints >= ARM_HINT_TIMES) return;
+    armHints += 1;
+    toast("再点一次同一格确认");
   };
   enemyView.onPick = (r, c) => {
     if (mode === "heal") return toast(`药水只能用于${getHeroName()}的红心矩阵`);

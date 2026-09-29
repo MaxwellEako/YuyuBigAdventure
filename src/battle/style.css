@@ -5316,3 +5316,27 @@ body:not(.in-level) .hint-bar {
 .reward-line .t-meta {
   flex-basis: 100%;
 }
+
+/* ——— 触屏适配 ——— */
+@media (pointer: coarse) {
+  /* 没有键盘：按键字母提示全部收起。 */
+  .key-hint {
+    display: none;
+  }
+}
+
+/* 触屏第一次点下：锚点格闪烁，提示“再点同一格确认”。 */
+.matrix.armed .cell.pv-anchor {
+  animation: armed-pulse 0.9s var(--ease-prod) infinite alternate;
+}
+
+@keyframes armed-pulse {
+  from {
+    outline: 2px solid transparent;
+    outline-offset: -2px;
+  }
+  to {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+}
