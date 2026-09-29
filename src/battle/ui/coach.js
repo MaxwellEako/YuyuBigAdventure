@@ -2,7 +2,6 @@ import { shapeSvg, heartSvg, icon } from "./icons.js";
 import { rich } from "./keywords.js";
 import { WEAPONS } from "../data/weapons.js";
 import { SKILLS } from "../data/skills.js";
-import { UPGRADE_TEXT } from "../logic/arsenal.js";
 
 /** 4×4 示意矩阵：hit 中的格子标为被消除，anchor 为锚点。 */
 function demoGrid(hitCells = [], anchor = null, rows = 4, cols = 4, prevCells = []) {
@@ -57,23 +56,31 @@ export const TOPICS = {
       [icon("potion"), "[药水] 补回十字范围里的红心。"],
     ])}`,
   },
-  // 连击规则改过（紧挨上一击、换一件武器），换个 id，让看过旧说明的玩家也能看到新规则。
-  "combo-switch": {
+  // 开战时讲：钩镰这样的武器要花能量豆。
+  energy: {
+    title: "能量豆",
+    body: `L 钩镰这样的武器，每用一次要花一颗[能量豆]。${legend([
+      [icon("energy"), "每场战斗开始时有两颗，最多攒五颗。"],
+      [icon("combo"), "能量豆要靠[连击]来攒。"],
+    ])}`,
+  },
+  // 第一次打出完美命中、心阵上出现蓝色虚线框之后才弹出。只用心阵讲：完美命中 → 挨着虚线再打 → 得能量豆。
+  "combo-energy": {
     title: "连击",
-    body: `形状的每一格都落在心上、没有落空，就是一次[完美命中]。下一击换一件武器，紧挨着上一击，同样没有落空，就连成了[连击]。${demoGrid([[1, 0], [1, 1], [2, 0]], [1, 0], 3, 4, [[0, 0], [0, 1]])}${steps([
-      { glyph: icon("perfect"), title: "完美命中", note: "起手" },
-      { glyph: icon("combo"), title: "连击", note: "换武器、紧挨上一击，其他武器冷却 −1", tone: "accent" },
-      { glyph: icon("chase"), title: "连击 ×2", note: "追击；之后每一击都破甲", tone: "accent" },
-    ])}之后每连上两次，再追击一次；战锤、圣十字这样的重武器接上连击，立刻追击。打到空格或矩阵外、离上一击太远、或者连用同一件武器，连击就断了。`,
+    body: `刚才那一击的每一格都落在红心上，是一次[完美命中]，它的位置留下了蓝色虚线框。换一件武器，挨着虚线框再打一次完美命中，就连成了[连击]。${demoGrid([[1, 0], [1, 1], [2, 0]], [1, 0], 3, 4, [[0, 0], [0, 1]])}${steps([
+      { glyph: icon("perfect"), title: "完美命中", note: "留下虚线框" },
+      { glyph: icon("combo"), title: "连击", note: "换武器，挨着虚线框" },
+      { glyph: icon("energy"), title: "连击 ×2 起", note: "每连上一次，得一颗能量豆", tone: "accent" },
+    ])}打空、离虚线框太远，或者连用同一件武器，连击就断了。`,
   },
   chest: {
     title: "宝箱与药水",
-    body: "走到[宝箱]旁边点一下，就能打开它，里面是新的武器。[药水]也要站在旁边点一下才会收进包里。",
+    body: "走到[宝箱]上就能打开它，里面是新的武器。[药水]也是走上去就收进包里。",
   },
   slots: {
     title: "武器槽",
     body: (ctx) =>
-      `上阵的武器放在[武器槽]里，这一章有 ${ctx.slots} 个。其余的收在[背包]里。${slotDiagram(ctx.slots)}在棋盘上按 B 打开[构筑]，随时可以换。`,
+      `上阵的武器放在[武器槽]里，这一章有 ${ctx.slots} 个。其余的收在[背包]里。${slotDiagram(ctx.slots)}在棋盘上按 B [打开背包|背包]，随时可以换。`,
   },
   "slots-up": {
     title: "武器槽增加",
@@ -89,31 +96,35 @@ export const TOPICS = {
   },
   skills: {
     title: "技能",
-    body: `[技能]是次数有限的特殊攻击，不占武器槽，最多带三个。${legend([
-      [icon("skill"), "每章开始时，技能次数补满。"],
-      [icon("bag"), "学会的技能多于三个时，在构筑里挑选带哪三个。"],
-    ])}`,
+    body: `[技能]是次数有限的特殊攻击，不占武器槽。${legend([[icon("skill"), "每章开始时，技能次数补满。"]])}`,
   },
   forge: {
     title: "铁砧",
-    body: () =>
-      `站在[铁砧]旁边点一下，从三项强化里挑一项。每项可以重抽一次，离开再回来，选项不会变。每座铁砧只能用一次。${legend(
-        ["rotate", "mirror", "extend", "precise", "pierce", "stagger"].map((k) => [icon(UPGRADE_TEXT[k].icon), `[${UPGRADE_TEXT[k].name}] ${UPGRADE_TEXT[k].desc}`]),
-      )}`,
+    body: "站在[铁砧]旁边点一下，从三项强化里挑一项。每项可以重抽一次，离开再回来，选项不会变。每座铁砧只能用一次。",
   },
+  // 护甲只讲玩家手里已经有的破甲手段。
   armor: {
     title: "护甲心",
-    body: `带黑框的[护甲心]要打两下才会碎，打在护甲上也不算落空。${legend([
-      [icon("pierce"), "破甲锥、碎甲，以及强化了[破甲]的武器，一下就能把它击碎。"],
-      [icon("combo"), "[连击] ×2 起，每一击都自带破甲。"],
-    ])}`,
+    body: (ctx) =>
+      `带黑框的[护甲心]要打两下才会碎，打在护甲上不算打空。${legend(
+        [
+          ctx.weapons?.includes("awl") ? [icon("pierce"), "破甲锥一下就能把它击碎。"] : null,
+          ctx.skills?.includes("crush") ? [icon("pierce"), "技能碎甲也能一下击碎它。"] : null,
+        ].filter(Boolean),
+      )}`,
   },
-  interrupt: {
-    title: "打断重击",
-    body: `有的怪物会先蓄力，下一招是一记重击。${legend([
-      [icon("stagger"), "用战锤、圣十字这样的重武器，一下打碎 3 颗以上的心，就能把这一招打断。"],
-      [icon("shield"), "打不断的时候，就[防御]。"],
-    ])}能打断的重击，在怪物的下一招旁边会有这个标记。`,
+  charge: {
+    title: "蓄力",
+    body: `怪物蓄力之后，下一招是一记重击。看到蓄力，就准备[防御]。`,
+  },
+  // 第一次拿到战锤这样的重武器时弹出。
+  heavy: {
+    title: "重武器",
+    body: (ctx) =>
+      `${ctx.weapon ? `<p class="coach-example"><span class="inline-shape">${shapeSvg(ctx.weapon.shape, { cell: 12 })}</span>${ctx.weapon.name}一下能砸碎一大片。</p>` : ""}${legend([
+        [`${icon("energy")}${icon("energy")}`, "每用一次要花两颗[能量豆]。先用轻武器连击攒豆，看准时机再砸。"],
+        [icon("stagger"), "怪物蓄力之后的重击，一下打碎 3 颗心就能打断。能打断时，怪物的下一招旁边会出现这个标记。"],
+      ])}`,
   },
   fog: {
     title: "战争迷雾",

@@ -15,6 +15,7 @@ const GLOSSARY = {
   技能: { icon: "skill" },
   冷却: { icon: "cd" },
   连击: { icon: "combo" },
+  能量豆: { icon: "energy" },
   追击: { icon: "chase" },
   完美命中: { icon: "perfect" },
   防御: { icon: "shield" },

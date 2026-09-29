@@ -657,6 +657,14 @@ export class BoardWorld {
         lid.rotation.x = -t * 1.3;
         glow.intensity = t * 3;
       }, ease.out);
+      // 拿走武器之后，宝箱缩小消失，这一格空出来。
+      const start = model.position.clone();
+      await this.tween(320, (t) => {
+        model.position.y = start.y + t * 0.3;
+        model.scale.setScalar(1 - t);
+        glow.intensity = 3 * (1 - t);
+      });
+      this.levelGroup.remove(model);
       return;
     }
     const start = model.position.clone();

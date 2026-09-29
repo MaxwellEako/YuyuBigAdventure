@@ -15,6 +15,17 @@ import { WEAPONS, SHIELD, POTION } from "../data/weapons.js";
 import { SKILLS } from "../data/skills.js";
 import { weaponShape, nextRotation, weaponCooldown } from "./arsenal.js";
 
+/**
+ * 能量豆：中型、重型武器每用一次要消耗能量豆，能量豆靠连击攒。
+ * 每场战斗开局给 ENERGY_START 颗，最多攒 ENERGY_MAX 颗。
+ */
+export const ENERGY_START = 2;
+export const ENERGY_MAX = 5;
+export const ENERGY_COST = { light: 0, medium: 1, heavy: 2 };
+
+/** 招式要消耗几颗能量豆：技能不消耗。 */
+export const energyCost = (slot) => (slot.kind === "weapon" ? ENERGY_COST[WEAPONS[slot.id].weight] ?? 0 : 0);
+
 /** 可复现的伪随机数，便于测试与平衡模拟。 */
 export function createRng(seed = 1) {
   let a = seed >>> 0;
@@ -53,6 +64,9 @@ export function createCombat({
     ],
     combo: 0,
     bestCombo: 0,
+    energy: ENERGY_START,
+    // 怪物下一招是回血时，要补回的格子（连成一片，挨着现有的心），界面上提前标出来。
+    healPlan: null,
     // 上一击覆盖的格子（含界外），用来判断这一击是否紧挨着上一击。
     lastFootprint: null,
     // 上一击用的招式：连续两次用同一件武器（或同一个技能）不算连上。
@@ -88,6 +102,7 @@ export function planIntent(state) {
   const { pattern, aim } = state.def;
   state.intent = pattern[state.step % pattern.length];
   state.aim = null;
+  state.healPlan = state.intent.kind === "heal" ? healRegion(state.monsterMatrix, state.intent.amount, state.rng) : null;
   if (state.intent.kind !== "attack") return;
   const ranked = rankPlacements(state.heroMatrix, state.intent.shape);
   if (!ranked.length) return;
@@ -121,15 +136,14 @@ export function slotBlocked(state, slot) {
     return null;
   }
   if (slot.cd > 0) return `${WEAPONS[slot.id].name}还需冷却 ${slot.cd} 回合`;
+  const cost = energyCost(slot);
+  if (cost > state.energy) return `${WEAPONS[slot.id].name}要 ${cost} 颗能量豆`;
   return null;
 }
 
-/** 连击 ×2 起，下一击自带破甲：连得越好，越不怕护甲。 */
-export const comboPierce = (state) => comboLinks(state.combo) >= 2;
-
-/** 招式是否破甲：破甲锥、碎甲天生破甲，武器可以通过强化获得，连击 ×2 起每一击都破甲。 */
+/** 招式是否破甲：破甲锥、碎甲天生破甲，武器可以通过强化获得。 */
 export const slotPierce = (state, slot) =>
-  Boolean(slotDef(slot).pierce || (slot.kind === "weapon" && state.upgrades[slot.id]?.pierce) || comboPierce(state));
+  Boolean(slotDef(slot).pierce || (slot.kind === "weapon" && state.upgrades[slot.id]?.pierce));
 
 /** 怪物蓄力之后的那一招重击，可以被重武器打断。 */
 export function interruptible(state) {
@@ -239,6 +253,7 @@ export function heroAttack(state, weaponId, r, c) {
   state.monsterMatrix = applyChanges(state.monsterMatrix, hits);
   const wasBonus = state.bonus;
   state.bonus = false;
+  state.energy -= energyCost(slot);
   if (slot.kind === "skill") slot.charges -= 1;
   // 新回合开始时会先减 1，因此存 cooldown+1，保证之后整整 cooldown 个回合不可用。
   else {
@@ -269,8 +284,7 @@ export function heroAttack(state, weaponId, r, c) {
     state.log.push(`${state.def.name}被定身，下回合无法行动。`);
   }
 
-  // 连击结算。
-  let chase = false;
+  // 连击结算：连上就累计连击；从第二次连击起，每连上一次得一颗能量豆。
   const linksBefore = comboLinks(state.combo);
   if (outcome !== "break") {
     // 不挨着上一击或连用同一件武器：之前的连击断开，从这一击重新起手。
@@ -281,32 +295,18 @@ export function heroAttack(state, weaponId, r, c) {
       }
       state.combo = 0;
     }
-    const before = state.combo;
-    const precise = slot.kind === "weapon" && state.upgrades[slot.id]?.precise;
-    state.combo += outcome === "link" && precise ? 2 : 1;
+    state.combo += 1;
     state.bestCombo = Math.max(state.bestCombo, state.combo);
-    const rewards = [];
-    if (precise && outcome === "link") {
-      const healed = drainHeal(state, 1);
-      if (healed.length) events.push({ type: "heal", side: "hero", changes: healed });
-      rewards.push("precise");
-    }
-    if (state.combo >= 2) {
-      // 连击 2 起：其他武器的冷却各减 1。
-      for (const other of state.weapons)
-        if (other !== slot && other.kind === "weapon" && other.cd > 0) other.cd = Math.max(0, other.cd - 1);
-      rewards.push("cooldown");
-    }
-    for (let n = before + 1; n <= state.combo; n += 1) if (isChaseMilestone(n)) chase = true;
-    // 重武器接上连击：一锤定音，立刻追击。
-    if (outcome === "link" && slot.kind === "weapon" && def.weight === "heavy") {
-      chase = true;
-      rewards.push("finisher");
-    }
-    if (chase) rewards.push("chase");
     const links = comboLinks(state.combo);
-    if (links) state.log.push(`${comboLabel(links)}${chase ? "，追击！" : "。"}`);
-    events.push({ type: "combo", combo: state.combo, rewards, chase });
+    const precise = slot.kind === "weapon" && state.upgrades[slot.id]?.precise;
+    let earn = 0;
+    if (outcome === "link" && links >= 2) earn += 1;
+    if (outcome === "link" && precise) earn += 1;
+    const before = state.energy;
+    state.energy = Math.min(ENERGY_MAX, state.energy + earn);
+    const gained = state.energy - before;
+    if (links) state.log.push(`${comboLabel(links)}${gained ? `，能量豆 +${gained}` : ""}。`);
+    events.push({ type: "combo", combo: state.combo, energy: gained });
   } else if (state.combo > 0) {
     if (linksBefore) {
       state.log.push("连击中断。");
@@ -319,10 +319,6 @@ export function heroAttack(state, weaponId, r, c) {
     state.phase = "won";
     state.log.push(`${state.def.name}被击败。`);
     events.push({ type: "won" });
-  } else if (chase) {
-    // 追击：不等怪物行动，立刻再用一次普通武器。
-    state.bonus = true;
-    events.push({ type: "bonus", reason: "chase" });
   } else if (slot.kind === "skill" && def.effect === "extra" && !wasBonus) {
     // 疾风斩：本回合还可以再用一次普通武器，怪物暂不行动。
     state.bonus = true;
@@ -378,21 +374,72 @@ export function heroRetreat(state) {
   return { ok: true, events: [{ type: "retreat" }] };
 }
 
-function monsterHeal(state, amount) {
-  const m = state.monsterMatrix;
-  const empties = [];
-  m.forEach((row, r) =>
+const ORTHO4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+/**
+ * 回血的范围：一片连在一起的空格，并且挨着现有的心（像伤口从边上慢慢长回来）。
+ * 从每个挨着心的空格出发往外扩，挑能补得最多的那一片；一样多时随机挑。
+ */
+export function healRegion(matrix, amount, rng = Math.random) {
+  const empty = (r, c) => matrix[r]?.[c] === EMPTY;
+  const alive = (r, c) => matrix[r]?.[c] > EMPTY;
+  const seeds = [];
+  matrix.forEach((row, r) =>
     row.forEach((v, c) => {
-      if (v === EMPTY) empties.push({ r, c });
+      if (v === EMPTY && ORTHO4.some(([dr, dc]) => alive(r + dr, c + dc))) seeds.push([r, c]);
     }),
   );
-  const changes = [];
-  while (changes.length < amount && empties.length) {
-    const index = Math.floor(state.rng() * empties.length);
-    const [{ r, c }] = empties.splice(index, 1);
-    changes.push({ r, c, before: EMPTY, after: HEART });
+  let best = [];
+  let ties = 0;
+  for (const [sr, sc] of seeds) {
+    const seen = new Set([`${sr},${sc}`]);
+    const region = [[sr, sc]];
+    for (let i = 0; i < region.length && region.length < amount; i += 1) {
+      const [r, c] = region[i];
+      for (const [dr, dc] of ORTHO4) {
+        const k = `${r + dr},${c + dc}`;
+        if (region.length < amount && empty(r + dr, c + dc) && !seen.has(k)) {
+          seen.add(k);
+          region.push([r + dr, c + dc]);
+        }
+      }
+    }
+    if (region.length > best.length) {
+      best = region;
+      ties = 1;
+    } else if (region.length === best.length && rng() < 1 / (ties += 1)) best = region;
   }
+  return best;
+}
+
+/**
+ * 按计划回血。计划里的格子要还空着，而且要连着一颗活着的心；
+ * 玩家在这之前打碎了伤口旁边的心，这一片就接不上，回血落空。
+ */
+function monsterHeal(state, amount) {
+  const m = state.monsterMatrix;
+  let cells = state.healPlan ?? healRegion(m, amount, state.rng);
+  const planned = new Set(cells.filter(([r, c]) => m[r][c] === EMPTY).map(([r, c]) => `${r},${c}`));
+  const reach = [];
+  for (const k of planned) {
+    const [r, c] = k.split(",").map(Number);
+    if (ORTHO4.some(([dr, dc]) => m[r + dr]?.[c + dc] > EMPTY)) reach.push([r, c]);
+  }
+  const seen = new Set(reach.map(([r, c]) => `${r},${c}`));
+  for (let i = 0; i < reach.length; i += 1) {
+    const [r, c] = reach[i];
+    for (const [dr, dc] of ORTHO4) {
+      const k = `${r + dr},${c + dc}`;
+      if (planned.has(k) && !seen.has(k)) {
+        seen.add(k);
+        reach.push([r + dr, c + dc]);
+      }
+    }
+  }
+  cells = reach.slice(0, amount);
+  const changes = cells.map(([r, c]) => ({ r, c, before: EMPTY, after: HEART }));
   state.monsterMatrix = applyChanges(m, changes);
+  state.healPlan = null;
   return changes;
 }
 

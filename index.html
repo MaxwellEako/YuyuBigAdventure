@@ -11,10 +11,19 @@
     <link rel="icon" type="image/svg+xml" href="/heart.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@200;300;400;500;700&display=swap"
-      rel="stylesheet"
-    />
+    <!-- 网页字体等页面加载完再请求：连不上 Google Fonts 时直接用系统字体，不会拖住页面。 -->
+    <script>
+      addEventListener(
+        "load",
+        () => {
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@200;300;400;500;700&display=swap";
+          document.head.appendChild(link);
+        },
+        { once: true },
+      );
+    </script>
     <title>心阵棋局 · 屿屿大冒险</title>
   </head>
   <body>

@@ -48,9 +48,9 @@ export function createBoard(
       if (ch === "E") exit = { r, c };
       if (ch === "P") items.set(key(r, c), { type: "potion", r, c });
       if (ch === "K") items.set(key(r, c), { type: "key", r, c });
-      // 重玩时，宝箱里的武器已经拿过，宝箱直接是打开的。
-      if (ch === "H")
-        items.set(key(r, c), { type: "chest", r, c, weapon: level.chest, opened: weapons.includes(level.chest) });
+      // 宝箱里的武器已经拿过（重玩时），这一格就是空的。
+      if (ch === "H" && level.chest && !weapons.includes(level.chest))
+        items.set(key(r, c), { type: "chest", r, c, weapon: level.chest });
       if (ch === "L") doors.add(key(r, c));
       if (ch === "U") items.set(key(r, c), { type: "forge", r, c, opened: usedForges.includes(key(r, c)) });
     });
@@ -232,7 +232,8 @@ export function heroMove(state, r, c) {
  * 宝箱和药水不能踩上去，也不会路过自动拾取：玩家站在它上下左右相邻的格子时，主动点击才会拾取。
  * 打开过的宝箱留在原地，仍然挡路。
  */
-export const NEARBY_PICKUP = new Set(["chest", "potion", "forge"]);
+/** 站在旁边点击才能使用的东西：只有铁砧。宝箱、药水、钥匙走上去就拿到。 */
+export const NEARBY_PICKUP = new Set(["forge"]);
 
 export function pickableAt(state, r, c) {
   const item = state.items.get(key(r, c));
@@ -243,20 +244,8 @@ export function pickupAt(state, r, c) {
   const item = pickableAt(state, r, c);
   if (!item) return { ok: false, reason: "这里没有可以拾取的东西" };
   if (!isAdjacent(state.hero, { r, c })) return { ok: false, reason: "需要先走到旁边" };
-  // 武器强化格：先让玩家从三项强化里选，选定后才算用掉（见 useForge）。
-  if (item.type === "forge") return { ok: true, events: [{ type: "forge", item }] };
-  if (item.type === "potion") {
-    state.items.delete(key(r, c));
-    state.hero.potions += 1;
-  } else {
-    item.opened = true;
-    if (item.weapon && !state.hero.weapons.includes(item.weapon)) {
-      state.hero.weapons.push(item.weapon);
-      // 有空的武器槽就直接装上，否则先放进背包。
-      if (state.hero.equipped.length < state.hero.slots) state.hero.equipped.push(item.weapon);
-    }
-  }
-  return { ok: true, events: [{ type: "pickup", item, equipped: state.hero.equipped.includes(item.weapon) }] };
+  // 铁砧：先让玩家从三项强化里选，选定后才算用掉（见 useForge）。
+  return { ok: true, events: [{ type: "forge", item }] };
 }
 
 /** 强化格只能用一次：玩家选定强化后标记为已使用，模型留在原地挡路。 */
@@ -278,8 +267,11 @@ function collectAt(state, r, c) {
   state.items.delete(k);
   if (item.type === "potion") state.hero.potions += 1;
   if (item.type === "key") state.hero.keys += 1;
-  if (item.type === "chest" && item.weapon && !state.hero.weapons.includes(item.weapon))
+  if (item.type === "chest" && item.weapon && !state.hero.weapons.includes(item.weapon)) {
     state.hero.weapons.push(item.weapon);
+    // 有空的武器槽就直接装上，否则先放进背包。
+    if (state.hero.equipped.length < state.hero.slots) state.hero.equipped.push(item.weapon);
+  }
   events.push({ type: "pickup", item });
   return events;
 }

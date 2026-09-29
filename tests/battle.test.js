@@ -23,6 +23,8 @@ import {
   previewAttack,
   heroWait,
   slotBlocked,
+  ENERGY_START,
+  ENERGY_MAX,
 } from "../src/battle/logic/combat.js";
 import {
   createBoard,
@@ -63,6 +65,12 @@ import { transformShape, shapeKey } from "../src/battle/logic/shapes.js";
 const at = (key) => LEVELS.findIndex((l) => l.key === key);
 const level = (key) => LEVELS[at(key)];
 
+/** 把满心阵里的几格打空（值为 0），用来摆出伤口。 */
+const withHoles = (m, cells) => {
+  for (const [r, c] of cells) m[r][c] = 0;
+  return m;
+};
+
 const hitSet = (hits) => hits.map((h) => `${h.r},${h.c}`).sort();
 
 test("L 型武器在 4×4 心阵的 a00 处消除 a00 a01 a10", () => {
@@ -87,7 +95,7 @@ test("形状不旋转不镜像，越界部分直接忽略", () => {
 test("无心槽与已空的格子不会被计入命中", () => {
   const m = parseMatrix([".#.", "###", ".#."]);
   assert.equal(m[0][0], VOID);
-  const hits = resolveHits(m, WEAPONS.hammer.shape, 0, 0);
+  const hits = resolveHits(m, parseShape(["@#", "##"]), 0, 0);
   assert.deepEqual(hitSet(hits), ["0,1", "1,0", "1,1"]);
   const after = applyChanges(m, hits);
   assert.equal(resolveHits(after, WEAPONS.dagger.shape, 0, 0).length, 0);
@@ -204,7 +212,7 @@ function reachable(board, from) {
       if (nr < 0 || nc < 0 || nr >= board.size || nc >= board.size) continue;
       const item = board.items.get(key(nr, nc));
       if (board.tiles[nr][nc].prop || seen.has(key(nr, nc))) continue;
-      if (item && item.type !== "key") continue;
+      if (item && item.type === "forge") continue;
       seen.add(key(nr, nc));
       queue.push({ r: nr, c: nc });
     }
@@ -233,9 +241,8 @@ test("每一关都是 8×8，出口、宝箱、钥匙、药水、铁砧都能走
 
 test("走进怪物格子会由主角先手开战，胜利后占据该格", () => {
   const board = createBoard(level("first-blot"), { weapons: STARTING_WEAPONS });
-  const result = heroMove(board, 6, 3);
-  assert.equal(result.kind, "moved");
-  const fight = heroMove(board, 5, 3);
+  for (const [r, c] of [[6, 3], [6, 4], [6, 5], [6, 6]]) assert.equal(heroMove(board, r, c).kind, "moved");
+  const fight = heroMove(board, 5, 6);
   assert.equal(fight.kind, "battle");
   assert.equal(fight.heroFirst, true);
   const combat = createCombat({ hero: board.hero, monster: fight.monster, rng: createRng(2) });
@@ -245,7 +252,7 @@ test("走进怪物格子会由主角先手开战，胜利后占据该格", () =>
     if (combat.phase === "monster") monsterTurn(combat);
   }
   resolveBattle(board, fight.monster, combat, true);
-  assert.deepEqual([board.hero.r, board.hero.c], [5, 3]);
+  assert.deepEqual([board.hero.r, board.hero.c], [5, 6]);
   assert.equal(fight.monster.alive, false);
 });
 
@@ -287,23 +294,25 @@ test("钥匙打开铁栅门；暗王被击败后出口才开放", () => {
   assert.equal(final.exitOpen, true);
 });
 
-test("宝箱和药水需要站在相邻格主动拾取，路过不会拾取；宝箱打开后仍然挡路", () => {
+test("宝箱和药水走上去就拿到，拿完格子空出来；铁砧要站在旁边点", () => {
   const board = createBoard(level("first-blot"), { weapons: [...STARTING_WEAPONS] });
-  assert.equal(heroCanEnter(board, 6, 2).ok, false, "宝箱格不能踩上");
-  assert.equal(pickupAt(board, 6, 2).ok, false, "不相邻时不能拾取");
-  const moved = heroMove(board, 6, 3);
-  assert.equal(moved.events.some((e) => e.type === "pickup"), false, "路过不拾取");
-  assert.equal(board.hero.weapons.includes("slash"), false);
-  assert.equal(pickupAt(board, 6, 2).ok, true);
+  heroMove(board, 7, 2);
+  heroMove(board, 7, 1);
+  const moved = heroMove(board, 6, 1);
+  assert.ok(moved.events.some((e) => e.type === "pickup" && e.item.type === "chest"), "走上宝箱就打开");
   assert.ok(board.hero.weapons.includes("slash"));
-  assert.equal(pickupAt(board, 6, 2).ok, false, "同一个宝箱只能打开一次");
-  assert.equal(heroCanEnter(board, 6, 2).ok, false, "打开的宝箱留在原地");
+  assert.equal(board.items.has(key(6, 1)), false, "拿完宝箱格子空出来");
   const potions = board.hero.potions;
-  board.hero.r = 7;
+  board.hero.r = 6;
   board.hero.c = 6;
-  assert.equal(pickupAt(board, 6, 6).ok, true);
+  assert.ok(heroMove(board, 6, 7).events.some((e) => e.type === "pickup" && e.item.type === "potion"));
   assert.equal(board.hero.potions, potions + 1);
-  assert.equal(board.items.has(key(6, 6)), false, "药水被拿走后格子空出来");
+  assert.equal(board.items.has(key(6, 7)), false);
+  const again = createBoard(level("first-blot"), { weapons: [...STARTING_WEAPONS, "slash"] });
+  assert.equal(again.items.has(key(6, 1)), false, "重玩时拿过的宝箱不再出现");
+  const hall = createBoard(level("bishop-hall"), { weapons: [...STARTING_WEAPONS] });
+  const forge = [...hall.items.values()].find((it) => it.type === "forge");
+  assert.equal(heroCanEnter(hall, forge.r, forge.c).ok, false, "铁砧不能踩上");
 });
 
 test("视线会被障碍挡住", () => {
@@ -359,11 +368,17 @@ test("变形：绕锚点旋转与镜像；战锤和圣十字没有变形强化�
   assert.equal(distinctRotations("hook", { hook: { rotate: true } }).length, 4);
 });
 
-test("强化：延长一格让形状多一格；候选项不会重复已有的强化；强化会带进战斗", () => {
-  for (const [id, weapon] of Object.entries(WEAPONS)) assert.equal(weapon.plusShape.size, weapon.shape.size + 1, id);
+test("强化：延长让形状变大；候选项不会重复已有的强化；强化会带进战斗", () => {
+  // 中型武器延长一格；重武器延长得更多（战锤 +2，圣十字 +4）；轻武器不能延长。
+  for (const [id, weapon] of Object.entries(WEAPONS))
+    if (weapon.weight === "medium") assert.equal(weapon.plusShape.size, weapon.shape.size + 1, id);
+  assert.equal(WEAPONS.hammer.shape.size, 9);
+  assert.equal(WEAPONS.hammer.plusShape.size, 12);
+  assert.equal(WEAPONS.cross.shape.size, 9);
+  assert.equal(WEAPONS.cross.plusShape.size, 13);
   const hero = { weapons: ["dagger", "hammer"], upgrades: {} };
   const all = upgradeOptions(hero, createRng(1), 10).map((o) => `${o.weapon}:${o.kind}`).sort();
-  assert.deepEqual(all, ["dagger:precise", "dagger:rotate", "hammer:extend", "hammer:pierce", "hammer:precise", "hammer:stagger"], "轻武器不能延长、不能破甲；震慑只给重武器");
+  assert.deepEqual(all, ["dagger:rotate", "hammer:extend", "hammer:pierce", "hammer:precise", "hammer:stagger"], "轻武器不能延长、不能破甲、不能精准；震慑只给重武器");
   applyUpgrade(hero, { weapon: "dagger", kind: "rotate" });
   assert.equal(upgradeOptions(hero, createRng(1), 10).some((o) => o.weapon === "dagger" && o.kind === "rotate"), false);
   const combat = createCombat({
@@ -421,30 +436,34 @@ test("技能按章节解锁，每章开始时次数恢复；铁砧选定强化�
   assert.equal(pickupAt(board, forge.r, forge.c).ok, false, "铁砧只能用一次");
 });
 
-test("连击：不落空且紧挨上一击才算连上；连上后返还冷却，每连上两次追击", () => {
-  const monster = { def: MONSTERS.knight, matrix: parseMatrix(["####", "####", "####"]) };
+test("连击与能量豆：从第二次连击起，每连上一次得一颗；中型花一颗，重型花两颗", () => {
   const combat = createCombat({
-    hero: { matrix: filledMatrix(4, 4), weapons: ["dagger", "hook", "spear"], potions: 0 },
-    monster,
+    hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "slash", "hook", "hammer"], potions: 0 },
+    monster: { def: MONSTERS.knight, matrix: parseMatrix(["#######", "#######", "#######", "#######", "#######"]) },
     rng: createRng(3),
   });
-  heroAttack(combat, "hook", 0, 0);
-  assert.equal(combat.combo, 1, "L 钩镰三格都落在红心上");
-  assert.equal(combat.phase, "monster");
+  assert.equal(combat.energy, ENERGY_START);
+  heroAttack(combat, "dagger", 0, 0);
+  assert.equal(combat.combo, 1, "起手");
   monsterTurn(combat);
-  assert.equal(combat.weapons[1].cd, 1);
-  heroAttack(combat, "dagger", 0, 2);
-  assert.equal(combat.combo, 2);
-  assert.equal(combat.weapons[1].cd, 0, "连击 2：其他武器冷却减 1");
+  heroAttack(combat, "slash", 1, 0);
+  assert.equal(combat.combo, 2, "连击");
+  assert.equal(combat.energy, ENERGY_START, "第一次连击不给豆");
   monsterTurn(combat);
-  const result = heroAttack(combat, "hook", 1, 2);
-  assert.equal(combat.combo, 3);
-  assert.equal(combat.phase, "hero", "连击 3：追击，怪物暂不行动");
-  assert.ok(result.events.some((e) => e.type === "bonus"));
-  assert.equal(heroAttack(combat, "dagger", 1, 0).ok, true, "一半落在空位、一半落在红心");
-  assert.equal(combat.combo, 0, "打到空位，连击中断");
+  heroAttack(combat, "dagger", 2, 2);
+  assert.equal(combat.combo, 3, "连击 ×2");
+  assert.equal(combat.energy, ENERGY_START + 1, "第二次连击起每次一颗");
+  assert.equal(combat.phase, "monster", "不再追击");
+  monsterTurn(combat);
+  heroAttack(combat, "hammer", 1, 4);
+  assert.equal(combat.energy, ENERGY_START, "战锤连上：花两颗、得一颗");
+  monsterTurn(combat);
+  assert.match(slotBlocked(combat, combat.weapons[3]) ?? "", /冷却|能量豆/, "战锤要么在冷却，要么豆不够");
+  combat.energy = 0;
+  combat.weapons[2].cd = 0;
+  assert.match(slotBlocked(combat, combat.weapons[2]), /能量豆/, "钩镰没豆用不了");
+  assert.equal(slotBlocked(combat, combat.weapons[0]), null, "轻武器不花豆");
 });
-
 test("连击：换武器且紧挨上一击才连上；连用同一件或离得远都从头起手；护甲不算落空", () => {
   const monster = { def: MONSTERS.knight, matrix: parseMatrix(["####A", "#####", "#####", "#####"]) };
   const combat = createCombat({
@@ -468,20 +487,21 @@ test("连击：换武器且紧挨上一击才连上；连用同一件或离得�
   assert.equal(combat.combo, 2);
 });
 
-test("序章的墨渍怪：先钩镰后短剑，一条连击链正好清空", () => {
+test("序章的墨渍怪：开局的能量豆够钩镰用两次，短剑、钩镰轮换三下打完", () => {
   const combat = createCombat({
     hero: { matrix: filledMatrix(4, 4), weapons: ["dagger", "hook"], potions: 0 },
     monster: { def: MONSTERS.ink, matrix: MONSTERS.ink.matrixValues },
     rng: createRng(1),
   });
   heroAttack(combat, "hook", 0, 0);
-  assert.equal(combat.combo, 1);
+  assert.equal(combat.energy, ENERGY_START - 1);
   monsterTurn(combat);
-  const result = heroAttack(combat, "dagger", 1, 1);
+  heroAttack(combat, "dagger", 1, 1);
   assert.equal(combat.combo, 2, "第二下就能看到「连击」");
-  assert.ok(result.events.some((e) => e.type === "won"));
+  monsterTurn(combat);
+  heroAttack(combat, "hook", 0, 2);
+  assert.equal(combat.phase, "won", "钩镰、短剑、钩镰三下打完");
 });
-
 test("破甲强化：普通武器也能一击击碎护甲心", () => {
   const monster = { def: MONSTERS.rook, matrix: parseMatrix(["AA"]) };
   const combat = createCombat({
@@ -499,39 +519,27 @@ test("破甲强化：普通武器也能一击击碎护甲心", () => {
   assert.ok(!upgradeOptions({ weapons: ["awl"], upgrades: {} }, createRng(2), 99).some((o) => o.kind === "pierce"), "破甲锥本来就破甲");
 });
 
-test("重武器接上连击时立刻追击", () => {
-  const combat = createCombat({
-    hero: { matrix: filledMatrix(4, 4), weapons: ["dagger", "hammer"], potions: 0 },
-    monster: { def: MONSTERS.knight, matrix: parseMatrix(["####", "####", "####"]) },
-    rng: createRng(1),
-  });
-  heroAttack(combat, "dagger", 0, 0);
-  combat.phase = "hero";
-  const result = heroAttack(combat, "hammer", 1, 0);
-  assert.equal(combat.combo, 2, "只连上一次，还没到每两次一追击");
-  assert.equal(combat.phase, "hero", "但战锤接上了连击，立刻追击");
-  assert.ok(result.events.some((e) => e.type === "combo" && e.rewards.includes("finisher")));
-});
-
 test("打断重击：怪物蓄力后，重武器一下打碎 3 颗心就能打断；震慑降到 2 颗", () => {
   const step = MONSTERS.knight.pattern.findIndex((p) => p.kind === "charge") + 1;
-  const make = (upgrades = {}) =>
-    createCombat({
+  const make = (upgrades = {}) => {
+    const c = createCombat({
       hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "hammer"], potions: 0, upgrades },
       monster: { def: MONSTERS.knight, matrix: parseMatrix(["####", "####", "####"]), step },
       rng: createRng(1),
     });
+    c.energy = ENERGY_MAX;
+    return c;
+  };
   const combat = make();
   assert.equal(combat.intent.name, "践踏");
   assert.equal(heroAttack(combat, "dagger", 0, 0).events.some((e) => e.type === "interrupt"), false, "短剑打不断");
   combat.phase = "hero";
   combat.combo = 0;
-  assert.ok(heroAttack(combat, "hammer", 1, 2).events.some((e) => e.type === "interrupt"), "战锤打碎 4 颗");
+  assert.ok(heroAttack(combat, "hammer", 0, 1).events.some((e) => e.type === "interrupt"), "战锤一下打碎一大片");
   const before = countHearts(combat.heroMatrix).hearts;
   const turn = monsterTurn(combat);
   assert.ok(turn.events.some((e) => e.type === "interrupted"));
   assert.equal(countHearts(combat.heroMatrix).hearts, before, "践踏被打断，没有伤害");
-  assert.equal(combat.intent.name, MONSTERS.knight.pattern[(step + 1) % MONSTERS.knight.pattern.length].name, "招式顺序照常前进");
 
   const weak = make();
   weak.monsterMatrix = parseMatrix(["##..", "....", "...."]);
@@ -540,22 +548,20 @@ test("打断重击：怪物蓄力后，重武器一下打碎 3 颗心就能打�
   staggered.monsterMatrix = parseMatrix(["##..", "....", "...."]);
   assert.ok(heroAttack(staggered, "hammer", 0, 0).events.some((e) => e.type === "interrupt"), "震慑：2 颗就够");
 });
-
-test("连击 ×2 起每一击自带破甲；碎甲技能破甲", () => {
+test("碎甲技能一下敲碎护甲心；连击不再附带破甲", () => {
   const combat = createCombat({
-    hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "slash", "hook"], potions: 0 },
-    monster: { def: MONSTERS.rook, matrix: parseMatrix(["####", "####", "####", "##AA", "##AA"]) },
+    hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "slash"], potions: 0 },
+    monster: { def: MONSTERS.rook, matrix: parseMatrix(["####", "####", "##AA"]) },
     rng: createRng(1),
   });
   heroAttack(combat, "dagger", 0, 0);
   combat.phase = "hero";
   heroAttack(combat, "slash", 1, 0);
   combat.phase = "hero";
-  heroAttack(combat, "dagger", 2, 2);
-  assert.equal(combat.combo, 3, "连击 ×2");
+  heroAttack(combat, "dagger", 1, 2);
   combat.phase = "hero";
-  const res = heroAttack(combat, "hook", 3, 2);
-  assert.ok(res.events[0].hits.every((h) => h.before === 2 && h.after === 0), "连击中的钩镰一击打碎三颗护甲心");
+  const res = heroAttack(combat, "slash", 1, 2);
+  assert.ok(res.events[0].hits.some((h) => h.before === 2 && h.after === 1), "连击中的斜刃只敲掉一层护甲");
   const fresh = createCombat({
     hero: { matrix: filledMatrix(5, 5), weapons: ["dagger"], potions: 0, skills: { crush: 2 } },
     monster: { def: MONSTERS.rook, matrix: parseMatrix(["AA"]) },
@@ -564,24 +570,48 @@ test("连击 ×2 起每一击自带破甲；碎甲技能破甲", () => {
   heroAttack(fresh, "crush", 0, 0);
   assert.equal(fresh.phase, "won", "碎甲一下敲碎两颗护甲心");
 });
-
-test("精准强化：打出连击时额外加 1 并恢复 1 颗红心", () => {
-  const hurt = filledMatrix(4, 4);
-  hurt[3][3] = 0;
+test("怪物回血：补回的格子连成一片、挨着现有的心；伤口旁的心先被打碎，回血就落空", () => {
+  const healStep = MONSTERS.bishop.pattern.findIndex((p) => p.kind === "heal");
   const combat = createCombat({
-    hero: { matrix: hurt, weapons: ["dagger", "slash"], potions: 0, upgrades: { slash: { precise: true } } },
+    hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "slash"], potions: 0 },
+    monster: { def: MONSTERS.bishop, matrix: withHoles(filledMatrix(3, 4), [[1, 1], [1, 2]]), step: healStep },
+    rng: createRng(2),
+  });
+  assert.equal(combat.intent.kind, "heal");
+  const plan = combat.healPlan;
+  assert.ok(plan.length > 0);
+  const keys = new Set(plan.map(([r, c]) => `${r},${c}`));
+  assert.ok(plan.every(([r, c]) => combat.monsterMatrix[r][c] === 0), "补的都是空格");
+  const linked = plan.every(([r, c]) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dr, dc]) => keys.has(`${r + dr},${c + dc}`) || combat.monsterMatrix[r + dr]?.[c + dc] > 0));
+  assert.ok(linked, "连成一片并挨着心");
+  heroWait(combat);
+  monsterTurn(combat);
+  assert.equal(countHearts(combat.monsterMatrix).hearts, 10 + Math.min(2, MONSTERS.bishop.pattern[healStep].amount));
+
+  const island = createCombat({
+    hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "slash", "hook"], potions: 0 },
+    monster: { def: MONSTERS.bishop, matrix: withHoles(filledMatrix(3, 3), [[1, 1]]), step: healStep },
+    rng: createRng(2),
+  });
+  assert.deepEqual(island.healPlan, [[1, 1]]);
+  island.monsterMatrix = withHoles(filledMatrix(3, 3), [[0, 1], [1, 0], [1, 1], [1, 2], [2, 1]]);
+  heroWait(island);
+  monsterTurn(island);
+  assert.equal(island.monsterMatrix[1][1], 0, "伤口四周的心都碎了，回血落空");
+});
+test("精准强化：这件武器连上时多得一颗能量豆；轻武器拿不到", () => {
+  const combat = createCombat({
+    hero: { matrix: filledMatrix(4, 4), weapons: ["dagger", "hook"], potions: 0, upgrades: { hook: { precise: true } } },
     monster: { def: MONSTERS.knight, matrix: parseMatrix(["####", "####"]) },
     rng: createRng(3),
   });
   heroAttack(combat, "dagger", 0, 0);
-  assert.equal(combat.combo, 1, "起手不算连击");
-  assert.equal(countHearts(combat.heroMatrix).hearts, 15);
   combat.phase = "hero";
-  heroAttack(combat, "slash", 0, 2);
-  assert.equal(combat.combo, 3, "连上一次，精准再多记一次");
-  assert.equal(countHearts(combat.heroMatrix).hearts, 16);
+  heroAttack(combat, "hook", 0, 2);
+  assert.equal(combat.combo, 2);
+  assert.equal(combat.energy, ENERGY_START, "开局的豆 − 钩镰 1 + 精准 1");
+  assert.deepEqual(sanitizeUpgrades({ dagger: { precise: true }, hook: { precise: true } }), { hook: { precise: true } });
 });
-
 test("铁砧：三项强化固定不变，每项只能刷新一次", () => {
   const hero = { weapons: ["dagger", "hook", "spear"], upgrades: {} };
   const options = createForgeOptions(hero, createRng(4));
@@ -638,7 +668,7 @@ test("构筑沿用存档：武器槽变多不会从背包自动补上，新技�
   assert.deepEqual(roomy.hero.equippedSkills, ["swift", "drain"], "有空槽才放进新技能，卸下的旧技能不会被自动装回");
 });
 
-test("重玩旧章节：保留已解锁的武器槽，已拿过的宝箱和用过的铁砧是打开的", () => {
+test("重玩旧章节：保留已解锁的武器槽，拿过的宝箱不再出现，用过的铁砧不能再用", () => {
   const weapons = weaponsForLevel(at("checkmate"), STARTING_WEAPONS);
   const hall = level("bishop-hall");
   const forgeKey = hall.map.flatMap((line, r) => [...line.replace(/\s+/g, "")].map((ch, c) => (ch === "U" ? `${r},${c}` : null))).find(Boolean);
@@ -646,9 +676,8 @@ test("重玩旧章节：保留已解锁的武器槽，已拿过的宝箱和用�
   assert.equal(board.hero.slots, 5);
   assert.equal(board.hero.equipped.length, 5);
   const items = [...board.items.values()];
-  assert.ok(items.find((i) => i.type === "chest").opened, "月镰已经拿过");
+  assert.equal(items.find((i) => i.type === "chest"), undefined, "月镰已经拿过，宝箱不再出现");
   assert.ok(items.find((i) => i.type === "forge").opened);
-  assert.equal(pickableAt(board, items.find((i) => i.type === "chest").r, items.find((i) => i.type === "chest").c), null);
 });
 
 test("等待：武器全部冷却、没有药水时也能结束回合，不会卡死", () => {

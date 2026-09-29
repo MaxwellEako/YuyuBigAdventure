@@ -162,13 +162,38 @@ export class Sfx {
         break;
       case "slash":
       case "swing-light":
-        this.noise(0.14, { volume: 0.07, filter: 5200, sweep: 1400, type: "bandpass", q: 1.4 });
-        this.tone(880 * j, 0.08, { type: "triangle", volume: 0.018, slide: -300, delay: 0.02 });
+        // 轻击：短、脆的一刀。
+        this.noise(0.1, { volume: 0.07, filter: 6500, sweep: 2200, type: "bandpass", q: 1.6 });
+        this.tone(1320 * j, 0.05, { type: "triangle", volume: 0.02, slide: -500, delay: 0.015 });
+        this.tone(2400 * j, 0.03, { type: "sine", volume: 0.012, delay: 0.05 });
+        break;
+      case "swing-medium":
+        // 中型：稍长的挥砍，带一点金属尾音。
+        this.noise(0.18, { volume: 0.08, filter: 4200, sweep: 900, type: "bandpass", q: 1.2 });
+        this.tone(520 * j, 0.12, { type: "triangle", volume: 0.022, slide: -240, delay: 0.03 });
+        this.metal(1100 * j, 0.2, { delay: 0.1, volume: 0.015 });
         break;
       case "swing-heavy":
-        this.noise(0.3, { volume: 0.09, filter: 2600, sweep: 300, type: "bandpass", q: 1 });
-        this.tone(70, 0.35, { type: "sine", volume: 0.14, slide: -30, delay: 0.08 });
-        this.noise(0.12, { volume: 0.06, filter: 400, delay: 0.08 });
+        // 重击：长而低的蓄势风声，落地声另由 impact 负责。
+        this.noise(0.3, { volume: 0.08, filter: 1800, sweep: 5200, type: "bandpass", q: 0.8 });
+        this.tone(55, 0.3, { type: "sine", volume: 0.06, slide: 40 });
+        break;
+      case "impact": {
+        // 重击落地：一记沉闷的低频 + 碎裂的中频 + 一声短暂的金属嗡鸣，碎得越多越响。
+        const k = Math.min(1.5, 0.8 + amount * 0.08);
+        this.tone(95, 0.4, { type: "sine", volume: 0.2 * k, slide: -60, attack: 0.003 });
+        this.tone(48, 0.55, { type: "sine", volume: 0.14 * k, attack: 0.005 });
+        this.noise(0.28, { volume: 0.1 * k, filter: 900, sweep: 180, type: "lowpass" });
+        this.noise(0.12, { volume: 0.05 * k, filter: 3000, type: "bandpass", q: 0.9, delay: 0.01 });
+        this.metal(180 * j, 0.5, { volume: 0.03, delay: 0.02 });
+        break;
+      }
+      case "energy":
+        // 能量豆：两声上行的清亮音，外加一点闪光。
+        for (let i = 0; i < Math.min(amount, 3); i += 1) {
+          [0, 7].forEach((iv, n) => this.tone(midi(84 + iv + i * 2), 0.28, { delay: i * 0.09 + n * 0.06, volume: 0.03, type: "sine" }));
+          this.noise(0.18, { delay: i * 0.09 + 0.05, volume: 0.012, filter: 9000, type: "highpass" });
+        }
         break;
       case "swing-skill":
         this.noise(0.22, { volume: 0.05, filter: 7000, sweep: 2500, type: "bandpass", q: 3 });

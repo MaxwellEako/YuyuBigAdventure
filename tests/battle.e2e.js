@@ -164,7 +164,7 @@ test("L 钩镰可以越出边界：锚点放在矩阵外，只消除擦到的那
   await expect(page.locator(".matrix-enemy .cell.pv-hit")).toHaveCount(1);
   await expect(page.locator('.matrix-enemy .cell[data-r="0"][data-c="1"]')).toHaveClass(/pv-hit/);
   await outside.click();
-  await expect(page.locator("[data-enemy-hp] .num")).toHaveText("4");
+  await expect(page.locator("[data-enemy-hp] .num")).toHaveText("5");
 });
 
 test("手机竖屏：棋盘与战斗窗口不出现横向滚动", async ({ page }) => {

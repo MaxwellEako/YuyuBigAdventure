@@ -14,7 +14,8 @@ import {
   previewCombo,
   previewInterrupt,
   interruptible,
-  comboPierce,
+  energyCost,
+  ENERGY_MAX,
   comboLinks,
   comboLabel,
   previewHeal,
@@ -67,13 +68,16 @@ export const traitChips = (def) =>
  * 战斗窗口：左侧怪物心阵（悬停预览 / 点击出招），右侧主角心阵（显示怪物瞄准、药水治疗）。
  * 返回的 Promise 在玩家确认战斗结果后 resolve。
  */
-export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach = null }) {
+export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach = null, afterPerfectHit = null }) {
   const def = combat.def;
   root.innerHTML = `
   <div class="battle-modal" role="dialog" aria-modal="true" aria-label="战斗">
     <div class="battle-card ${def.boss ? "boss" : ""}">
       <header class="battle-head">
-        <div class="combo-badge" data-combo title="连击 · 每连上两次追击一次">${icon("combo", "combo-icon")}<b data-combo-count></b><span class="chase-pips" data-pips><i></i><i></i></span><span class="combo-pierce" title="破甲">${icon("pierce")}</span></div>
+        <div class="head-left">
+          <div class="energy" data-energy title="能量豆 · 从第二次连击起，每连上一次得一颗"></div>
+          <div class="combo-badge" data-combo title="连击">${icon("combo", "combo-icon")}<b data-combo-count></b></div>
+        </div>
         <div class="turn-banner" data-banner>你的回合</div>
         <div class="round"><span class="t-meta">Round</span><b data-round>01</b></div>
       </header>
@@ -186,6 +190,30 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     toastTimer = setTimeout(() => el.classList.remove("show"), 1600);
   }
 
+  function flyBean(count) {
+    const from = $("[data-enemy-matrix]").getBoundingClientRect();
+    const beans = [...$("[data-energy]").querySelectorAll(".bean.on")];
+    const to = beans.at(-1)?.getBoundingClientRect() ?? $("[data-energy]").getBoundingClientRect();
+    const card = $(".battle-card").getBoundingClientRect();
+    for (let k = 0; k < count; k += 1) {
+      const bean = document.createElement("i");
+      bean.className = "flying-bean";
+      bean.innerHTML = icon("energy");
+      bean.style.left = `${from.left + from.width / 2 - card.left}px`;
+      bean.style.top = `${from.top + from.height / 2 - card.top}px`;
+      bean.style.setProperty("--dx", `${to.left + to.width / 2 - (from.left + from.width / 2)}px`);
+      bean.style.setProperty("--dy", `${to.top + to.height / 2 - (from.top + from.height / 2)}px`);
+      bean.style.animationDelay = `${k * 90}ms`;
+      $(".battle-card").appendChild(bean);
+      setTimeout(() => bean.remove(), 800 + k * 90);
+    }
+    setTimeout(() => {
+      $("[data-energy]").classList.remove("pulse");
+      void $("[data-energy]").offsetWidth;
+      $("[data-energy]").classList.add("pulse");
+    }, 520);
+  }
+
   function floatText(side, text, kind) {
     const layer = $(side === "hero" ? "[data-hero-float]" : "[data-enemy-float]");
     const el = document.createElement("span");
@@ -218,13 +246,16 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
         .map((k) => `<i class="up-icon" title="${UPGRADE_TEXT[k].name}">${icon(UPGRADE_TEXT[k].icon)}</i>`),
       ...(def.pierce ? [`<i class="up-icon" title="破甲">${icon("pierce")}</i>`] : []),
     ].join("");
+    // 中型、重型武器标出要消耗几颗能量豆；冷却中显示沙漏。
+    const cost = energyCost(slot);
+    const starved = slot.kind === "weapon" && !slot.cd && cost > combat.energy;
     const status =
       slot.kind === "skill"
         ? `${icon("skill")}×${slot.charges}`
         : slot.cd
           ? `${icon("cd")}${slot.cd}`
-          : weaponCooldown(slot.id, combat.upgrades)
-            ? `<span class="cd-idle">${icon("cd")}${weaponCooldown(slot.id, combat.upgrades)}</span>`
+          : cost
+            ? `<span class="cost">${Array.from({ length: cost }, () => icon("energy")).join("")}</span>`
             : "";
     const shape = slotShape(combat, slot);
     // 连击中，上一击用过的招式角上画一个虚线框（和心阵上标出上一击范围的虚线一致）：换一件才接得上。
@@ -236,6 +267,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
       blocked ? "cooling" : "",
       lastUsed ? "last-used" : "",
       slot.kind === "skill" && slot.charges <= 0 ? "spent" : "",
+      starved ? "starved" : "",
     ].join(" ");
     return `<button class="${classes}" data-weapon="${slot.id}" title="${def.name} · ${def.desc}${lastUsed ? " · 刚用过，换一件才能接上连击" : ""}">
       <kbd>${keyLabel(i)}</kbd>
@@ -291,6 +323,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
           .join("");
     const aimShape = combat.intent?.kind === "attack" ? combat.intent.shape : null;
     heroView.markAim(aimShape, combat.aim);
+    enemyView.markHeal(combat.phase === "hero" ? combat.healPlan : null);
     const note = $("[data-aim-note]");
     if (combat.intent?.kind === "attack" && combat.aim) {
       const hits = previewAim();
@@ -314,16 +347,16 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     return n;
   }
 
-  // 左上角的连击标记：连上之后才出现，旁边两个小方块是距离下一次追击的进度。
+  // 左上角：能量豆一排蓝色菱形，连击标记连上之后才出现。
   function renderCombo() {
     const links = comboLinks(combat.combo);
     const badge = $("[data-combo]");
     badge.classList.toggle("on", links > 0);
     $("[data-combo-count]").textContent = links ? `×${links}` : "";
-    const filled = combat.combo >= 1 ? (combat.combo - 1) % 2 : 0;
-    $("[data-pips]").querySelectorAll("i").forEach((pip, i) => pip.classList.toggle("on", i < filled));
-    // 连击 ×2 起，下一击自带破甲：标记上多一个破甲图标。
-    badge.classList.toggle("piercing", comboPierce(combat));
+    $("[data-energy]").innerHTML = Array.from(
+      { length: ENERGY_MAX },
+      (_, k) => `<i class="bean ${k < combat.energy ? "on" : ""}">${icon("energy")}</i>`,
+    ).join("");
   }
 
   function render() {
@@ -424,28 +457,43 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
     const broken = event.hits.filter((h) => h.after === 0).length;
     const cracked = event.hits.length - broken;
     // 挥击声分三种：技能、四格以上的重武器、其余轻武器。
-    const usedShape = slotShape(combat, slotOf(combat, selected));
-    sfx.play(slotOf(combat, selected).kind === "skill" ? "swing-skill" : usedShape.size >= 4 ? "swing-heavy" : "swing-light");
+    const usedSlot = slotOf(combat, selected);
+    const weight = usedSlot.kind === "skill" ? "skill" : WEAPONS[usedSlot.id].weight;
+    const heavy = weight === "heavy";
+    sfx.play({ skill: "swing-skill", heavy: "swing-heavy", medium: "swing-medium", light: "swing-light" }[weight]);
     const heroObj = heroEntity();
     const target = monsterEntity();
     if (heroObj && target) world.attackAnim(heroObj, target, broken);
     render();
-    await delay(160);
+    // 形状先闪一下；重击再顿一拍（打击停顿），碎裂才更有分量。
+    enemyView.strike(combat.lastFootprint, { heavy });
+    await delay(heavy ? 260 : 140);
+    if (heavy) {
+      sfx.play("impact", event.hits.length);
+      modal.classList.remove("impact");
+      void modal.offsetWidth;
+      modal.classList.add("impact");
+    }
     if (broken) sfx.play("shatter", broken);
     if (cracked) sfx.play("crack");
-    floatText("enemy", `-${event.hits.length}`, "dmg");
-    enemyView.shake();
-    await enemyView.animate(event.hits, "hit", combat.monsterMatrix);
+    floatText("enemy", `-${event.hits.length}`, heavy ? "dmg big" : "dmg");
+    enemyView.shake(heavy);
+    await enemyView.animate(event.hits, "hit", combat.monsterMatrix, { heavy });
     const comboEvent = result.events.find((e) => e.type === "combo");
     const links = comboEvent ? comboLinks(comboEvent.combo) : 0;
     if (links) {
       sfx.play("combo", links);
-      if (comboEvent.chase) setTimeout(() => sfx.play("chase"), 220);
       floatText("enemy", comboLabel(links), "combo");
-      if (comboEvent.chase) setTimeout(() => floatText("enemy", "追击！", "chase"), 260);
       $("[data-combo]").classList.remove("pulse");
       void $("[data-combo]").offsetWidth;
       $("[data-combo]").classList.add("pulse");
+      if (comboEvent.energy) {
+        // 得到能量豆：一颗蓝色菱形从心阵飞向左上角的能量条。
+        setTimeout(() => {
+          sfx.play("energy", comboEvent.energy);
+          flyBean(comboEvent.energy);
+        }, 180);
+      }
     } else if (result.events.some((e) => e.type === "combo-break")) {
       floatText("enemy", "连击中断", "miss");
       sfx.play("combo-break");
@@ -461,6 +509,13 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, coach 
       await heroView.animate(drained.changes, "heal", combat.heroMatrix);
     }
     if (result.events.some((e) => e.type === "won")) return finish();
+    // 第一次完美命中、心阵上出现蓝色虚线框：这时候才讲连击。
+    if (afterPerfectHit && combat.combo > 0) {
+      const explainCombo = afterPerfectHit;
+      afterPerfectHit = null;
+      render();
+      await explainCombo();
+    }
     if (combat.phase === "hero") {
       // 追击（连击里程碑）或疾风斩之后：仍是主角回合，换一件可用的普通武器。
       if (slotBlocked(combat, slotOf(combat, selected))) selected = firstReady() ?? selected;

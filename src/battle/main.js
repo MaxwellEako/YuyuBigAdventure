@@ -42,7 +42,7 @@ import {
   ORTHO,
   key,
 } from "./logic/board.js";
-import { createCombat } from "./logic/combat.js";
+import { createCombat, ENERGY_COST } from "./logic/combat.js";
 import { countHearts, resolveHeal, applyChanges } from "./logic/shapes.js";
 import { runBattle, GLYPH, MOVE_TEXT, traitChips } from "./ui/battleView.js";
 import { MatrixView } from "./ui/matrixView.js";
@@ -238,11 +238,11 @@ function renderHud() {
       <button class="chip-btn" data-cmd="potion" ${hero.potions && hearts < slots ? "" : "disabled"} title="喝药水（P）">${icon("potion")}<span>药水</span><b>${hero.potions}</b></button>
       <span class="chip ${hero.keys ? "on" : ""}" title="钥匙">${icon("key")}<span>钥匙</span><b>${hero.keys}</b></span>
     </div>
-    ${kicker("02", "武器", "ARSENAL", `${slotPips(hero.equipped.length, hero.slots)}<button class="build-chip" data-cmd="armory" title="构筑（B）">${icon("bag")}构筑<kbd>B</kbd></button>`)}
+    ${kicker("02", "武器", "ARSENAL", `${slotPips(hero.equipped.length, hero.slots)}<button class="build-chip" data-cmd="armory" title="打开背包（B）">${icon("bag")}打开背包<kbd>B</kbd></button>`)}
     <ul class="weapon-list">${hero.equipped
       .map((id, i) => {
         const w = WEAPONS[id];
-        return `<li title="${w.desc}"><span class="wi">${i + 1}</span><span class="ws">${shapeSvg(weaponShape(id, hero.upgrades), { cell: 8, gap: 1.5 })}</span><span class="wn"><b>${w.name}${upIcons(id, hero.upgrades)}</b></span><em>${cdMark(weaponCooldown(id, hero.upgrades))}</em></li>`;
+        return `<li title="${w.desc}"><span class="wi">${i + 1}</span><span class="ws">${shapeSvg(weaponShape(id, hero.upgrades), { cell: 8, gap: 1.5 })}</span><span class="wn"><b>${w.name}${upIcons(id, hero.upgrades)}</b></span><em>${costMark(id)}</em></li>`;
       })
       .join("")}
       <li class="shield-row" title="${SHIELD.desc}"><span class="wi">Q</span><span class="ws">${icon("shield")}</span><span class="wn"><b>${SHIELD.name}</b></span><em>${cdMark(SHIELD.cooldown)}</em></li>
@@ -278,6 +278,12 @@ function renderHud() {
 function slotPips(used, total, tone = "") {
   return `<em class="slot-pips ${tone}" title="${used}/${total}">${Array.from({ length: total }, (_, i) => `<i class="${i < used ? "on" : ""}"></i>`).join("")}</em>`;
 }
+
+/** 中型、重型武器每用一次要消耗的能量豆，画成蓝色菱形。 */
+const costMark = (id) => {
+  const n = ENERGY_COST[WEAPONS[id].weight] ?? 0;
+  return n ? `<span class="cost-mark" title="每次消耗 ${n} 颗能量豆">${Array.from({ length: n }, () => icon("energy")).join("")}</span>` : "";
+};
 
 /** 冷却标记：沙漏 + 回合数；不需要冷却的武器不标。 */
 const cdMark = (n) => (n ? `<span class="cd-mark" title="冷却 ${n} 回合">${icon("cd")}${n}</span>` : "");
@@ -410,7 +416,8 @@ world.on("hover", (r, c, event) => {
   const same = hoverTile && r === hoverTile.r && c === hoverTile.c;
   hoverTile = r === null ? null : { r, c };
   const m = board && hoverTile ? visibleMonsterAt(board, r, c) : null;
-  const item = board && hoverTile && !m && isExplored(board, r, c) ? pickableAt(board, r, c) : null;
+  const found = board && hoverTile && !m && isExplored(board, r, c) ? board.items.get(key(r, c)) : null;
+  const item = found && found.type !== "key" && !found.opened ? found : null;
   if (item && !screenName) showItemTip(item, event);
   else showTooltip(screenName ? null : m, event);
   document.body.style.cursor = hoverTile && playing ? "pointer" : "";
@@ -470,7 +477,7 @@ async function autoWalk(path) {
   return token === walkToken;
 }
 
-/** 主动拾取相邻的宝箱或药水（不消耗回合）。 */
+/** 使用相邻的铁砧（不消耗回合）。 */
 async function interact(r, c) {
   if (busy || !playing) return;
   const result = pickupAt(board, r, c);
@@ -487,10 +494,6 @@ async function interact(r, c) {
       if (event.type === "forge") {
         await explain(["forge"]);
         showForge(event.item);
-      } else {
-        await pickup(event.item);
-        if (event.item.type === "chest" && board.hero.weapons.length > board.hero.slots)
-          await explain(["slots"], { slots: board.hero.slots });
       }
     }
   } finally {
@@ -520,7 +523,7 @@ function showForge(item) {
         <span class="t-meta forge-weapon">${w.name}${equipped ? "" : `<i class="in-bag" title="在背包里">${icon("bag")}</i>`}</span>
         <b>${icon(UPGRADE_TEXT[opt.kind].icon)}${UPGRADE_TEXT[opt.kind].name}</b>
         <span class="forge-shapes"><span>${shapeSvg(before, { cell: 14, gap: 3 })}</span><i aria-hidden="true">→</i><span>${shapeSvg(after, { cell: 14, gap: 3 })}</span></span>
-        <small>${UPGRADE_TEXT[opt.kind].desc}</small>
+        <small>${opt.kind === "extend" ? `形状多出 ${WEAPONS[opt.weapon].plusShape.size - WEAPONS[opt.weapon].shape.size} 格。` : UPGRADE_TEXT[opt.kind].desc}</small>
       </button>
       <button class="reroll" data-reroll="${i}" ${opt.rerolled ? "disabled" : ""}>${icon("restart")}${opt.rerolled ? "已重抽" : "重抽"}</button>`;
   };
@@ -602,7 +605,7 @@ function showArmory() {
     return `<button class="build-card ${side} ${picked ? "picked" : ""}" data-kind="weapon" data-id="${id}" title="${w.desc}">
       <span class="build-shape">${shapeSvg(weaponShape(id, hero.upgrades), { cell: 11, gap: 2 })}</span>
       <span class="build-text"><b>${w.name}${upIcons(id, hero.upgrades)}</b><small>${w.desc}</small></span>
-      <span class="build-meta">${cdMark(weaponCooldown(id, hero.upgrades))}</span>
+      <span class="build-meta">${costMark(id)}</span>
       <span class="build-move" aria-hidden="true">${side === "on" ? "→" : pending?.kind === "weapon" && !picked ? "" : "←"}</span>
     </button>`;
   };
@@ -627,7 +630,7 @@ function showArmory() {
     showScreen(
       "armory",
       `<div class="panel armory ${pending ? `swapping swap-${pending.kind}` : ""}">
-        <header class="panel-head"><div>${kicker(icon("bag"), "构筑", "LOADOUT")}<h2>构筑</h2></div><button class="icon-btn" data-cmd="back" aria-label="完成">${icon("close")}</button></header>
+        <header class="panel-head"><div>${kicker(icon("bag"), "背包", "BAG")}<h2>背包</h2></div><button class="icon-btn" data-cmd="back" aria-label="完成">${icon("close")}</button></header>
         <div class="loadout">
           <section class="loadout-col">
             <h4 class="build-title">${kw("武器槽")}${slotPips(hero.equipped.length, hero.slots)}</h4>
@@ -636,7 +639,7 @@ function showArmory() {
           </section>
           <div class="loadout-rule" aria-hidden="true"><span>⇄</span></div>
           <section class="loadout-col bag">
-            <h4 class="build-title">${kw("背包")}<em class="t-meta">${bagWeapons.length + bagSkills.length}</em></h4>
+            <h4 class="build-title">${kw("闲置", "背包")}<em class="t-meta">${bagWeapons.length + bagSkills.length}</em></h4>
             <div class="build-list">${bagWeapons.map((id) => weaponCard(id, "off")).join("") || '<div class="build-card empty bag"></div>'}</div>
             ${bagSkills.length ? `<h4 class="build-title">${kw("技能")}</h4><div class="build-list">${bagSkills.map((id) => skillCard(id, "off")).join("")}</div>` : ""}
           </section>
@@ -696,8 +699,7 @@ async function step(r, c) {
     const result = heroMove(board, r, c);
     if (result.kind === "blocked") {
       sfx.play("bump");
-      const item = pickableAt(board, r, c);
-      toast(item ? (item.type === "chest" ? "点一下宝箱就能打开" : "点一下药水就能收下") : result.reason);
+      toast(pickableAt(board, r, c) ? "站在旁边点一下铁砧" : result.reason);
       await world.bump({ dr: r - board.hero.r, dc: c - board.hero.c });
       return "blocked";
     }
@@ -764,6 +766,14 @@ async function pickup(item) {
     toast(`<span class="toast-shape">${shapeSvg(w.shape, { cell: 10 })}</span>获得新武器 <b>${w.name}</b>`, "gold");
   }
   await world.collectItem(item.r, item.c);
+  if (item.type !== "chest") return;
+  // 拿到新武器时，才讲这件武器带来的新概念：武器槽不够、重武器、护甲。
+  const w = WEAPONS[item.weapon];
+  const topics = [];
+  if (board.hero.weapons.length > board.hero.slots) topics.push("slots");
+  if (w.weight === "heavy") topics.push("heavy");
+  if (w.pierce) topics.push("armor");
+  await explain(topics, { slots: board.hero.slots, weapon: w, weapons: board.hero.weapons, skills: Object.keys(board.hero.skills) });
 }
 
 async function battle(monster, heroFirst) {
@@ -779,11 +789,22 @@ async function battle(monster, heroFirst) {
   currentCombat = combat;
   closeSheet();
   document.body.classList.add("in-battle");
-  const topics = ["battle-matrix", "battle-shape", "battle-intent", "combo-switch"];
+  // 开战时只讲眼前用得上的；连击等第一次完美命中、心阵上出现虚线框之后再讲。
+  const topics = ["battle-matrix", "battle-shape", "battle-intent", "energy"];
   if (monster.matrix.some((row) => row.some((v) => v >= 2))) topics.push("armor");
-  if (monster.def.pattern.some((p) => p.kind === "charge")) topics.push("interrupt");
+  if (monster.def.pattern.some((p) => p.kind === "charge")) topics.push("charge");
+  const ctx = { weapons: board.hero.weapons, skills: Object.keys(board.hero.skills) };
   sfx.music.play(BATTLE_TRACK[monster.def.id] ?? "battle");
-  await runBattle({ root: $("#battle-root"), combat, monster, world, sfx, heroFirst, coach: () => explain(topics) });
+  await runBattle({
+    root: $("#battle-root"),
+    combat,
+    monster,
+    world,
+    sfx,
+    heroFirst,
+    coach: () => explain(topics, ctx),
+    afterPerfectHit: () => explain(["combo-energy"]),
+  });
   document.body.classList.remove("in-battle");
   sfx.music.play(combat.phase === "lost" ? null : boardTrack());
   currentCombat = null;
@@ -815,8 +836,9 @@ function startLevel(index, { intro = true } = {}) {
   levelIndex = index;
   const level = LEVELS[index];
   const profile = progress.profile;
-  // 拥有的武器、技能与武器槽取本章应有的和存档里已解锁的并集；技能次数每章开始时补满。
-  const weapons = [...new Set([...weaponsForLevel(index, STARTING_WEAPONS), ...(profile?.weapons ?? [])])];
+  // 拥有的武器只算真正从宝箱里拿到的（存在存档里）；跳过的宝箱，武器就还在宝箱里，回去还能拿。
+  // 技能按章节学会，次数每章开始时补满。
+  const weapons = profile ? [...new Set([...STARTING_WEAPONS, ...profile.weapons])] : weaponsForLevel(index, STARTING_WEAPONS);
   const skills = { ...skillsForLevel(index, SKILLS) };
   for (const id of profile?.skills ?? []) if (SKILLS[id]) skills[id] = SKILLS[id].charges;
   slotsBefore = profile?.slots ?? 0;
@@ -1178,17 +1200,17 @@ function showHelp() {
           <h3><span class="t-meta">04</span>连击</h3>
           <ul class="help-legend">
             <li><span class="legend-glyph">${icon("perfect")}</span><span>${rich("形状每一格都落在心上、没有落空，是[完美命中]。")}</span></li>
-            <li><span class="legend-glyph">${icon("combo")}</span><span>${rich("换一件武器、紧挨着上一击再完美命中，形成[连击]，其他武器冷却 −1。")}</span></li>
-            <li><span class="legend-glyph">${icon("chase")}</span><span>${rich("每连上两次，[追击]一次；战锤、圣十字接上连击时立刻追击。")}</span></li>
+            <li><span class="legend-glyph">${icon("combo")}</span><span>${rich("换一件武器、紧挨着上一击再完美命中，形成[连击]。")}</span></li>
+            <li><span class="legend-glyph">${icon("energy")}</span><span>${rich("连击 ×2 起，每连上一次得一颗[能量豆]。中型武器每次花一颗，战锤、圣十字花两颗。")}</span></li>
           </ul>
           <h3><span class="t-meta">05</span>棋盘</h3>
           <ul class="help-legend">
-            <li><span class="legend-glyph">${icon("chest")}</span><span>${rich("站在[宝箱]、[药水]、[铁砧]旁边点一下即可使用。")}</span></li>
-            <li><span class="legend-glyph">${icon("bag")}</span><span>${rich("[武器槽]决定带几件武器上阵，[技能]最多带三个。按 B 打开[构筑]。")}</span></li>
+            <li><span class="legend-glyph">${icon("chest")}</span><span>${rich("走到[宝箱]、[药水]上就能拿到；站在[铁砧]旁边点一下使用。")}</span></li>
+            <li><span class="legend-glyph">${icon("bag")}</span><span>${rich("[武器槽]决定带几件武器上阵，[技能]最多带三个。按 B [打开背包|背包]。")}</span></li>
             <li><span class="legend-glyph">${icon("fog")}</span><span>${rich("[迷雾]里只看得见屿屿身边的格子。")}</span></li>
           </ul>
           <h3><span class="t-meta">06</span>按键</h3>
-          <p class="keys"><span><kbd>WASD</kbd>移动</span><span><kbd>C</kbd>转动视角</span><span><kbd>B</kbd>构筑</span><span><kbd>P</kbd>喝药水</span><span><kbd>1</kbd>~<kbd>7</kbd>选武器</span><span><kbd>R</kbd>旋转</span><span><kbd>F</kbd>镜像</span><span><kbd>Q</kbd>防御</span><span><kbd>E</kbd>药水</span><span><kbd>Z</kbd>等待</span></p>
+          <p class="keys"><span><kbd>WASD</kbd>移动</span><span><kbd>C</kbd>转动视角</span><span><kbd>B</kbd>背包</span><span><kbd>P</kbd>喝药水</span><span><kbd>1</kbd>~<kbd>7</kbd>选武器</span><span><kbd>R</kbd>旋转</span><span><kbd>F</kbd>镜像</span><span><kbd>Q</kbd>防御</span><span><kbd>E</kbd>药水</span><span><kbd>Z</kbd>等待</span></p>
           <div class="panel-actions"><button class="ghost" data-cmd="hints">新手提示 · ${progress.hints === false ? "关" : "开"}</button><button class="ghost subtle" data-cmd="reset">${icon("restart")}重置进度</button></div>
         </section>
       </div>

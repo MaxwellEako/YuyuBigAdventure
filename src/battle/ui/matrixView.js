@@ -180,7 +180,40 @@ export class MatrixView {
   }
 
   /** 播放格子变化动画，然后写入新矩阵。 */
-  async animate(changes, kind, nextMatrix) {
+  /** 出手瞬间：武器形状盖住的格子先闪一下，再碎。heavy 时闪得更重。 */
+  strike(cells, { heavy = false } = {}) {
+    for (const [r, c] of cells) {
+      const cell = this.cells.get(`${r},${c}`);
+      if (!cell) continue;
+      cell.classList.remove("strike", "strike-heavy");
+      void cell.offsetWidth;
+      cell.classList.add(heavy ? "strike-heavy" : "strike");
+      setTimeout(() => cell.classList.remove("strike", "strike-heavy"), 420);
+    }
+    if (heavy) {
+      // 冲击波：以形状中心为圆心扩散的一圈方框。
+      const pts = cells.map(([r, c]) => this.cells.get(`${r},${c}`)).filter(Boolean);
+      if (!pts.length) return;
+      const box = this.el.getBoundingClientRect();
+      const rects = pts.map((p) => p.getBoundingClientRect());
+      const cx = rects.reduce((s, b) => s + b.left + b.width / 2, 0) / rects.length - box.left;
+      const cy = rects.reduce((s, b) => s + b.top + b.height / 2, 0) / rects.length - box.top;
+      const wave = document.createElement("i");
+      wave.className = "shockwave";
+      wave.style.left = `${cx}px`;
+      wave.style.top = `${cy}px`;
+      this.el.appendChild(wave);
+      setTimeout(() => wave.remove(), 650);
+    }
+  }
+
+  /** 标出怪物下一招要补回的格子（回血）。 */
+  markHeal(cells) {
+    for (const cell of this.el.querySelectorAll(".cell.heal-plan")) cell.classList.remove("heal-plan");
+    for (const [r, c] of cells ?? []) this.cells.get(`${r},${c}`)?.classList.add("heal-plan");
+  }
+
+  async animate(changes, kind, nextMatrix, { heavy = false } = {}) {
     const cls = { hit: "breaking", crack: "cracking", heal: "healing", armor: "armoring" };
     for (const [i, ch] of changes.entries()) {
       const cell = this.cells.get(`${ch.r},${ch.c}`);
@@ -188,7 +221,7 @@ export class MatrixView {
       const k = kind === "hit" && ch.after > 0 ? "crack" : kind;
       cell.style.setProperty("--d", `${i * 45}ms`);
       cell.classList.add(cls[k]);
-      if (kind === "hit") this.spawnShards(cell);
+      if (kind === "hit") this.spawnShards(cell, heavy);
     }
     await new Promise((r) => setTimeout(r, 420 + changes.length * 45));
     for (const ch of changes) {
@@ -199,21 +232,25 @@ export class MatrixView {
     this.set(nextMatrix);
   }
 
-  spawnShards(cell) {
-    for (let i = 0; i < 5; i += 1) {
+  spawnShards(cell, heavy = false) {
+    const n = heavy ? 9 : 6;
+    const reach = heavy ? 34 : 20;
+    for (let i = 0; i < n; i += 1) {
       const shard = document.createElement("i");
-      shard.className = "shard";
-      const a = (Math.PI * 2 * i) / 5 + Math.random();
-      shard.style.setProperty("--x", `${Math.cos(a) * (18 + Math.random() * 16)}px`);
-      shard.style.setProperty("--y", `${Math.sin(a) * (18 + Math.random() * 16) - 10}px`);
+      // 碎片是像素方块：大多是红心的红，夹着几块纸白。
+      shard.className = `shard ${i % 3 === 2 ? "paper" : ""} ${heavy && i % 4 === 0 ? "big" : ""}`;
+      const a = (Math.PI * 2 * i) / n + Math.random() * 0.6;
+      shard.style.setProperty("--x", `${Math.cos(a) * (reach + Math.random() * reach * 0.8)}px`);
+      shard.style.setProperty("--y", `${Math.sin(a) * (reach + Math.random() * reach * 0.8) - 12}px`);
+      shard.style.setProperty("--r", `${Math.round(Math.random() * 360)}deg`);
       cell.appendChild(shard);
       setTimeout(() => shard.remove(), 700);
     }
   }
 
-  shake() {
-    this.el.classList.remove("shaking");
+  shake(heavy = false) {
+    this.el.classList.remove("shaking", "shaking-heavy");
     void this.el.offsetWidth;
-    this.el.classList.add("shaking");
+    this.el.classList.add(heavy ? "shaking-heavy" : "shaking");
   }
 }

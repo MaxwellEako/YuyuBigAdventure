@@ -131,6 +131,10 @@ export const SPRITE = `
       <path d="M7.5 11v9" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"/>
       <path d="m15 4 2.5 5.5L15 12l4 7M20 6.5l1.5-1M21.5 12H23" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" stroke-linejoin="miter"/>
     </symbol>
+    <symbol id="i-energy" viewBox="0 0 24 24">
+      <path d="M12 2 21 12 12 22 3 12z" fill="var(--accent, #002fa7)"/>
+      <path d="M12 6.5 8.5 12 12 12z" fill="#ffffff" opacity="0.55"/>
+    </symbol>
     <symbol id="i-wait" viewBox="0 0 24 24">
       <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/>
     </symbol>

@@ -4798,3 +4798,310 @@ body:not(.in-level) .hint-bar {
     position: relative;
   }
 }
+
+/* 「打开背包」按钮与同一行的标题文字对齐：整行按中线对齐，按钮高度贴近文字行高。 */
+.kicker:has(.build-chip) {
+  align-items: center;
+}
+
+.build-chip {
+  height: 20px;
+  padding: 0 5px 0 4px;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.build-chip kbd {
+  line-height: 14px;
+}
+
+.kicker > span {
+  white-space: nowrap;
+}
+
+.kicker:has(.build-chip) .kicker-en {
+  display: none;
+}
+
+/* ——— 能量豆：蓝色菱形 ——— */
+
+.head-left {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.head-left .combo-badge {
+  justify-self: auto;
+}
+
+.energy {
+  display: flex;
+  gap: 2px;
+}
+
+.energy .bean {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 22px;
+}
+
+.energy .bean .icon {
+  width: 18px;
+  height: 18px;
+  transition: opacity 0.2s, transform 0.2s var(--ease-entry);
+}
+
+.energy .bean:not(.on) .icon {
+  opacity: 0.18;
+  transform: scale(0.8);
+}
+
+.energy.pulse .bean.on:last-of-type .icon,
+.energy.pulse .bean.on .icon {
+  animation: bean-pop 0.45s var(--ease-entry);
+}
+
+@keyframes bean-pop {
+  0% {
+    transform: scale(1.7);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.flying-bean {
+  position: absolute;
+  z-index: 20;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  pointer-events: none;
+  animation: bean-fly 0.62s cubic-bezier(0.5, -0.4, 0.3, 1) both;
+}
+
+.flying-bean .icon {
+  width: 22px;
+  height: 22px;
+}
+
+@keyframes bean-fly {
+  0% {
+    transform: translate(0, 0) scale(0.4);
+    opacity: 0;
+  }
+  20% {
+    transform: translate(0, -18px) scale(1.3);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) scale(0.8);
+    opacity: 0.9;
+  }
+}
+
+/* 武器卡上的消耗；能量豆不够时菱形变空心。 */
+.weapon .cost {
+  display: inline-flex;
+  gap: 1px;
+}
+
+.weapon .cost .icon {
+  width: 11px;
+  height: 11px;
+}
+
+.weapon.starved .cost .icon {
+  opacity: 0.3;
+}
+
+.weapon.selected .cost .icon path:first-child {
+  fill: var(--accent-on);
+}
+
+/* ——— 出手视效 ——— */
+
+.cell.strike::after,
+.cell.strike-heavy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: var(--accent);
+  animation: strike-flash 0.32s ease-out forwards;
+}
+
+.cell.strike-heavy::after {
+  inset: -3px;
+  background: var(--ink);
+  animation: strike-flash-heavy 0.42s ease-out forwards;
+}
+
+@keyframes strike-flash {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.6);
+  }
+  40% {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+@keyframes strike-flash-heavy {
+  0% {
+    opacity: 0.9;
+    transform: scale(1.25);
+  }
+  55% {
+    opacity: 0.75;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+.shockwave {
+  position: absolute;
+  z-index: 4;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  pointer-events: none;
+  border: 3px solid var(--accent);
+  animation: shockwave 0.6s ease-out forwards;
+}
+
+@keyframes shockwave {
+  0% {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(9);
+    opacity: 0;
+    border-width: 1px;
+  }
+}
+
+.shard {
+  z-index: 5;
+}
+
+.shard.paper {
+  background: var(--paper);
+  outline: 1px solid var(--heart);
+}
+
+.shard.big {
+  width: 10px;
+  height: 10px;
+}
+
+@keyframes shard {
+  0% {
+    transform: translate(0, 0) rotate(0);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--x), calc(var(--y) + 14px)) rotate(var(--r, 90deg));
+    opacity: 0;
+  }
+}
+
+.matrix.shaking-heavy {
+  animation: shake-heavy 0.45s;
+}
+
+@keyframes shake-heavy {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  15% {
+    translate: -9px 3px;
+  }
+  30% {
+    translate: 8px -3px;
+  }
+  45% {
+    translate: -6px 2px;
+  }
+  60% {
+    translate: 4px -1px;
+  }
+  80% {
+    translate: -2px 0;
+  }
+}
+
+/* 重击：整张战斗卡片顿一下。 */
+.battle-modal.impact .battle-card {
+  animation: card-impact 0.34s;
+}
+
+@keyframes card-impact {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  20% {
+    translate: 0 6px;
+  }
+  45% {
+    translate: 0 -3px;
+  }
+  70% {
+    translate: 0 1px;
+  }
+}
+
+.float.dmg.big {
+  font-size: 92px;
+  font-weight: 300;
+}
+
+/* 怪物下一招是回血：要补回的格子用红色虚线标出。 */
+.cell.heal-plan {
+  outline: 2px dashed var(--heart);
+  outline-offset: -5px;
+  background: rgba(224, 38, 47, 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shockwave,
+  .flying-bean,
+  .battle-modal.impact .battle-card,
+  .matrix.shaking-heavy {
+    animation: none;
+  }
+}
+
+.cost-mark {
+  display: inline-flex;
+  gap: 1px;
+}
+
+.cost-mark .icon {
+  width: 12px;
+  height: 12px;
+}
+
+.build-card.on .cost-mark .icon path:first-child {
+  fill: var(--accent-on);
+}

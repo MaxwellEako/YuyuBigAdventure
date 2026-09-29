@@ -6,8 +6,8 @@ import { transformShape, shapeKey } from "./shapes.js";
 export const UPGRADE_TEXT = {
   rotate: { name: "旋转", icon: "rotate", desc: "战斗中按 R，形状转过 90°。" },
   mirror: { name: "镜像", icon: "mirror", desc: "战斗中按 F，形状左右翻转。" },
-  extend: { name: "延长", icon: "extend", desc: "形状多出一格。" },
-  precise: { name: "精准", icon: "perfect", desc: "打出连击时多记一次，并恢复 1 颗红心。" },
+  extend: { name: "延长", icon: "extend", desc: "形状变大。" },
+  precise: { name: "精准", icon: "energy", desc: "这件武器连上时，多得一颗能量豆。" },
   pierce: { name: "破甲", icon: "pierce", desc: "护甲心一击即碎。" },
   stagger: { name: "震慑", icon: "stagger", desc: "打碎 2 颗心就能打断重击。" },
 };
@@ -53,7 +53,7 @@ export function nextRotation(id, upgrades = {}, orient = {}) {
 
 /**
  * 某件武器能不能拿到某项强化。
- * 轻武器（短剑、斜刃）不能延长、不能破甲：它们是刷连击的主力，再加这两样就没有取舍了。
+ * 轻武器（短剑、斜刃）不能延长、不能破甲、不能精准：它们是刷连击的主力，再加这些就没有取舍了。
  * 破甲要等护甲怪出现以后才会在铁砧上刷出来（opts.pierce）。震慑只给重武器（降低打断重击的门槛）。
  */
 export function upgradeAllowed(id, kind, opts = {}) {
@@ -61,7 +61,7 @@ export function upgradeAllowed(id, kind, opts = {}) {
   if (!w) return false;
   if (kind === "rotate" || kind === "mirror") return w.transforms.includes(kind);
   if (kind === "extend") return w.weight !== "light";
-  if (kind === "precise") return true;
+  if (kind === "precise") return w.weight !== "light";
   if (kind === "pierce") return w.weight !== "light" && !w.pierce && opts.pierce !== false;
   if (kind === "stagger") return w.weight === "heavy";
   return false;
@@ -77,18 +77,29 @@ export function sanitizeUpgrades(upgrades = {}) {
   return clean;
 }
 
-/** 武器强化格随机给出的候选项，已拥有的不再出现。opts.pierce 为 false 时不出破甲。 */
+/** 各类强化出现的相对概率。精准对连击的收益大，出得少一些。 */
+const UPGRADE_WEIGHT = { rotate: 1, mirror: 1, extend: 1, precise: 0.35, pierce: 1, stagger: 1 };
+
+/**
+ * 武器强化格随机给出的候选项：只从已经拿到的武器里出，已拥有的强化不再出现。
+ * 按权重不放回地抽取。opts.pierce 为 false 时不出破甲。
+ */
 export function upgradeOptions(hero, rng = Math.random, count = 3, opts = {}) {
   const pool = [];
   for (const id of hero.weapons) {
     const up = hero.upgrades?.[id] ?? {};
-    for (const kind of Object.keys(UPGRADE_TEXT)) if (!up[kind] && upgradeAllowed(id, kind, opts)) pool.push({ weapon: id, kind });
+    for (const kind of Object.keys(UPGRADE_TEXT))
+      if (!up[kind] && upgradeAllowed(id, kind, opts)) pool.push({ weapon: id, kind, w: UPGRADE_WEIGHT[kind] ?? 1 });
   }
-  for (let i = pool.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(rng() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
+  const picked = [];
+  while (picked.length < count && pool.length) {
+    let roll = rng() * pool.reduce((sum, o) => sum + o.w, 0);
+    let i = 0;
+    while (i < pool.length - 1 && roll >= pool[i].w) roll -= pool[i++].w;
+    const [{ weapon, kind }] = pool.splice(i, 1);
+    picked.push({ weapon, kind });
   }
-  return pool.slice(0, count);
+  return picked;
 }
 
 export function applyUpgrade(hero, option) {
