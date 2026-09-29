@@ -1,0 +1,563 @@
+/*
+ * 手机竖屏专用样式（以 iPhone 17 Pro 的 402×874 逻辑像素为基准设计）。
+ * 在 style.css 之后加载，同名选择器按先后顺序覆盖。
+ *
+ * 设计原则：
+ *  1. 安全区：页面铺到屏幕边缘（viewport-fit=cover），顶部让开灵动岛 / 状态栏，底部让开横条。
+ *  2. 字号：正文不小于 15px，辅助文字不小于 13px，英文等宽小标签不小于 11px。
+ *  3. 点按：所有按钮、卡片的点按区域不小于 44×44px。
+ *  4. 取舍：手机上只放“现在要用的”，其余收进菜单或抽屉，而不是把桌面布局等比缩小。
+ */
+
+/* ——— 安全区 ——— */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+html {
+  /* iOS 横竖屏切换时不要自动放大文字。 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* 手机菜单按钮只在竖屏手机上出现。 */
+.phone-menu {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  /* ——— 顶栏：一行，章节在左，回合数和菜单在右 ——— */
+  :root,
+  body:not(.in-level) {
+    --topbar: calc(52px + var(--safe-top));
+  }
+  .topbar,
+  body:not(.in-level) .topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: 52px;
+    height: var(--topbar);
+    padding: var(--safe-top) calc(12px + var(--safe-right)) 0 calc(16px + var(--safe-left));
+    gap: 12px;
+  }
+  .brand {
+    grid-row: 1;
+    grid-column: 1;
+  }
+  body.in-level .brand {
+    display: none;
+  }
+  .chapter {
+    grid-row: 1;
+    grid-column: 1;
+    min-width: 0;
+    height: auto;
+    border-top: 0;
+    gap: 10px;
+  }
+  .chapter .t-meta {
+    font-size: 12px;
+  }
+  .chapter b {
+    overflow: hidden;
+    font-size: 18px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .top-actions {
+    grid-row: 1;
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+  }
+  /* 桌面的一排图标按钮收进菜单，只留回合数和菜单。 */
+  .top-actions .icon-btn {
+    display: none;
+  }
+  .top-actions .phone-menu {
+    display: grid;
+    width: 44px;
+    height: 44px;
+  }
+  .phone-menu .icon {
+    width: 22px;
+    height: 22px;
+  }
+  .turns {
+    margin-right: 14px;
+  }
+  .turns .t-meta {
+    font-size: 11px;
+  }
+  .turns b {
+    font-size: 26px;
+  }
+
+  /* ——— 棋盘上方的信息栏：更高、更大的字，按钮达到 44px ——— */
+  .hud-strip {
+    top: calc(var(--topbar) + 8px);
+    left: calc(10px + var(--safe-left));
+    right: calc(10px + var(--safe-right));
+    height: 56px;
+    gap: 8px;
+    padding: 0 6px 0 12px;
+  }
+  .strip-hp .heart-svg {
+    width: 22px;
+  }
+  .strip-hp b {
+    font-size: 26px;
+  }
+  .strip-hp small {
+    font-size: 13px;
+  }
+  .strip-chip {
+    height: 44px;
+    min-width: 44px;
+    justify-content: center;
+    gap: 5px;
+    padding: 0 8px;
+    font-size: 15px;
+  }
+  .strip-chip .icon {
+    width: 18px;
+    height: 18px;
+  }
+  .strip-btn {
+    height: 44px;
+    gap: 6px;
+    padding: 0 12px;
+    font-size: 15px;
+  }
+  .strip-btn .icon {
+    width: 17px;
+    height: 17px;
+  }
+  .strip-btn em {
+    font-size: 13px;
+  }
+
+  /* ——— 方向键：让开底部横条 ——— */
+  .dpad {
+    right: calc(14px + var(--safe-right));
+    bottom: calc(14px + var(--safe-bottom));
+  }
+
+  /* ——— 抽屉（主角 / 目标）：说明文字放大 ——— */
+  .hero-hud,
+  .goal-hud {
+    padding-bottom: calc(var(--sp-5) + var(--safe-bottom));
+    font-size: 15px;
+  }
+  .hero-hud .weapon-list li,
+  .goal-hud li {
+    min-height: 48px;
+  }
+
+  /* ——— 全屏面板：让开顶栏与底部横条，贴满宽度 ——— */
+  .screen {
+    padding: calc(var(--topbar) + 16px) calc(12px + var(--safe-right)) calc(16px + var(--safe-bottom)) calc(12px + var(--safe-left));
+  }
+  .panel {
+    padding: 24px 20px;
+  }
+  .panel .body,
+  .panel .story,
+  .panel p {
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  .panel-actions .primary,
+  .panel-actions .ghost {
+    flex: 1 1 auto;
+    min-height: 52px;
+  }
+
+  /* ——— 标题页 ——— */
+  .title-card {
+    padding: 28px calc(20px + var(--safe-right)) calc(28px + var(--safe-bottom)) calc(20px + var(--safe-left));
+  }
+  .title-card .lede {
+    font-size: 16px;
+    line-height: 1.75;
+  }
+  .title-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .title-actions .primary {
+    grid-column: 1 / -1;
+    min-height: 56px;
+    font-size: 17px;
+  }
+  .title-actions .ghost {
+    min-height: 50px;
+    padding: 0 12px;
+    justify-content: center;
+  }
+
+  /* ——— 说明卡：让开安全区，正文放大 ——— */
+  .coach {
+    padding: calc(12px + var(--safe-top)) 12px calc(12px + var(--safe-bottom));
+  }
+  .coach-card {
+    padding: 22px 20px;
+    font-size: 15px;
+  }
+
+  /* ——— 章节列表：一行一章，一屏能看到七八章 ——— */
+  .level-grid {
+    grid-template-columns: 1fr;
+  }
+  .level-card {
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "no name foes"
+      "no en stars";
+    align-items: center;
+    gap: 2px 12px;
+    min-height: 76px;
+    padding: 12px 14px;
+  }
+  .level-card .level-no {
+    grid-area: no;
+    font-size: 34px;
+    line-height: 1;
+  }
+  .level-card b {
+    grid-area: name;
+    font-size: 17px;
+  }
+  .level-card em {
+    grid-area: en;
+    overflow: hidden;
+    font-size: 11px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .level-card .level-foes {
+    grid-area: foes;
+    justify-self: end;
+    margin: 0;
+  }
+  .level-card .level-foes .avatar-sm {
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+  }
+  .level-card .stars,
+  .level-card .lock {
+    grid-area: stars;
+    justify-self: end;
+  }
+
+  /* ——— 手机菜单 ——— */
+  .menu-panel {
+    width: 100%;
+  }
+  .menu-panel .panel-head {
+    margin-bottom: 8px;
+  }
+  .menu-list {
+    display: flex;
+    flex-direction: column;
+    border-top: 2px solid var(--ink);
+  }
+  .menu-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 56px;
+    padding: 0 4px;
+    font-size: 17px;
+    text-align: left;
+    color: var(--ink);
+    background: none;
+    border-bottom: 1px solid var(--grey-2);
+  }
+  .menu-row .icon {
+    width: 20px;
+    height: 20px;
+    color: var(--accent);
+  }
+  .menu-row span {
+    flex: 1;
+  }
+  .menu-row em {
+    min-width: 36px;
+    padding: 4px 8px;
+    font: 600 13px var(--mono);
+    font-style: normal;
+    text-align: center;
+    color: var(--accent-on);
+    background: var(--accent);
+  }
+  .menu-row:active {
+    background: var(--grey-1);
+  }
+}
+
+/*
+ * ——— 手机竖屏战斗：上下排布 ———
+ *  ┌ 充能 / 连击 · 回合横幅 · 回合数 ┐
+ *  │ 怪物：名字、特性、红心数         │
+ *  │ 下一招                           │
+ *  │ 怪物心阵（占满宽度与剩余高度）   │
+ *  ├ 主角心阵 │ 名字、红心数、这招打多少 ┤
+ *  │ 武器与技能（每行四张）           │
+ *  └ 防御 · 药水 · 等待 · 撤退        ┘
+ */
+.battle-modal.portrait {
+  padding: 0;
+  place-items: stretch;
+  background: var(--paper);
+}
+
+.battle-modal.portrait .battle-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  padding: calc(8px + var(--safe-top)) calc(14px + var(--safe-right)) calc(10px + var(--safe-bottom)) calc(14px + var(--safe-left));
+  overflow: hidden;
+  border: 0;
+}
+
+/* 顶部一行 */
+.battle-modal.portrait .battle-head {
+  flex: none;
+  min-height: 44px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+}
+
+.battle-modal.portrait .turn-banner {
+  padding: 8px 16px;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+}
+
+.battle-modal.portrait .round b {
+  font-size: 26px;
+}
+
+.battle-modal.portrait .combo-badge {
+  height: 34px;
+}
+
+.battle-modal.portrait .combo-badge b {
+  font-size: 19px;
+}
+
+/* 对战区：怪物在上、主角在下 */
+.battle-modal.portrait .arena {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.battle-modal.portrait .side {
+  gap: 6px;
+}
+
+.battle-modal.portrait .side.enemy {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.battle-modal.portrait .side.enemy .matrix-box {
+  flex: 1 1 auto;
+  min-height: 140px;
+}
+
+.battle-modal.portrait .who h3 {
+  font-size: 19px;
+  font-weight: 600;
+}
+
+/* 怪物名字和特性图标排在同一行，省出一行高度给心阵。 */
+.battle-modal.portrait .side.enemy .who {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.battle-modal.portrait .side.enemy .who p {
+  margin: 0;
+}
+
+.battle-modal.portrait .who p {
+  font-size: 13px;
+}
+
+/* 特性标签在手机上只留图标，但放大到能看清。 */
+.battle-modal.portrait .who p .trait {
+  padding: 3px 4px;
+}
+
+.battle-modal.portrait .who p .trait .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.battle-modal.portrait .hp .num {
+  font-size: 32px;
+}
+
+.battle-modal.portrait .hp em {
+  display: inline;
+  margin-left: 2px;
+  font-size: 14px;
+  color: var(--grey-3);
+}
+
+.battle-modal.portrait .intent,
+.battle-modal.portrait .aim-note {
+  height: 42px;
+  gap: 8px;
+  font-size: 15px;
+}
+
+.battle-modal.portrait .intent strong,
+.battle-modal.portrait .aim-note strong {
+  font-size: 16px;
+}
+
+.battle-modal.portrait .intent-fx {
+  font-size: 14px;
+}
+
+.battle-modal.portrait .aim-note b {
+  font-size: 18px;
+}
+
+/* 主角：左边心阵，右边名字、红心和这招的伤害 */
+.battle-modal.portrait .side.hero {
+  flex: none;
+  display: grid;
+  grid-template-columns: 46% 1fr;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "matrix head"
+    "matrix aim";
+  column-gap: 14px;
+  row-gap: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ink);
+}
+
+.battle-modal.portrait .side.hero .matrix-box {
+  grid-area: matrix;
+  height: 136px;
+}
+
+.battle-modal.portrait .side.hero .side-head {
+  grid-area: head;
+  align-items: flex-start;
+}
+
+.battle-modal.portrait .side.hero .aim-note {
+  grid-area: aim;
+  align-self: start;
+  height: auto;
+  min-height: 42px;
+  flex-wrap: wrap;
+  padding: 6px 0;
+  border-top-width: 1px;
+}
+
+/* 招式与动作 */
+.battle-modal.portrait .battle-foot {
+  flex: none;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.battle-modal.portrait .move-group {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  width: 100%;
+}
+
+.battle-modal.portrait .weapon {
+  width: auto;
+  height: 62px;
+  grid-template-rows: 30px auto 14px;
+  padding: 5px 3px 4px;
+}
+
+.battle-modal.portrait .weapon .weapon-shape,
+.battle-modal.portrait .weapon .weapon-shape .shape-svg {
+  max-width: 30px;
+  max-height: 30px;
+}
+
+.battle-modal.portrait .weapon .weapon-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.battle-modal.portrait .weapon .weapon-cd {
+  font-size: 12px;
+}
+
+.battle-modal.portrait .transform-bar .action {
+  height: 44px;
+  font-size: 14px;
+}
+
+.battle-modal.portrait .action-bar {
+  grid-template-rows: 50px;
+}
+
+.battle-modal.portrait .action-bar .action {
+  gap: 6px;
+  font-size: 15px;
+}
+
+.battle-modal.portrait .action-bar .action .icon {
+  width: 19px;
+  height: 19px;
+}
+
+/* 战斗里的提示条放在招式栏上方，不挡心阵。 */
+.battle-modal.portrait .battle-toast {
+  font-size: 15px;
+}
+
+/* 矮屏手机（如 iPhone SE）：主角心阵和招式卡再压矮一些，把高度让给怪物心阵——出招的地方永远最大。 */
+@media (max-height: 740px) {
+  .battle-modal.portrait .battle-head {
+    min-height: 38px;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+  }
+  .battle-modal.portrait .side.hero .matrix-box {
+    height: 96px;
+  }
+  .battle-modal.portrait .hp .num {
+    font-size: 28px;
+  }
+  .battle-modal.portrait .weapon {
+    height: 54px;
+    grid-template-rows: 24px auto 12px;
+  }
+  .battle-modal.portrait .weapon .weapon-shape,
+  .battle-modal.portrait .weapon .weapon-shape .shape-svg {
+    max-width: 24px;
+    max-height: 24px;
+  }
+  .battle-modal.portrait .action-bar {
+    grid-template-rows: 46px;
+  }
+}

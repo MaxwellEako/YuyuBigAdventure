@@ -70,8 +70,13 @@ export class LabelSprite {
     this.sprite = new THREE.Sprite(
       new THREE.SpriteMaterial({ map: this.texture, depthTest: false, transparent: true, toneMapped: false }),
     );
-    this.sprite.scale.set(1.12, 0.34, 1);
+    this.setScale(1);
     this.sprite.renderOrder = 10;
+  }
+
+  /** 按倍数缩放铭牌（竖屏手机上棋盘显得小，铭牌放大才看得清数字）。 */
+  setScale(k) {
+    this.sprite.scale.set(1.12 * k, 0.34 * k, 1);
   }
 
   draw({ hearts, total, armor = 0, alert = false, stun = false }) {

@@ -4,6 +4,7 @@ import { WEAPONS, SHIELD, POTION } from "../data/weapons.js";
 import { INTENT_TEXT } from "../data/monsters.js";
 import { getHeroName } from "../data/heroName.js";
 import { ALL_FEATURES } from "../data/features.js";
+import { battleLayout } from "./device.js";
 import { countHearts, reach } from "../logic/shapes.js";
 import {
   heroAttack,
@@ -127,11 +128,15 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   const $ = (sel) => root.querySelector(sel);
   const modal = $(".battle-modal");
   hideLockedParts();
-  modal.classList.toggle("landscape", innerHeight < 520 && innerWidth > innerHeight);
-  modal.classList.toggle("portrait", innerWidth < 760 && !(innerHeight < 520 && innerWidth > innerHeight));
-  // 手机横屏：心阵在左、招式在右；手机竖屏：两块心阵左右并排，各占一半宽度。
-  const landscape = innerHeight < 520 && innerWidth > innerHeight;
-  const narrow = innerWidth < 760 && !landscape;
+  const layout = battleLayout();
+  modal.classList.toggle("landscape", layout === "landscape");
+  modal.classList.toggle("portrait", layout === "stacked");
+  // 手机横屏：心阵在左、招式在右。
+  // 手机竖屏（stacked）：上下排布——怪物心阵占满宽度、吃掉剩余高度（它是出招的地方，要大、好点）；
+  // 主角心阵缩在下方一条里，旁边写着怪物下一招会打多少。心阵大小完全由 CSS 排出的外框决定。
+  const landscape = layout === "landscape";
+  const narrow = layout === "stacked";
+  const stacked = narrow;
   const compact = narrow || landscape;
   // 矩阵尺寸同时受宽度和高度约束，保证整张战斗卡片在一屏内。
   const maxSize = landscape
@@ -156,20 +161,21 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   }
   // 小屏上界外只留一圈，红心才不会被压得太小。
   if (compact) for (const k of Object.keys(enemyMargin)) enemyMargin[k] = Math.min(enemyMargin[k], 1);
-  // 两块心阵的外框等高；矩阵在框内居中，界外格铺满整个外框。
-  for (const box of root.querySelectorAll(".matrix-box")) box.style.height = `${Math.round(maxSize)}px`;
+  // 两块心阵的外框等高；矩阵在框内居中，界外格铺满整个外框。竖屏手机的外框高度交给 CSS。
+  if (!stacked) for (const box of root.querySelectorAll(".matrix-box")) box.style.height = `${Math.round(maxSize)}px`;
   const enemyBox = $("[data-enemy-matrix]").parentElement;
   const heroBox = $("[data-hero-matrix]").parentElement;
   const enemyView = new MatrixView($("[data-enemy-matrix]"), { margin: enemyMargin, maxSize, side: "enemy", box: enemyBox, minCell: compact ? 12 : 22 });
   // 主角心阵只需容纳药水的十字（每边 1 格）。
   const heroView = new MatrixView($("[data-hero-matrix]"), { margin: compact ? 0 : 1, maxSize, side: "hero", box: heroBox, minCell: compact ? 12 : 22 });
-  // 两块心阵共用同一个格子边长，左右的红心一样大。
+  // 左右并排时两块心阵共用同一个格子边长，红心一样大；上下排布时各自按自己的外框取最大。
   const syncSize = () => {
-    const size = Math.min(
-      enemyView.fitSize(combat.monsterMatrix.length, combat.monsterMatrix[0].length),
-      heroView.fitSize(combat.heroMatrix.length, combat.heroMatrix[0].length),
-    );
-    enemyView.fixedSize = heroView.fixedSize = size;
+    const enemySize = enemyView.fitSize(combat.monsterMatrix.length, combat.monsterMatrix[0].length);
+    const heroSize = heroView.fitSize(combat.heroMatrix.length, combat.heroMatrix[0].length);
+    if (stacked) {
+      enemyView.fixedSize = enemySize;
+      heroView.fixedSize = heroSize;
+    } else enemyView.fixedSize = heroView.fixedSize = Math.min(enemySize, heroSize);
   };
   syncSize();
   enemyView.set(combat.monsterMatrix);
@@ -186,6 +192,8 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   let done = false;
   let resolveBattle;
   let toastTimer = 0;
+  // 战斗结束时要一并清理的监听（例如竖屏的外框尺寸观察）。
+  const onDispose = [];
 
   requestAnimationFrame(() => modal.classList.add("open"));
 
@@ -701,6 +709,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     if (done) return;
     done = true;
     document.removeEventListener("keydown", onKey);
+    for (const dispose of onDispose) dispose();
     modal.classList.remove("open");
     modal.classList.add("closing");
     setTimeout(() => {
@@ -775,6 +784,23 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   document.addEventListener("keydown", onKey);
 
   render();
+  // 竖屏手机：招式栏、变形按钮排好之后怪物心阵的外框才定下来；外框大小变了（例如出现旋转按钮）就按新尺寸重排。
+  if (stacked) {
+    let pending = 0;
+    const refit = () => {
+      pending = 0;
+      syncSize();
+      enemyView.relayout();
+      heroView.relayout();
+      refreshPreview();
+    };
+    refit();
+    const observer = new ResizeObserver(() => {
+      if (!pending) pending = requestAnimationFrame(refit);
+    });
+    observer.observe(enemyBox);
+    onDispose.push(() => observer.disconnect());
+  }
   // 招式很多时底部会折成两行：若整张卡片超出屏幕，就把两块心阵的外框压矮，再按新尺寸重建。
   const card = $(".battle-card");
   const overflow = card.getBoundingClientRect().height - (innerHeight - 24);

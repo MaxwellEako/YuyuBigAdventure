@@ -1,4 +1,6 @@
 import "./style.css";
+// 手机竖屏的专用样式，必须在 style.css 之后加载才能覆盖。
+import "./phone.css";
 import { BoardWorld } from "./render/world.js";
 import { Sfx } from "./audio.js";
 import { LEVELS, LEGACY_ORDER, weaponsForLevel, skillsForLevel } from "./data/levels.js";
@@ -147,6 +149,7 @@ app.innerHTML = `${SPRITE}
       <button class="icon-btn" data-cmd="sound" title="音效开关" aria-label="音效开关" id="sound-btn">${icon("sound")}</button>
       <button class="icon-btn" data-cmd="restart" title="重新开始本章（R）" aria-label="重新开始本章">${icon("restart")}</button>
       <button class="icon-btn" data-cmd="levels" title="选择关卡" aria-label="选择关卡">${icon("menu")}</button>
+      <button class="icon-btn phone-menu" data-cmd="menu" aria-label="菜单">${icon("menu")}</button>
     </div>
   </header>
   <aside class="hud hero-hud" id="hero-hud"></aside>
@@ -1397,11 +1400,59 @@ function showFieldArmor() {
   });
 }
 
+/**
+ * 手机菜单：竖屏顶栏只留一个菜单按钮，其余按钮收进这里，每一行都有足够的点按高度。
+ * 在章节里多出“转动视角 / 重新开始 / 选择关卡”；标题页只有说明和声音开关。
+ */
+function showMenu() {
+  if (busy || document.body.classList.contains("in-battle")) return;
+  const inLevel = document.body.classList.contains("in-level");
+  const was = playing;
+  playing = false;
+  const row = (cmd, glyph, label, extra = "") =>
+    `<button class="menu-row" data-cmd="${cmd}">${icon(glyph)}<span>${label}</span>${extra}</button>`;
+  const toggle = (cmd, glyph, label, on) => row(cmd, glyph, label, `<em data-menu-state="${cmd}">${on ? "开" : "关"}</em>`);
+  showScreen(
+    "menu",
+    `<div class="panel menu-panel">
+      <header class="panel-head"><div>${kicker(icon("menu"), "菜单", "MENU")}</div><button class="icon-btn" data-cmd="back" aria-label="关闭">${icon("close")}</button></header>
+      <nav class="menu-list">
+        ${inLevel ? row("levels", "flag", "选择关卡") + row("restart", "restart", "重新开始本章") + row("rotate", "orbit", "转动视角") : ""}
+        ${row("help", "help", "玩法说明")}
+        ${toggle("music", "music", "音乐", sfx.musicEnabled)}
+        ${toggle("sound", "sound", "音效", sfx.enabled)}
+      </nav>
+    </div>`,
+  );
+  // 关闭菜单回到原来的状态；菜单里跳去别的界面时，由那个界面接管返回。
+  screenBack = () => {
+    hideScreen();
+    playing = was;
+    refreshMarks();
+  };
+  // 从菜单里点“重新开始 / 转动视角”时先把菜单收起来，恢复棋盘状态。
+  menuReturn = screenBack;
+}
+
 // ——— 命令与输入 ———
+
+/** 手机菜单打开期间，关闭菜单用的回调；菜单项执行前先调用它收起菜单。 */
+let menuReturn = null;
+
+/** 从手机菜单里执行的命令：先收起菜单、恢复棋盘状态，再执行。 */
+const fromMenu = (fn) => () => {
+  if (screenName === "menu" && menuReturn) {
+    const back = menuReturn;
+    menuReturn = null;
+    back();
+  }
+  fn();
+};
 
 const commands = {
   continue: () => startLevel(Math.min(progress.unlocked, LEVELS.length) - 1),
-  levels: showLevels,
+  levels: fromMenu(showLevels),
+  menu: showMenu,
   armory: showArmory,
   sheetHero: () => openSheet("hero"),
   sheetGoal: () => openSheet("goal"),
@@ -1415,13 +1466,13 @@ const commands = {
     const btn = document.querySelector("[data-cmd=hints]");
     if (btn) btn.textContent = `新手提示 · ${progress.hints ? "开" : "关"}`;
   },
-  help: showHelp,
+  help: fromMenu(showHelp),
   begin,
   back: () => (screenBack ? screenBack() : hideScreen()),
   title: showTitle,
   replay: () => startLevel(levelIndex),
   next: () => startLevel(levelIndex + 1),
-  restart: () => {
+  restart: fromMenu(() => {
     if (!document.body.classList.contains("in-level") || busy || screenName) return;
     const was = playing;
     playing = false;
@@ -1442,12 +1493,12 @@ const commands = {
       refreshMarks();
     };
     setTimeout(() => document.querySelector(".reset-panel [data-cmd=back]")?.focus(), 30);
-  },
+  }),
   confirmRestart: () => {
     startLevel(levelIndex, { intro: false });
     toast(`${icon("restart")} 已回到本章起点`);
   },
-  rotate: () => world.rotateView(),
+  rotate: fromMenu(() => world.rotateView()),
   potion: showFieldHeal,
   armor: showFieldArmor,
   sound: () => {
@@ -1471,6 +1522,9 @@ for (const type of ["pointerdown", "keydown"]) document.addEventListener(type, (
 function syncAudioButtons() {
   $("#sound-btn").innerHTML = icon(sfx.enabled ? "sound" : "mute");
   $("#music-btn").innerHTML = icon(sfx.musicEnabled ? "music" : "music-off");
+  // 手机菜单里的开关同步显示当前状态。
+  const state = { music: sfx.musicEnabled, sound: sfx.enabled };
+  for (const el of document.querySelectorAll("[data-menu-state]")) el.textContent = state[el.dataset.menuState] ? "开" : "关";
 }
 syncAudioButtons();
 

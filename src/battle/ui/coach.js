@@ -31,7 +31,10 @@ const legend = (rows) =>
   `<ul class="coach-legend">${rows.map(([glyph, text]) => `<li><span class="legend-glyph">${glyph}</span><span>${text}</span></li>`).join("")}</ul>`;
 
 const inkSwatch = '<span class="swatch ink"></span>';
-import { isTouch as coarse } from "./device.js";
+import { isTouch as coarse, battleLayout } from "./device.js";
+
+/** 战斗窗口里怪物心阵 / 主角心阵的方位：竖屏手机上下排布，其余左右并排。 */
+const sides = () => (battleLayout() === "stacked" ? { enemy: "上方", hero: "下方" } : { enemy: "左侧", hero: "右侧" });
 
 /**
  * 每个新机制第一次出现时弹出的说明。文案按说明书的口吻写，关键词用 [ ] 标出。
@@ -49,16 +52,14 @@ export const TOPICS = {
   "tour-enemy": {
     title: "怪物的红心矩阵",
     target: "[data-side=enemy] .matrix-box",
-    body: `左侧为怪物的[红心矩阵]。消除全部红心即可获胜。`,
+    body: () => `${sides().enemy}为怪物的[红心矩阵]。消除全部红心即可获胜。`,
   },
   "tour-hero": {
     get title() {
       return `${getHeroName()}的红心矩阵`;
     },
     target: "[data-side=hero] .matrix-box",
-    get body() {
-      return `右侧为${getHeroName()}的[红心矩阵]，红心全部消除即战败。${legend([[inkSwatch, "墨黑格为怪物下一招的攻击范围。"]])}`;
-    },
+    body: () => `${sides().hero}为${getHeroName()}的[红心矩阵]，红心全部消除即战败。${legend([[inkSwatch, "墨黑格为怪物下一招的攻击范围。"]])}`,
   },
   "tour-intent": {
     title: "怪物的下一招",

@@ -8,3 +8,15 @@ export const TOUCH_QUERY = "(pointer: coarse)";
 export function isTouch() {
   return Boolean(window.matchMedia?.(TOUCH_QUERY).matches);
 }
+
+/**
+ * 战斗窗口的排布方式，布局与说明文字共用这一个判断：
+ *  - landscape：手机横屏，心阵在左、招式在右；
+ *  - stacked：手机竖屏，怪物心阵在上、主角心阵在下；
+ *  - wide：平板与电脑，两块心阵左右并排。
+ */
+export function battleLayout() {
+  if (innerHeight < 520 && innerWidth > innerHeight) return "landscape";
+  if (innerWidth < 760) return "stacked";
+  return "wide";
+}

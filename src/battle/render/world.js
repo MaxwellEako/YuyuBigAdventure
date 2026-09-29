@@ -405,6 +405,7 @@ export class BoardWorld {
       const group = makeMonster(m.def.model);
       group.position.copy(tileCenter(m.r, m.c));
       const label = new LabelSprite();
+      label.setScale(this.labelScale ?? 1);
       label.sprite.position.y = m.def.boss ? 1.75 : m.def.model === "ink" ? 0.85 : 1.35;
       label.sprite.userData.ownTexture = true;
       group.add(label.sprite);
@@ -765,6 +766,9 @@ export class BoardWorld {
     const portrait = aspect < 0.9;
     this.camera.aspect = aspect;
     this.camera.fov = portrait ? 46 : 38;
+    // 竖屏时棋盘整体偏小，怪物头顶的血量铭牌放大 1.5 倍。
+    this.labelScale = portrait ? 1.5 : 1;
+    for (const entry of this.monsters?.values() ?? []) entry.label.setScale(this.labelScale);
     this.camera.updateProjectionMatrix();
     // 按水平视角算出能装下整张棋盘（含边框）的距离；竖屏时更俯视一些。
     const halfFov = THREE.MathUtils.degToRad(this.camera.fov / 2);
