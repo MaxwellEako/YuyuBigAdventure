@@ -53,7 +53,7 @@ import {
 import { solveChain, grindTurns } from "./helpers/chainSolver.js";
 import { featuresAt } from "../src/battle/data/features.js";
 import { WEAPONS, STARTING_WEAPONS } from "../src/battle/data/weapons.js";
-import { MONSTERS, heartsAt } from "../src/battle/data/monsters.js";
+import { MONSTERS, heartsAt, variantsAt } from "../src/battle/data/monsters.js";
 import { LEVELS, weaponsForLevel, skillsForLevel } from "../src/battle/data/levels.js";
 import { SKILLS } from "../src/battle/data/skills.js";
 import {
@@ -75,6 +75,9 @@ import {
   toggleSkill,
   SKILL_SLOTS,
   sanitizeUpgrades,
+  isAdvanced,
+  ADVANCED_CHANCE,
+  moveLoadout,
 } from "../src/battle/logic/arsenal.js";
 import { transformShape, shapeKey } from "../src/battle/logic/shapes.js";
 
@@ -394,25 +397,27 @@ test("强化：延长可切换为加长形状；候选项不会重复已有的�
   assert.equal(WEAPONS.cross.shape.size, 5);
   assert.equal(WEAPONS.cross.plusShape.size, 9);
   const hero = { weapons: ["dagger", "hook", "hammer"], upgrades: {} };
-  const all = upgradeOptions(hero, createRng(1), 20).map((o) => `${o.weapon}:${o.kind}`).sort();
+  const all = upgradeOptions(hero, createRng(1), 20).map((o) => `${o.weapon}:${o.kind}`);
+  const basic = all.filter((k) => !isAdvanced(k.split(":")[1])).sort();
   assert.deepEqual(
-    all,
+    basic,
     [
-      "dagger:chain",
-      "dagger:nimble",
+      "dagger:precise",
+      "dagger:relay",
       "dagger:rotate",
       "hammer:extend",
       "hammer:pierce",
       "hammer:stagger",
-      "hammer:steady",
       "hook:extend",
       "hook:mirror",
       "hook:pierce",
-      "hook:precise",
       "hook:rotate",
     ],
-    "轻武器走灵活路线（连锁、灵巧）；中型延长、精准、破甲；重武器稳击、延长、破甲、震慑",
+    "基础强化补短板：轻武器精准、垫步；中型延长、破甲；重武器延长、震慑、破甲（旋转、镜像看武器本身）",
   );
+  const advanced = all.filter((k) => isAdvanced(k.split(":")[1]));
+  assert.ok(advanced.length <= 1, "一组候选里最多一个进阶强化");
+  for (const k of advanced) assert.ok(["dagger:chain", "dagger:doom", "hammer:quake"].includes(k), k);
   applyUpgrade(hero, { weapon: "dagger", kind: "rotate" });
   assert.equal(upgradeOptions(hero, createRng(1), 10).some((o) => o.weapon === "dagger" && o.kind === "rotate"), false);
   const combat = createCombat({
@@ -447,27 +452,6 @@ test("延长：战斗中不占回合地切换长短，可以随时切回原形�
     rng: createRng(1),
   });
   assert.equal(heroTransform(plain, "spear", "extend").ok, false, "没有延长强化");
-});
-
-test("稳击：一半以上的攻击格命中红心时，其余格子落空也能接上连击", () => {
-  // 心阵中间有空位：战锤 2×2 盖上去只有 2 格是红心。
-  const make = (upgrades) => {
-    const c = createCombat({
-      hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "hammer"], potions: 0, upgrades },
-      monster: { def: MONSTERS.pawn, matrix: parseMatrix(["#####", "##...", "#####"]) },
-      rng: createRng(1),
-    });
-    c.energy = ENERGY_MAX;
-    return c;
-  };
-  const plain = make({});
-  assert.equal(previewCombo(plain, "hammer", 1, 1), "break", "没有稳击：落在空位上就算落空");
-  const steady = make({ hammer: { steady: true } });
-  assert.equal(previewCombo(steady, "hammer", 1, 1), "start", "稳击：2/4 格命中即不算落空");
-  heroAttack(steady, "dagger", 0, 0);
-  steady.phase = "hero";
-  assert.equal(previewCombo(steady, "hammer", 1, 1), "link", "紧挨上一击，接上连击");
-  assert.equal(previewCombo(steady, "hammer", 0, 4), "break", "只有 1/4 格命中（其余在空位与界外）仍算落空");
 });
 
 test("技能：次数有限；疾风斩后可以立刻再用一次普通武器；定身让怪物跳过一次行动；汲血恢复红心", () => {
@@ -578,7 +562,7 @@ test("追击：连击 ×3、×6 时怪物行动前再出一招；追击中不会
   assert.ok(reachesChase(5, 6) && reachesChase(2, 4) && !reachesChase(3, 5));
 });
 
-test("轻武器强化：连锁让连击多涨一次，灵巧不必紧挨上一击", () => {
+test("轻武器强化：连锁让连击多涨一次；垫步接上连击时其余武器冷却 −1；不再有不必紧挨上一击的强化", () => {
   const make = (upgrades) =>
     createCombat({
       hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "slash"], potions: 0, upgrades },
@@ -595,11 +579,86 @@ test("轻武器强化：连锁让连击多涨一次，灵巧不必紧挨上一�
   heroAttack(plain, "dagger", 0, 0);
   plain.phase = "hero";
   assert.equal(previewCombo(plain, "slash", 2, 4), "start", "离得远：重新起手");
-  const nimble = make({ slash: { nimble: true } });
-  heroAttack(nimble, "dagger", 0, 0);
-  nimble.phase = "hero";
-  assert.equal(previewCombo(nimble, "slash", 2, 4), "link", "灵巧：不挨着也能连上");
-  assert.equal(previewCombo(nimble, "slash", 3, 5), "break", "但不能落空");
+  assert.deepEqual(sanitizeUpgrades({ dagger: { nimble: true, rotate: true } }), { dagger: { rotate: true } }, "旧存档里的灵巧被去掉");
+
+  // 垫步：钩镰用完进入冷却，下一击用带垫步的短剑接上，钩镰的冷却立刻少一回合。
+  const relay = createCombat({
+    hero: { matrix: filledMatrix(5, 5), weapons: ["hook", "dagger"], potions: 0, upgrades: { dagger: { relay: true } } },
+    monster: { def: MONSTERS.pawn, matrix: parseMatrix(["######", "######", "######", "######"]) },
+    rng: createRng(5),
+  });
+  heroAttack(relay, "hook", 0, 0);
+  const cooling = slotOf(relay, "hook").cd;
+  relay.phase = "hero";
+  heroAttack(relay, "dagger", 0, 2);
+  assert.equal(previewCombo(relay, "dagger", 0, 4), "repeat");
+  assert.equal(slotOf(relay, "hook").cd, cooling - 1, "垫步：钩镰冷却 −1");
+});
+
+test("进阶强化：死灭抹去格子、贯通沿直线延伸、巨化再大一档、震地打断后晕眩", () => {
+  // 死灭：被短剑消除的两格变成空位，怪物回血只能落在别处。
+  const doom = createCombat({
+    hero: { matrix: filledMatrix(5, 5), weapons: ["dagger"], potions: 0, upgrades: { dagger: { doom: true } } },
+    monster: { def: MONSTERS.bishop, matrix: parseMatrix(["####", "####"]) },
+    rng: createRng(2),
+  });
+  const result = heroAttack(doom, "dagger", 0, 0);
+  assert.equal(doom.monsterMatrix[0][0], VOID, "消除的格子被抹去");
+  assert.ok(result.events.some((e) => e.type === "doom"));
+  assert.equal(countHearts(doom.monsterMatrix).slots, 6, "心阵少了两格");
+
+  // 贯通：长枪（纵向三格）落在一整列红心上，一直打到空位为止；落空时不延伸。
+  const line = createCombat({
+    hero: { matrix: filledMatrix(5, 5), weapons: ["spear"], potions: 0, upgrades: { spear: { line: true } } },
+    monster: { def: MONSTERS.rook, matrix: parseMatrix(["#.", "#.", "#.", "#.", "#.", ".#"]) },
+    rng: createRng(2),
+  });
+  assert.equal(previewAttack(line, "spear", 1, 0).length, 5, "从两端延伸，整列五格");
+  assert.equal(previewCombo(line, "spear", 1, 0), "start", "延伸出来的格子都是红心，不算落空");
+  assert.equal(previewAttack(line, "spear", 4, 0).length, 2, "有一格落在空位上：照常判定，不延伸");
+  assert.ok(!upgradeOptions({ weapons: ["hook"], upgrades: {} }, () => 0, 99).some((o) => o.kind === "line"), "钩镰不是直线，拿不到贯通");
+
+  // 巨化：先有延长才会刷出；延长按钮在 原形状 → 延长 → 巨化 之间循环。
+  assert.ok(!upgradeOptions({ weapons: ["hammer"], upgrades: {} }, () => 0, 99).some((o) => o.kind === "giant"), "没有延长时不出巨化");
+  assert.ok(upgradeOptions({ weapons: ["hammer"], upgrades: { hammer: { extend: true } } }, () => 0, 99).some((o) => o.kind === "giant"));
+  const giant = createCombat({
+    hero: { matrix: filledMatrix(5, 5), weapons: ["hammer"], potions: 0, upgrades: { hammer: { extend: true, giant: true } } },
+    monster: { def: MONSTERS.pawn, matrix: filledMatrix(4, 5) },
+    rng: createRng(2),
+  });
+  const sizes = [0, 1, 2, 3].map(() => {
+    const size = previewAttack(giant, "hammer", 0, 0).length;
+    heroTransform(giant, "hammer", "extend");
+    return size;
+  });
+  assert.deepEqual(sizes, [4, 6, 12, 4], "2×2 → 2×3 → 3×4 → 回到 2×2");
+
+  // 震地：打断重击时怪物额外晕眩一回合。
+  const step = MONSTERS.knight.pattern.findIndex((p) => p.kind === "charge") + 1;
+  const quake = createCombat({
+    hero: { matrix: filledMatrix(5, 5), weapons: ["hammer"], potions: 0, upgrades: { hammer: { quake: true } } },
+    monster: { def: MONSTERS.knight, matrix: parseMatrix(["####", "####", "####"]), step },
+    rng: createRng(1),
+  });
+  quake.energy = ENERGY_MAX;
+  heroAttack(quake, "hammer", 0, 0);
+  assert.equal(quake.stunned, true, "打断之后再晕眩一回合");
+});
+
+test("进阶强化稀有：大多数铁砧只出基础强化，出现时一组最多一个", () => {
+  const hero = { weapons: ["dagger", "hook", "hammer"], upgrades: { hammer: { extend: true } } };
+  const rng = createRng(11);
+  let groups = 0;
+  let withAdvanced = 0;
+  for (let i = 0; i < 400; i += 1) {
+    const options = upgradeOptions(hero, rng, 3);
+    const n = options.filter((o) => isAdvanced(o.kind)).length;
+    assert.ok(n <= 1);
+    groups += 1;
+    if (n) withAdvanced += 1;
+  }
+  const rate = withAdvanced / groups;
+  assert.ok(rate > 0.15 && rate < 0.45, `约三成的铁砧会出现一个进阶强化（每项 ${ADVANCED_CHANCE * 100}%），实际 ${rate}`);
 });
 
 test("连击：换武器且紧挨上一击才连上；连用同一件或离得远都从头起手；护甲不算落空", () => {
@@ -659,7 +718,7 @@ test("破甲强化：普通武器也能一击击碎护甲心", () => {
   assert.deepEqual(sanitizeUpgrades({ dagger: { pierce: true, rotate: true }, slash: { extend: true } }), { dagger: { rotate: true } }, "旧存档里不再允许的强化会被去掉");
   assert.ok(!upgradeOptions({ weapons: ["awl"], upgrades: {} }, createRng(2), 99).some((o) => o.kind === "pierce"), "破甲锥本来就破甲");
   assert.ok(!upgradeOptions({ weapons: ["hammer"], upgrades: {} }, createRng(2), 99, { stagger: false }).some((o) => o.kind === "stagger"), "蓄力怪出场前不刷震慑");
-  assert.deepEqual(sanitizeUpgrades({ hammer: { steady: true }, hook: { steady: true } }), { hammer: { steady: true } }, "稳击只给重武器");
+  assert.deepEqual(sanitizeUpgrades({ hammer: { steady: true }, hook: { steady: true } }), {}, "稳击已经取消");
 });
 
 test("打断重击：怪物蓄力后，重武器一下打碎 3 颗心就能打断；震慑降到 2 颗", () => {
@@ -742,18 +801,18 @@ test("怪物回血：补回的格子连成一片、挨着现有的心；伤口�
   monsterTurn(island);
   assert.equal(island.monsterMatrix[1][1], 0, "伤口四周的心都碎了，回血落空");
 });
-test("精准强化：这件武器连上时多得一点充能；轻武器拿不到", () => {
+test("精准强化：轻武器垫刀接上连击时多得一点充能；中型武器拿不到", () => {
   const combat = createCombat({
-    hero: { matrix: filledMatrix(4, 4), weapons: ["dagger", "hook"], potions: 0, upgrades: { hook: { precise: true } } },
+    hero: { matrix: filledMatrix(4, 4), weapons: ["dagger", "hook"], potions: 0, upgrades: { dagger: { precise: true } } },
     monster: { def: MONSTERS.knight, matrix: parseMatrix(["####", "####"]) },
     rng: createRng(3),
   });
-  heroAttack(combat, "dagger", 0, 0);
+  heroAttack(combat, "hook", 0, 0);
   combat.phase = "hero";
-  heroAttack(combat, "hook", 0, 2);
+  heroAttack(combat, "dagger", 0, 2);
   assert.equal(combat.combo, 2);
   assert.equal(combat.energy, ENERGY_START, "开局的充能 − 钩镰 1 + 精准 1");
-  assert.deepEqual(sanitizeUpgrades({ dagger: { precise: true }, hook: { precise: true } }), { hook: { precise: true } });
+  assert.deepEqual(sanitizeUpgrades({ dagger: { precise: true }, hook: { precise: true } }), { dagger: { precise: true } });
 });
 test("铁砧：三项强化固定不变，每项只能刷新一次", () => {
   const hero = { weapons: ["dagger", "hook", "spear"], upgrades: {} };
@@ -844,7 +903,29 @@ test("怪物心阵按章节分档成长：前期够连上几下，后期越来�
   assert.equal(heartsAt(MONSTERS.bishop, 0), heartsAt(MONSTERS.bishop, 1), "没写的档位沿用最近的一档");
   const late = createBoard(LEVELS[9], { weapons: STARTING_WEAPONS });
   const rook = late.monsters.find((m) => m.def.id === "rook");
-  assert.equal(countHearts(rook.matrix).slots, countHearts(heartsAt(MONSTERS.rook, 2)).slots, "棋盘按本章的档位生成怪物");
+  const key = (m) => JSON.stringify(m);
+  assert.ok(variantsAt(MONSTERS.rook, 2).map(key).includes(key(rook.matrix)), "棋盘按本章的档位、从这一档的变体里取一套");
+});
+
+test("心阵变体：普通怪物每一档至少 3 套，全部中心对称，同一档轮廓大小一致；遭遇时随机取一套", () => {
+  const pointSymmetric = (m) => m.every((row, r) => row.every((v, c) => (v > VOID) === (m[m.length - 1 - r][row.length - 1 - c] > VOID)));
+  for (const def of Object.values(MONSTERS)) {
+    // 墨渍怪是序章的教学怪物，暗王是首领：特殊怪物只有一套、可以不对称。
+    if (def.id === "ink" || def.boss) continue;
+    for (const rank of Object.keys(def.ranks)) {
+      const list = variantsAt(def, Number(rank));
+      assert.ok(list.length >= 3, `${def.name} 第 ${rank} 档只有 ${list.length} 套`);
+      for (const m of list) assert.ok(pointSymmetric(m), `${def.name} 第 ${rank} 档有一套不是中心对称`);
+      const hearts = list.map((m) => countHearts(m).hearts);
+      assert.ok(Math.max(...hearts) - Math.min(...hearts) <= 3, `${def.name} 第 ${rank} 档各套红心数相差太大：${hearts}`);
+    }
+  }
+  const seen = new Set();
+  for (let i = 0; i < 40; i += 1) {
+    const board = createBoard(LEVELS[4], { weapons: STARTING_WEAPONS, rng: createRng(i + 1) });
+    seen.add(JSON.stringify(board.monsters.find((m) => m.def.id === "bishop").matrix));
+  }
+  assert.ok(seen.size >= 3, "多次进入同一章，主教的心阵会换着来");
 });
 
 test("名字长度按显示宽度计：中文最多 9 个字，英文最多 18 个字母", () => {
@@ -910,18 +991,20 @@ test("怪物心阵是给武器拼的：首次登场时，用当时的武器能�
     const owned = weaponsForLevel(index, STARTING_WEAPONS);
     for (const spec of level.monsters) {
       const def = MONSTERS[spec.type];
-      const matrix = heartsAt(def, level.rank);
-      const id = `${def.id}:${JSON.stringify(matrix)}`;
-      // 序章只有短剑、还没学连击：这一档留到有两件武器的章节再验证。
-      if (checked.has(id) || owned.length < 2) continue;
-      checked.add(id);
-      const late = level.rank >= 2;
-      const best = solveChain({ def, matrix, weapons: owned, slots: level.slots, maxTurns: late ? 4 : 6, until: late ? "chase" : "won" });
-      assert.ok(best, `${level.name}的${def.name}找不到连击路线`);
-      if (!late) {
-        const grind = grindTurns({ def, matrix, weapon: "dagger" });
-        assert.ok(best.turns < grind, `${level.name}的${def.name}：连击 ${best.turns} 回合，短剑硬磨 ${grind} 回合`);
-      }
+      // 同一档的每一套变体都要检查：遭遇时随机取一套，哪一套都得拼得出来。
+      variantsAt(def, level.rank).forEach((matrix, v) => {
+        const id = `${def.id}:${JSON.stringify(matrix)}`;
+        // 序章只有短剑、还没学连击：这一档留到有两件武器的章节再验证。
+        if (checked.has(id) || owned.length < 2) return;
+        checked.add(id);
+        const late = level.rank >= 2;
+        const best = solveChain({ def, matrix, weapons: owned, slots: level.slots, maxTurns: late ? 4 : 6, until: late ? "chase" : "won" });
+        assert.ok(best, `${level.name}的${def.name}（第 ${v + 1} 套）找不到连击路线`);
+        if (!late) {
+          const grind = grindTurns({ def, matrix, weapon: "dagger" });
+          assert.ok(best.turns < grind, `${level.name}的${def.name}（第 ${v + 1} 套）：连击 ${best.turns} 回合，短剑硬磨 ${grind} 回合`);
+        }
+      });
     }
   });
 });
@@ -968,4 +1051,26 @@ test("机制按章节解锁：序章只有短剑和攻击；钩镰是序章奖�
   heroAttack(combat, "hook", 1, 1);
   assert.equal(combat.combo, 0, "没学连击时不计连击");
   assert.equal(combat.energy, ENERGY_START - 1, "也不会因为连击得充能");
+});
+
+test("拖动换装：出战内调整顺序、闲置拖上去（有空槽插入，槽满放到某件上互换）、拖下来换下，武器至少留一件", () => {
+  const hero = { weapons: ["dagger", "hook", "slash", "spear"], equipped: ["dagger", "hook"], slots: 3, skills: { swift: 2, stun: 1 }, equippedSkills: ["swift"] };
+  assert.deepEqual(moveLoadout(hero, { kind: "weapon", id: "hook", toZone: "on", targetId: "dagger", before: true }), { ok: true, changed: true });
+  assert.deepEqual(hero.equipped, ["hook", "dagger"], "出战段内调整顺序");
+  moveLoadout(hero, { kind: "weapon", id: "slash", toZone: "on", targetId: "hook", before: false });
+  assert.deepEqual(hero.equipped, ["hook", "slash", "dagger"], "有空槽：插到放下的位置");
+  assert.equal(moveLoadout(hero, { kind: "weapon", id: "spear", toZone: "on", targetId: null }).ok, false, "槽满又没放到某一件上");
+  moveLoadout(hero, { kind: "weapon", id: "spear", toZone: "on", targetId: "slash", before: true });
+  assert.deepEqual(hero.equipped, ["hook", "spear", "dagger"], "槽满：放到斜刃上就和它互换");
+  moveLoadout(hero, { kind: "weapon", id: "dagger", toZone: "off", targetId: "slash" });
+  assert.deepEqual(hero.equipped, ["hook", "spear", "slash"], "出战拖到闲置的某一件上：互换");
+  moveLoadout(hero, { kind: "weapon", id: "spear", toZone: "off", targetId: null });
+  moveLoadout(hero, { kind: "weapon", id: "slash", toZone: "off", targetId: null });
+  assert.deepEqual(hero.equipped, ["hook"]);
+  assert.equal(moveLoadout(hero, { kind: "weapon", id: "hook", toZone: "off", targetId: null }).ok, false, "至少留一件");
+  assert.equal(moveLoadout(hero, { kind: "weapon", id: "cross", toZone: "on" }).ok, false, "没拿到的武器");
+  moveLoadout(hero, { kind: "skill", id: "stun", toZone: "on", targetId: null });
+  assert.deepEqual(hero.equippedSkills, ["swift", "stun"]);
+  moveLoadout(hero, { kind: "skill", id: "swift", toZone: "off", targetId: null });
+  assert.deepEqual(hero.equippedSkills, ["stun"], "技能可以全部换下");
 });

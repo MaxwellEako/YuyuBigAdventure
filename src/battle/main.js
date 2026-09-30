@@ -11,6 +11,7 @@ import { LEVELS, LEGACY_ORDER, weaponsForLevel, skillsForLevel } from "./data/le
 import { WEAPONS, STARTING_WEAPONS, POTION } from "./data/weapons.js";
 import { SKILLS } from "./data/skills.js";
 import {
+  isAdvanced,
   weaponShape,
   applyUpgrade,
   upgradePreview,
@@ -24,6 +25,7 @@ import {
   sanitizeUpgrades,
   UPGRADE_TEXT,
   SKILL_SLOTS,
+  moveLoadout,
 } from "./logic/arsenal.js";
 import { createCoach, skillTopic, TOPICS } from "./ui/coach.js";
 import { rich, kw } from "./ui/keywords.js";
@@ -61,6 +63,7 @@ import { runBattle, GLYPH, MOVE_TEXT, traitChips } from "./ui/battleView.js";
 import { MatrixView } from "./ui/matrixView.js";
 import { SPRITE, icon, shapeSvg, matrixSvg, heartSvg } from "./ui/icons.js";
 import { heroSheetHtml } from "./ui/heroSheet.js";
+import { bindLoadoutDrag } from "./ui/dragLoadout.js";
 import { upgradeKeys, upLogo, costMarks, weaponCost } from "./ui/marks.js";
 
 // v3：新增序章；每章开始时的构筑（强化、装备的武器与技能）一起保存；记录看过的新机制说明。
@@ -496,7 +499,17 @@ const firstLevelWith = (test) => LEVELS.findIndex((l) => l.monsters.some((m) => 
 const FIRST_ARMOR_LEVEL = firstLevelWith((def) => def.armored);
 /** 第一只会蓄力重击的怪物出场之前，铁砧不会刷出震慑（没有重击可打断）。 */
 const FIRST_CHARGE_LEVEL = firstLevelWith((def) => def.pattern.some((p) => p.kind === "charge"));
-const forgeRules = () => ({ pierce: levelIndex >= FIRST_ARMOR_LEVEL, stagger: levelIndex >= FIRST_CHARGE_LEVEL });
+/** 第一只会回血的怪物出场之前，铁砧不会刷出死灭（没有回血可阻止）。 */
+const FIRST_HEAL_LEVEL = firstLevelWith((def) => def.pattern.some((p) => p.kind === "heal"));
+const forgeRules = () => ({ pierce: levelIndex >= FIRST_ARMOR_LEVEL, stagger: levelIndex >= FIRST_CHARGE_LEVEL, heal: levelIndex >= FIRST_HEAL_LEVEL });
+
+/** 铁砧卡片上的说明：延长、巨化写明多几格，其余用强化本身的说明。 */
+function forgeDesc(opt) {
+  const w = WEAPONS[opt.weapon];
+  if (opt.kind === "extend") return `战斗中可切换为加长形状（多 ${w.plusShape.size - w.shape.size} 格），不占用回合。`;
+  if (opt.kind === "giant") return `延长按钮多一档：可切换为 ${w.giantShape.size} 格的巨化形状，不占用回合。`;
+  return UPGRADE_TEXT[opt.kind].desc;
+}
 
 /** 铁砧：随机给出三项强化，玩家选一项；也可以暂不强化，稍后再来。 */
 function showForge(item) {
@@ -510,11 +523,14 @@ function showForge(item) {
     const w = WEAPONS[opt.weapon];
     const { before, after } = upgradePreview(opt, board.hero.upgrades);
     const equipped = board.hero.equipped.includes(opt.weapon);
-    return `<button class="forge-card" data-upgrade="${i}">
+    // 进阶强化的卡片：黑底、蓝色细框、右上角“进阶”标签，一眼看出稀有。
+    const adv = isAdvanced(opt.kind);
+    return `<button class="forge-card ${adv ? "adv" : ""}" data-upgrade="${i}">
+        ${adv ? '<span class="forge-tag">进阶</span>' : ""}
         <span class="t-meta forge-weapon">${w.name}${equipped ? "" : `<i class="in-bag" title="在背包里">${icon("bag")}</i>`}</span>
-        <b>${icon(UPGRADE_TEXT[opt.kind].icon)}${UPGRADE_TEXT[opt.kind].name}</b>
+        <b>${upLogo(opt.kind)}${UPGRADE_TEXT[opt.kind].name}</b>
         <span class="forge-shapes"><span>${shapeSvg(before, { cell: 14, gap: 3 })}</span><i aria-hidden="true">→</i><span>${shapeSvg(after, { cell: 14, gap: 3 })}</span></span>
-        <small>${opt.kind === "extend" ? `战斗中可切换为加长形状（多 ${WEAPONS[opt.weapon].plusShape.size - WEAPONS[opt.weapon].shape.size} 格），不占用回合。` : UPGRADE_TEXT[opt.kind].desc}</small>
+        <small>${forgeDesc(opt)}</small>
       </button>
       <button class="reroll" data-reroll="${i}" ${opt.rerolled ? "disabled" : ""}>${icon("restart")}${opt.rerolled ? "已重抽" : "重抽"}</button>`;
   };
@@ -1520,6 +1536,24 @@ function syncAudioButtons() {
   for (const el of document.querySelectorAll("[data-menu-state]")) el.textContent = state[el.dataset.menuState] ? "开" : "关";
 }
 syncAudioButtons();
+
+// 武器面板里拖动换装：在“出战”“闲置”之间拖动武器与技能。战斗中、弹窗打开时不可用（一场战斗只用一套构筑）。
+bindLoadoutDrag(
+  $("#hero-hud"),
+  (move) => {
+    const result = moveLoadout(board.hero, move);
+    if (!result.ok) {
+      sfx.play("invalid");
+      toast(result.reason);
+      return;
+    }
+    if (!result.changed) return;
+    sfx.play("click");
+    renderHud();
+    refreshMarks();
+  },
+  () => Boolean(board) && !busy && !screenName && !document.body.classList.contains("in-battle"),
+);
 
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-cmd]");

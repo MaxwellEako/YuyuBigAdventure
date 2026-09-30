@@ -545,9 +545,38 @@ html {
 }
 
 .battle-modal.portrait .turn-banner {
-  padding: 6px 14px;
+  padding: 6px 10px;
   font-size: 13px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
+}
+
+/* 左上角：第一行充能；第二行追击进度 + 缩小的连击标记，不压到中间的回合横幅。 */
+.battle-modal.portrait .head-left {
+  grid-template-areas:
+    "energy energy"
+    "chase combo";
+  column-gap: 6px;
+  row-gap: 4px;
+}
+
+.battle-modal.portrait .combo-badge {
+  height: 20px;
+  gap: 2px;
+  padding: 0 4px;
+  border-width: 1.5px;
+}
+
+.battle-modal.portrait .combo-badge .combo-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.battle-modal.portrait .combo-badge b {
+  font-size: 13px;
+}
+
+.battle-modal.portrait .chase-meter .seg {
+  width: 12px;
 }
 
 .battle-modal.portrait .round b {
@@ -555,13 +584,6 @@ html {
   color: var(--grey-3);
 }
 
-.battle-modal.portrait .combo-badge {
-  height: 30px;
-}
-
-.battle-modal.portrait .combo-badge b {
-  font-size: 17px;
-}
 
 /* 对战区：怪物区在上、主角区在下 */
 .battle-modal.portrait .arena {
@@ -819,31 +841,6 @@ html {
   }
 }
 
-.battle-modal.portrait .weapon .weapon-ups .up-icon {
-  width: 14px;
-  height: 14px;
-}
-
-.battle-modal.portrait .weapon .weapon-ups .up-icon .icon {
-  width: 10px;
-  height: 10px;
-}
-
-/* 强化超过两枚：只留第一枚，其余收成“+N”。 */
-.battle-modal.portrait .weapon-ups.many .up-icon:nth-of-type(n + 2) {
-  display: none;
-}
-
-.battle-modal.portrait .weapon-ups.many .up-more {
-  display: grid;
-  place-items: center;
-  width: 14px;
-  height: 14px;
-  box-sizing: border-box;
-  font: 500 9px var(--mono);
-  font-style: normal;
-  border: 1px solid currentColor;
-}
 
 /* 技能卡：一行排开——形状、名字、次数。 */
 .battle-modal.portrait .weapon.skill {

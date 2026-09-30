@@ -248,24 +248,27 @@
   position: absolute;
   top: 7px;
   right: 7px;
-  display: flex;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: repeat(2, 12px);
+  justify-content: end;
+  gap: 3px;
 }
 
+/* 一行两枚、最多三行，往下排，不横向压住左上角的形状。 */
 .battle-card .weapon .weapon-ups .up-icon {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   margin: 0;
 }
 
 .battle-card .weapon .weapon-ups .up-icon .icon {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
 }
 
-/* “+N”只在窄屏上出现（见 phone.css），电脑上强化标记全部排开。 */
-.battle-card .up-more {
-  display: none;
+/* 只有一枚时靠右放。 */
+.battle-card .weapon .weapon-ups .up-icon:only-child {
+  grid-column: 2;
 }
 
 .battle-card .weapon .weapon-name {
@@ -447,6 +450,90 @@
 /* 动作按钮很窄，遮罩再深一些，免得底下的文字和沙漏叠在一起。 */
 .action .cd-mask {
   background: #5a5a5a;
+}
+
+/* ——— 追击进度：充能下方的三格进度条 + 追击图标（不用文字） ——— */
+
+.battle-card .head-left {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-areas:
+    "energy combo"
+    "chase combo";
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 5px;
+}
+
+.battle-card .head-left .energy {
+  grid-area: energy;
+}
+
+.battle-card .head-left .combo-badge {
+  grid-area: combo;
+}
+
+.chase-meter {
+  grid-area: chase;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.chase-meter[hidden] {
+  display: none;
+}
+
+.chase-meter .seg {
+  width: 16px;
+  height: 6px;
+  background: var(--accent-tint);
+  transition: background 0.12s var(--ease-prod);
+}
+
+.chase-meter .seg.on {
+  background: var(--accent);
+}
+
+/* 追击图标：进度亮满时点亮并弹一下。 */
+.chase-meter .chase-mark {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 3px;
+  color: #8aa0d6;
+  background: var(--accent-tint);
+}
+
+.chase-meter .chase-mark .icon {
+  width: 12px;
+  height: 12px;
+}
+
+.chase-meter.full .chase-mark {
+  color: var(--accent-on);
+  background: var(--accent);
+  animation: combo-pop 0.4s var(--ease-entry);
+}
+
+/* 悬停预览：这一击接得上——下一格显示斜纹；接不上——整排变成虚线框。 */
+.chase-meter.rising .seg.next:not(.on) {
+  background: repeating-linear-gradient(135deg, var(--accent) 0 2px, var(--accent-tint) 2px 4px);
+}
+
+.chase-meter.at-risk .seg {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--accent);
+  outline: 0;
+}
+
+.chase-meter.at-risk .seg.on {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  outline: 1.5px dashed var(--accent);
+  outline-offset: -1.5px;
 }
 
 /* ——— 动作条 ——— */

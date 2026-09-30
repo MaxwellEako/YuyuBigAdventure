@@ -1,40 +1,37 @@
 import { icon } from "./icons.js";
 import { WEAPONS } from "../data/weapons.js";
-import { UPGRADE_TEXT } from "../logic/arsenal.js";
+import { UPGRADE_TEXT, isAdvanced } from "../logic/arsenal.js";
 import { ENERGY_COST } from "../logic/combat.js";
 
 /**
  * 战斗、武器面板、构筑页共用的小标记。
  * 同一种信息在所有界面上画成同一个样子，玩家认一次就够了：
- *  - 强化：黑底白色图标的小方块（旋转、镜像、破甲……）
+ *  - 强化：黑底白色图标的小方块（基础强化）；蓝底白色图标加一圈描边（进阶强化）
  *  - 充能消耗：蓝色小菱形，几个菱形就消耗几点
  *  - 冷却：灰色遮罩 + 沙漏 + 剩余回合数
  *  - 技能次数：一排小方块，实心是还能用的次数，空心是已经用掉的
  */
 
 /**
- * 一件武器身上的全部强化标记（含破甲锥这种天生破甲），返回强化的 key 列表。
+ * 一件武器身上的强化标记（含破甲锥这种天生破甲），返回强化的 key 列表；进阶强化排在前面。
  * @param {string} id 武器 id
  * @param {object} upgrades 主角的强化表：{ 武器id: { rotate: true, ... } }
+ * @param {{ passive?: boolean }} opts passive 为 true 时去掉旋转、镜像、延长、巨化这类战斗中用按钮切换的强化
+ *   （招式卡上不画它们：选中武器后就会出现对应的按钮）
  */
-export function upgradeKeys(id, upgrades) {
-  const own = Object.keys(UPGRADE_TEXT).filter((k) => upgrades?.[id]?.[k]);
+export function upgradeKeys(id, upgrades, { passive = false } = {}) {
+  const own = Object.keys(UPGRADE_TEXT).filter((k) => upgrades?.[id]?.[k] && !(passive && UPGRADE_TEXT[k].toggle));
   // 天生破甲的武器也画一枚破甲标记，但不要和强化出来的破甲重复。
   if (WEAPONS[id]?.pierce && !own.includes("pierce")) own.push("pierce");
-  return own;
+  return [...own.filter(isAdvanced), ...own.filter((k) => !isAdvanced(k))];
 }
 
-/** 单枚强化标记：黑底白色图标，鼠标悬停显示名称。 */
-export const upLogo = (key) => `<i class="up-icon" title="${UPGRADE_TEXT[key].name}">${icon(UPGRADE_TEXT[key].icon)}</i>`;
+/** 单枚强化标记：基础强化黑底白色图标，进阶强化蓝底白色图标加描边；鼠标悬停显示名称。 */
+export const upLogo = (key) =>
+  `<i class="up-icon ${isAdvanced(key) ? "adv" : ""}" title="${UPGRADE_TEXT[key].name}${isAdvanced(key) ? "（进阶）" : ""}">${icon(UPGRADE_TEXT[key].icon)}</i>`;
 
-/**
- * 一组强化标记。
- * 招式卡在窄屏上放不下太多枚：由 CSS 只显示第一枚，其余收成“+N”（up-more 在宽屏上隐藏）。
- */
-export function upLogos(keys) {
-  const logos = keys.map(upLogo).join("");
-  return keys.length > 2 ? `${logos}<i class="up-more" aria-hidden="true">+${keys.length - 1}</i>` : logos;
-}
+/** 一组强化标记。 */
+export const upLogos = (keys) => keys.map(upLogo).join("");
 
 /** 武器每次出手消耗的充能点数（轻武器为 0）。 */
 export const weaponCost = (id) => ENERGY_COST[WEAPONS[id]?.weight] ?? 0;

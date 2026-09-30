@@ -12,7 +12,8 @@ import { weaponShape, UPGRADE_TEXT, SKILL_SLOTS } from "../logic/arsenal.js";
  *   主角    名字 · 红心 / 总数（同一行）
  *           缩略心阵 │ 药水 · 钥匙 · 护甲片 · 防御冷却
  *   出战    一行一件：形状 · 名字 · 充能菱形 ……… 强化标记（黑底白色图标）
- *   技能    一行一个：形状 · 名字 ……… 剩余次数方块
+ *   闲置    同样的一行，颜色淡一些；在“出战”“闲置”之间拖动即可换装（拖放逻辑见 dragLoadout.js）
+ *   技能    出战 / 闲置两段，同样可以拖动；右侧是剩余次数方块
  *   图例    只列出上面出现过的强化标记，写明各自的作用
  *   构筑    底部主按钮
  */
@@ -30,8 +31,8 @@ export function heroSheetHtml({ hero, features, kicker, sheetHead }) {
     ${kicker("01", "主角", "HERO")}
     ${heroBlock(hero, features)}
     ${kicker("02", "出战", "ARSENAL", `<em class="slot-count">${hero.equipped.length} / ${hero.slots}</em><button class="build-chip" data-cmd="armory" title="构筑">${icon("bag")}构筑</button>`)}
-    <ul class="sheet-list">${hero.equipped.map((id, i) => weaponRow(id, i, hero.upgrades)).join("")}</ul>
-    ${bagLine(hero)}
+    ${dropList("weapon", "on", hero.equipped.map((id, i) => weaponRow(id, i, hero.upgrades, "on")))}
+    ${idleWeapons(hero)}
     ${skillBlock(hero, kicker)}
     ${legend(hero)}
     <button class="primary sheet-build" data-cmd="armory">${icon("bag")}<span>构筑 · 更换出战武器与技能</span><span aria-hidden="true">→</span></button>`;
@@ -64,11 +65,23 @@ function heroBlock(hero, features) {
     </div>`;
 }
 
-/** 出战武器的一行：快捷键 · 形状 · 名字 · 充能消耗 ……… 强化标记。 */
-function weaponRow(id, i, upgrades) {
+/**
+ * 一段可以拖放的列表。kind：weapon / skill；zone：on 出战 / off 闲置。
+ * 空列表也保留一块放置区，拖进来就能换上或换下。
+ */
+function dropList(kind, zone, rows, extraClass = "") {
+  const empty = zone === "on" ? "拖到这里出战" : "拖到这里换下";
+  return `<ul class="sheet-list ${extraClass} zone-${zone}" data-drop-kind="${kind}" data-drop-zone="${zone}">${rows.join("") || `<li class="drop-empty">${empty}</li>`}</ul>`;
+}
+
+/** 拖动时抓住的那一行：带上种类、所在段和 id。 */
+const dragAttrs = (kind, zone, id) => `data-drag-kind="${kind}" data-drag-zone="${zone}" data-drag-id="${id}"`;
+
+/** 武器的一行：快捷键（闲置的不显示）· 形状 · 名字 · 充能消耗 ……… 强化标记。 */
+function weaponRow(id, i, upgrades, zone) {
   const w = WEAPONS[id];
-  return `<li title="${w.desc}">
-    <kbd class="wi key-hint">${i + 1}</kbd>
+  return `<li title="${w.desc}" ${dragAttrs("weapon", zone, id)}>
+    ${zone === "on" ? `<kbd class="wi key-hint">${i + 1}</kbd>` : '<span class="wi"></span>'}
     <span class="ws">${shapeSvg(weaponShape(id, upgrades), { cell: 7, gap: 1.5 })}</span>
     <span class="wn">${w.name}</span>
     ${costMarks(weaponCost(id))}
@@ -76,32 +89,31 @@ function weaponRow(id, i, upgrades) {
   </li>`;
 }
 
-/** 背包里还没带上的武器：一排小形状。 */
-function bagLine(hero) {
+/** 背包里还没带上的武器：同样一行一件，放在“闲置”小标题下面。只有一件武器时不显示这一段。 */
+function idleWeapons(hero) {
   const idle = hero.weapons.filter((id) => !hero.equipped.includes(id));
-  if (!idle.length) return "";
-  const shapes = idle
-    .map((id) => `<span title="${WEAPONS[id].name}">${shapeSvg(weaponShape(id, hero.upgrades), { cell: 6, gap: 1.5 })}</span>`)
-    .join("");
-  return `<p class="bag-line" title="背包">${icon("bag")}${shapes}</p>`;
+  if (hero.weapons.length < 2) return "";
+  return `<div class="idle-label">${icon("bag")}<span>闲置</span><em>拖动换装</em></div>${dropList("weapon", "off", idle.map((id, i) => weaponRow(id, i, hero.upgrades, "off")), "idle")}`;
 }
 
-/** 技能：一行一个，右侧是剩余次数方块。还没学会技能时整段不显示。 */
+/** 技能：出战 / 闲置两段，右侧是剩余次数方块。还没学会技能时整段不显示。 */
 function skillBlock(hero, kicker) {
-  if (!Object.keys(hero.skills).length) return "";
-  const rows = hero.equippedSkills
-    .map((id) => {
-      const sk = SKILLS[id];
-      const left = hero.skills[id];
-      return `<li class="${left ? "" : "spent"}" title="${sk.desc}">
+  const owned = Object.keys(hero.skills);
+  if (!owned.length) return "";
+  const row = (id, zone) => {
+    const sk = SKILLS[id];
+    const left = hero.skills[id];
+    return `<li class="${left ? "" : "spent"}" title="${sk.desc}" ${dragAttrs("skill", zone, id)}>
         <span class="wi">${icon("skill")}</span>
         <span class="ws">${shapeSvg(sk.shape, { cell: 7, gap: 1.5, tone: "skill" })}</span>
         <span class="wn">${sk.name}</span>
         <span class="ups">${chargePips(left, sk.charges)}</span>
       </li>`;
-    })
-    .join("");
-  return `${kicker("03", "技能", "SKILLS", `<em class="slot-count">${hero.equippedSkills.length} / ${SKILL_SLOTS}</em>`)}<ul class="sheet-list skills">${rows}</ul>`;
+  };
+  const idle = owned.filter((id) => !hero.equippedSkills.includes(id));
+  return `${kicker("03", "技能", "SKILLS", `<em class="slot-count">${hero.equippedSkills.length} / ${SKILL_SLOTS}</em>`)}
+    ${dropList("skill", "on", hero.equippedSkills.map((id) => row(id, "on")), "skills")}
+    ${owned.length > hero.equippedSkills.length || hero.equippedSkills.length ? `<div class="idle-label">${icon("bag")}<span>闲置</span></div>${dropList("skill", "off", idle.map((id) => row(id, "off")), "skills idle")}` : ""}`;
 }
 
 /** 图例：只列出出战武器身上出现过的强化，说明书式“标记 · 名称 · 作用”。 */

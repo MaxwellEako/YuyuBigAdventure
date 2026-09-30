@@ -23,10 +23,12 @@ import {
   ENERGY_MAX,
   comboLinks,
   comboLabel,
+  CHASE_EVERY,
   previewHeal,
   slotOf,
   slotDef,
   slotShape,
+  attackShape,
   slotBlocked,
   heroTransform,
 } from "../logic/combat.js";
@@ -93,6 +95,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
         <div class="head-left">
           <div class="energy" data-energy title="充能 · 连击 ×2 起，每次连击获得 1 点"></div>
           <div class="combo-badge" data-combo title="连击">${icon("combo", "combo-icon")}<b data-combo-count></b></div>
+          <div class="chase-meter" data-chase title="每连上 ${CHASE_EVERY} 下触发一次追击"></div>
         </div>
         <div class="turn-banner" data-banner>己方回合</div>
         <div class="round"><span class="t-meta">Round</span><b data-round>01</b></div>
@@ -160,7 +163,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     slot.kind === "skill"
       ? [slotShape(combat, slot)]
       : [0, 1, 2, 3].flatMap((rot) =>
-          [false, true].flatMap((flip) => [false, true].map((ext) => weaponShape(slot.id, combat.upgrades, { rot, flip, ext }))),
+          [false, true].flatMap((flip) => [0, 1, 2].map((ext) => weaponShape(slot.id, combat.upgrades, { rot, flip, ext }))),
         ),
   );
   for (const shape of allShapes) {
@@ -296,10 +299,11 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     ].join(" ");
     const meta = weapon ? costMarks(cost) : chargePips(slot.charges, SKILLS[slot.id].charges);
     // 强化标记超过两枚时加上 many：窄屏只显示第一枚，其余收成“+N”。
-    const ups = weapon ? upgradeKeys(slot.id, combat.upgrades) : [];
+    // 招式卡只画被动效果类的强化（旋转、镜像、延长有专门的按钮），一行两枚，最多三行。
+    const ups = weapon ? upgradeKeys(slot.id, combat.upgrades, { passive: true }).slice(0, 6) : [];
     return `<button class="${classes}" data-weapon="${slot.id}" title="${def.name} · ${def.desc}${lastUsed ? " · 上一击所用武器，无法接续连击" : ""}">
       <span class="weapon-shape">${shapeSvg(shape, { cell: cardCell(shape), gap: 2, tone: weapon ? "attack" : "skill" })}</span>
-      <span class="weapon-ups ${ups.length > 2 ? "many" : ""}">${upLogos(ups)}</span>
+      <span class="weapon-ups">${upLogos(ups)}</span>
       <span class="weapon-name">${def.name}</span>
       <span class="weapon-meta">${meta}</span>
       <kbd class="key-hint">${keyLabel(i)}</kbd>
@@ -320,13 +324,15 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     const up = slot?.kind === "weapon" ? combat.upgrades[slot.id] ?? {} : {};
     const owned = (k) => combat.weapons.some((w) => w.kind === "weapon" && combat.upgrades[w.id]?.[k]);
     // 延长是开关：切到加长形状时按钮保持按下的样子。
-    const on = (k) => k === "extend" && slot?.orient?.ext;
+    const on = (k) => k === "extend" && slot?.orient?.ext > 0;
+    // 延长按钮切到第三档（巨化）时，图标与名称换成巨化。
+    const face = (k) => (k === "extend" && slot?.orient?.ext === 2 ? "giant" : k);
     $("[data-transform]").innerHTML = Object.keys(TRANSFORM_KEYS)
       .filter(owned)
-      .map(
-        (k) =>
-          `<button class="action transform ${up[k] ? "" : "idle"} ${on(k) ? "on" : ""}" data-transform-kind="${k}" title="${UPGRADE_TEXT[k].name}（${TRANSFORM_KEYS[k]}）" ${up[k] ? "" : 'disabled aria-hidden="true" tabindex="-1"'} ${k === "extend" ? `aria-pressed="${Boolean(on(k))}"` : ""}>${icon(UPGRADE_TEXT[k].icon)}<span>${UPGRADE_TEXT[k].name}</span><small class="key-hint">${TRANSFORM_KEYS[k]}</small></button>`,
-      )
+      .map((k) => {
+        const f = UPGRADE_TEXT[face(k)];
+        return `<button class="action transform ${up[k] ? "" : "idle"} ${on(k) ? "on" : ""}" data-transform-kind="${k}" title="${f.name}（${TRANSFORM_KEYS[k]}）" ${up[k] ? "" : 'disabled aria-hidden="true" tabindex="-1"'} ${k === "extend" ? `aria-pressed="${on(k)}"` : ""}>${icon(f.icon)}<span>${f.name}</span><small class="key-hint">${TRANSFORM_KEYS[k]}</small></button>`;
+      })
       .join("");
   }
 
@@ -395,6 +401,20 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     return n;
   }
 
+  /**
+   * 追击进度：CHASE_EVERY 格进度 + 追击图标。每连上一下亮一格，亮满时追击图标点亮；
+   * 追击之后下一次连上从第一格重新计。
+   */
+  function renderChase() {
+    const links = comboLinks(combat.combo);
+    const filled = links ? ((links - 1) % CHASE_EVERY) + 1 : 0;
+    const meter = $("[data-chase]");
+    meter.classList.toggle("full", filled === CHASE_EVERY);
+    meter.innerHTML =
+      Array.from({ length: CHASE_EVERY }, (_, k) => `<i class="seg ${k < filled ? "on" : ""} ${k === filled % CHASE_EVERY ? "next" : ""}"></i>`).join("") +
+      `<b class="chase-mark">${icon("chase")}</b>`;
+  }
+
   // 左上角：充能一排蓝色菱形，连击标记连上之后才出现。
   function renderCombo() {
     const links = comboLinks(combat.combo);
@@ -422,6 +442,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     renderActions();
     renderIntent();
     renderCombo();
+    renderChase();
     enemyView.markLast(combat.combo > 0 ? combat.lastFootprint : null);
     $("[data-log]").innerHTML = combat.log
       .slice(-3)
@@ -436,18 +457,22 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     enemyView.el.classList.remove("pv-perfect", "pv-link");
     $(".intent").classList.remove("will-interrupt");
     $("[data-combo]").classList.remove("at-risk", "rising");
+    $("[data-chase]").classList.remove("at-risk", "rising");
     if (!hover || busy || combat.phase !== "hero") return;
     if (mode === "attack" && hover.side === "enemy") {
       const slot = slotOf(combat, selected);
       const hits = previewAttack(combat, selected, hover.r, hover.c);
       const ready = !slotBlocked(combat, slot);
-      enemyView.preview(slotShape(combat, slot), hover.r, hover.c, hits, { valid: ready && hits.length > 0 });
+      enemyView.preview(attackShape(combat, selected, hover.r, hover.c), hover.r, hover.c, hits, { valid: ready && hits.length > 0 });
       const outcome = ready && hits.length ? previewCombo(combat, selected, hover.r, hover.c) : null;
       enemyView.el.classList.toggle("pv-perfect", outcome && outcome !== "break");
       enemyView.el.classList.toggle("pv-link", outcome === "link");
       if (ready && hits.length && previewInterrupt(combat, selected, hover.r, hover.c)) $(".intent").classList.add("will-interrupt");
       // 连击中：这一击能接上，标记亮起；落空或离上一击太远，标记变成虚线。
       if (outcome && comboLinks(combat.combo)) $("[data-combo]").classList.add(outcome === "link" ? "rising" : "at-risk");
+      // 追击进度：这一击能接上时下一格显示斜纹预告；会断连时整排变成虚线。
+      if (outcome === "link") $("[data-chase]").classList.add("rising");
+      else if (outcome && comboLinks(combat.combo)) $("[data-chase]").classList.add("at-risk");
     }
     if (mode === "heal" && hover.side === "hero") {
       const heals = previewHeal(combat, hover.r, hover.c);
@@ -614,6 +639,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     const locked = (feature) => !features.has(feature);
     $("[data-energy]").hidden = locked("energy");
     $("[data-combo]").hidden = locked("combo");
+    $("[data-chase]").hidden = locked("combo");
     for (const act of ["shield", "potion", "wait", "retreat"]) $(`[data-act=${act}]`).hidden = locked(act);
     $(".action-bar").hidden = ["shield", "potion", "wait", "retreat"].every(locked);
   }

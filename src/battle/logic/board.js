@@ -1,4 +1,10 @@
-import { MONSTERS, MOVE_SETS, heartsAt } from "../data/monsters.js";
+import { MONSTERS, MOVE_SETS, variantsAt } from "../data/monsters.js";
+
+/** 从某一档的几套心阵变体里随机取一套。 */
+const pickVariant = (def, rank, rng) => {
+  const list = variantsAt(def, rank);
+  return list[Math.floor(rng() * list.length) % list.length];
+};
 import { cloneMatrix, filledMatrix, countHearts, parseShape, footprint, applyChanges, HEART, ARMOR } from "./shapes.js";
 import { skillCharges } from "./combat.js";
 import { defaultEquip, SKILL_SLOTS } from "./arsenal.js";
@@ -25,7 +31,7 @@ export const key = (r, c) => `${r},${c}`;
  */
 export function createBoard(
   level,
-  { weapons, upgrades = {}, skills = {}, equipped = null, equippedSkills = null, knownSkills = [], minSlots = 0, usedForges = [] },
+  { weapons, upgrades = {}, skills = {}, equipped = null, equippedSkills = null, knownSkills = [], minSlots = 0, usedForges = [], rng = Math.random },
 ) {
   const slots = Math.max(level.slots ?? weapons.length, minSlots);
   const learned = Object.keys(skills);
@@ -65,7 +71,8 @@ export function createBoard(
       def,
       r: spec.at[0],
       c: spec.at[1],
-      matrix: cloneMatrix(heartsAt(def, level.rank ?? 0)),
+      // 同一档有几套心阵变体时随机取一套（见 data/monsters.js）。
+      matrix: cloneMatrix(pickVariant(def, level.rank ?? 0, rng)),
       step: 0,
       ai: spec.ai ?? "static",
       sight: spec.sight ?? 0,

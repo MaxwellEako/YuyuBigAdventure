@@ -10,12 +10,13 @@ import {
   EMPTY,
   HEART,
   ARMOR,
+  VOID,
 } from "./shapes.js";
 import { WEAPONS, SHIELD, POTION } from "../data/weapons.js";
 import { SKILLS } from "../data/skills.js";
 import { getHeroName } from "../data/heroName.js";
 import { ALL_FEATURES } from "../data/features.js";
-import { weaponShape, nextRotation, weaponCooldown } from "./arsenal.js";
+import { weaponShape, nextRotation, nextExtend, weaponCooldown, isLineShape } from "./arsenal.js";
 
 /**
  * 充能：中型、重型武器每用一次要消耗充能，充能靠连击攒。
@@ -66,7 +67,7 @@ export function createCombat({
     // 武器与技能共用一排“招式位”：武器有冷却和朝向，技能有剩余次数。
     // 只有装备在武器槽 / 技能槽里的招式才会进入战斗。
     weapons: [
-      ...(hero.equipped ?? hero.weapons).map((id) => ({ id, kind: "weapon", cd: 0, orient: { rot: 0, flip: false, ext: false } })),
+      ...(hero.equipped ?? hero.weapons).map((id) => ({ id, kind: "weapon", cd: 0, orient: { rot: 0, flip: false, ext: 0 } })),
       ...Object.entries(hero.skills ?? {})
         .filter(([id]) => !hero.equippedSkills || hero.equippedSkills.includes(id))
         .map(([id, charges]) => ({ id, kind: "skill", cd: 0, charges })),
@@ -183,11 +184,6 @@ export function isClean(matrix, cells) {
   return cells.every(([r, c]) => inBounds(matrix, r, c) && matrix[r][c] > EMPTY);
 }
 
-/** 稳击：至少一半的攻击格命中红心（护甲心也算），其余格子落在空位或心阵外也不算落空。 */
-export function isSteady(matrix, cells) {
-  const landed = cells.filter(([r, c]) => inBounds(matrix, r, c) && matrix[r][c] > EMPTY).length;
-  return landed * 2 >= cells.length;
-}
 
 /** 两次攻击的范围是否相邻：有格子重合，或上下左右紧挨着。 */
 export function touches(a, b) {
@@ -196,23 +192,45 @@ export function touches(a, b) {
 
 /**
  * 这一击对连击的影响。
- * break：落空，连击清零（带「稳击」的武器只要一半的格子命中红心就不算落空）。
+ * break：落空，连击清零。
  * repeat：没落空，但和上一击用的是同一件武器，从这一击重新起手（照常造成伤害，只是刷不了连击）。
  * start：没落空，但不挨着上一击（或还没有连击），从这一击重新起手。
- * link：没落空、换了武器、并且紧挨着上一击，连击 +1。带「灵巧」的武器不必紧挨上一击。
+ * link：没落空、换了武器、并且紧挨着上一击，连击 +1。
  */
 export function comboOutcome(state, shape, r, c, weaponId) {
   const cells = footprint(shape, r, c);
-  const steady = Boolean(weaponId && state.upgrades[weaponId]?.steady);
-  if (!(steady ? isSteady : isClean)(state.monsterMatrix, cells)) return "break";
+  if (!isClean(state.monsterMatrix, cells)) return "break";
   if (state.combo === 0 || !state.lastFootprint) return "start";
   if (weaponId && weaponId === state.lastWeaponId) return "repeat";
-  if (weaponId && state.upgrades[weaponId]?.nimble) return "link";
   return touches(cells, state.lastFootprint) ? "link" : "start";
 }
 
 export function previewCombo(state, weaponId, r, c) {
-  return comboOutcome(state, slotShape(state, slotOf(state, weaponId)), r, c, weaponId);
+  return comboOutcome(state, attackShape(state, weaponId, r, c), r, c, weaponId);
+}
+
+/**
+ * 这一击实际的攻击形状。平时就是招式的形状；带「贯通」的直线形武器，
+ * 会从两端沿自身方向继续延伸，一直延伸到遇到空位（或心阵边缘）为止——延伸出来的每一格都是红心，
+ * 所以“每一格都落在红心上”这条规则不受影响。
+ */
+export function attackShape(state, weaponId, r, c) {
+  const slot = slotOf(state, weaponId);
+  const shape = slotShape(state, slot);
+  if (slot.kind !== "weapon" || !state.upgrades[slot.id]?.line || !isLineShape(shape)) return shape;
+  const m = state.monsterMatrix;
+  const cells = footprint(shape, r, c);
+  // 只有完全落在红心上的直线才会延伸：落空的一击照常判定为落空。
+  if (!isClean(m, cells)) return shape;
+  const [dr, dc] = [Math.sign(cells[1][0] - cells[0][0]), Math.sign(cells[1][1] - cells[0][1])];
+  const alive = (rr, cc) => inBounds(m, rr, cc) && m[rr][cc] > EMPTY;
+  const extra = [];
+  for (let [rr, cc] = [cells[0][0] - dr, cells[0][1] - dc]; alive(rr, cc); rr -= dr, cc -= dc) extra.push([rr, cc]);
+  const last = cells[cells.length - 1];
+  for (let [rr, cc] = [last[0] + dr, last[1] + dc]; alive(rr, cc); rr += dr, cc += dc) extra.push([rr, cc]);
+  if (!extra.length) return shape;
+  const offsets = [...shape.offsets, ...extra.map(([rr, cc]) => [rr - r, cc - c])];
+  return { ...shape, offsets, size: offsets.length };
 }
 
 /**
@@ -228,7 +246,7 @@ export const comboLabel = (links) => (links <= 1 ? "连击" : `连击 ×${links}
 
 export function previewAttack(state, weaponId, r, c) {
   const slot = slotOf(state, weaponId);
-  return resolveHits(state.monsterMatrix, slotShape(state, slot), r, c, { pierce: slotPierce(state, slot) });
+  return resolveHits(state.monsterMatrix, attackShape(state, weaponId, r, c), r, c, { pierce: slotPierce(state, slot) });
 }
 
 /** 变形（不消耗回合）：旋转到下一个朝向、左右翻转，或在原形状与加长形状之间切换。只对拥有对应强化的武器生效。 */
@@ -238,7 +256,7 @@ export function heroTransform(state, weaponId, kind) {
   if (!state.upgrades[weaponId]?.[kind]) return { ok: false, reason: `${WEAPONS[weaponId].name}没有这项强化` };
   if (kind === "rotate") slot.orient = { ...slot.orient, rot: nextRotation(weaponId, state.upgrades, slot.orient) };
   else if (kind === "mirror") slot.orient = { ...slot.orient, flip: !slot.orient.flip };
-  else if (kind === "extend") slot.orient = { ...slot.orient, ext: !slot.orient.ext };
+  else if (kind === "extend") slot.orient = { ...slot.orient, ext: nextExtend(weaponId, state.upgrades, slot.orient) };
   else return { ok: false, reason: "无法变形" };
   return { ok: true };
 }
@@ -289,6 +307,9 @@ function settleCombo(state, slot, outcome, wasBonus, events) {
   let earn = 0;
   if (outcome === "link" && links >= 2) earn += 1;
   if (outcome === "link" && up.precise) earn += 1;
+  // 垫步：用这件武器接上连击时，其余武器的冷却各减 1 回合。
+  if (outcome === "link" && up.relay)
+    for (const other of state.weapons) if (other !== slot && other.kind === "weapon" && other.cd > 0) other.cd -= 1;
   const before = state.energy;
   state.energy = Math.min(ENERGY_MAX, state.energy + earn);
   const gained = state.energy - before;
@@ -306,13 +327,16 @@ export function heroAttack(state, weaponId, r, c) {
   const blocked = slotBlocked(state, slot);
   if (blocked) return { ok: false, reason: blocked };
   const def = slotDef(slot);
-  const shape = slotShape(state, slot);
+  const shape = attackShape(state, weaponId, r, c);
   const hits = resolveHits(state.monsterMatrix, shape, r, c, { pierce: slotPierce(state, slot) });
   if (!hits.length) return { ok: false, reason: "范围内没有可消除的红心" };
   const outcome = comboOutcome(state, shape, r, c, weaponId);
   state.lastFootprint = footprint(shape, r, c);
   state.lastWeaponId = weaponId;
   state.monsterMatrix = applyChanges(state.monsterMatrix, hits);
+  // 死灭：这一击消除的格子直接从心阵上抹去（变成空位），怪物再也不能在这里回血。
+  const doomed = slot.kind === "weapon" && state.upgrades[slot.id]?.doom ? hits.filter((h) => h.after === EMPTY) : [];
+  if (doomed.length) state.monsterMatrix = applyChanges(state.monsterMatrix, doomed.map((h) => ({ ...h, after: VOID })));
   const wasBonus = state.bonus;
   state.bonus = false;
   state.bonusReason = null;
@@ -333,7 +357,13 @@ export function heroAttack(state, weaponId, r, c) {
     state.interrupted = true;
     state.log.push(`${def.name}打断了「${state.intent.name}」。`);
     events.push({ type: "interrupt", intent: state.intent });
+    // 震地：打断之后，怪物再晕眩一回合。
+    if (state.upgrades[slot.id]?.quake) {
+      state.stunned = true;
+      state.log.push(`${state.def.name}被震倒，下回合无法行动。`);
+    }
   }
+  if (doomed.length) events.push({ type: "doom", cells: doomed.map(({ r: hr, c: hc }) => [hr, hc]) });
 
   if (slot.kind === "skill" && def.effect === "drain" && broken) {
     const changes = drainHeal(state, broken);

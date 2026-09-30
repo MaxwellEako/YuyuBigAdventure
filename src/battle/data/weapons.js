@@ -8,7 +8,7 @@ import { parseShape } from "../logic/shapes.js";
  *   heavy  重武器：一下砸一大片，花 3 点充能（开局只有 2 点，必须先打出连击），
  *          打碎 3 颗心能打断怪物蓄力后的重击。
  * 形状锚点（@）就是鼠标悬停的那一格，形状默认保持字符画里的朝向。
- * plus：“增加一格攻击范围”强化后的形状；transforms：该武器可以获得的变形强化
+ * plus：“延长”后的形状；giant：重武器“巨化”后的形状；transforms：该武器可以获得的变形强化
  * （方形的战锤和对称的圣十字变形后形状不变，所以没有变形强化）。
  */
 export const WEAPONS = {
@@ -56,9 +56,10 @@ export const WEAPONS = {
     id: "hammer",
     weight: "heavy",
     name: "战锤",
-    // 战锤 2×2，延长后 2×3。范围够大，但要攒够充能才能抡起来。
+    // 战锤 2×2，延长后 2×3，巨化后 3×4。范围够大，但要攒够充能才能抡起来。
     art: ["@#", "##"],
     plus: ["@##", "###"],
+    giant: ["@###", "####", "####"],
     transforms: [],
     cooldown: 1,
     desc: "攻击 2×2 范围，可打断重击。",
@@ -88,9 +89,10 @@ export const WEAPONS = {
     id: "cross",
     weight: "heavy",
     name: "圣十字",
-    // 圣十字四条臂各一格，延长后各两格。
+    // 圣十字四条臂各一格，延长后各两格，巨化后各三格。
     art: [".#.", "#@#", ".#."],
     plus: ["..#..", "..#..", "##@##", "..#..", "..#.."],
+    giant: ["...#...", "...#...", "...#...", "###@###", "...#...", "...#...", "...#..."],
     transforms: [],
     cooldown: 1,
     desc: "十字形攻击五格，可打断重击。",
@@ -100,6 +102,8 @@ export const WEAPONS = {
 for (const weapon of Object.values(WEAPONS)) {
   weapon.shape = parseShape(weapon.art);
   weapon.plusShape = parseShape(weapon.plus);
+  // 巨化只有重武器才有。
+  weapon.giantShape = weapon.giant ? parseShape(weapon.giant) : null;
 }
 
 /** 防御与药水不是武器，但同样有形状/冷却，放在一起便于界面统一渲染。 */

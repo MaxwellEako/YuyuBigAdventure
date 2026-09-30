@@ -2452,6 +2452,59 @@ body:not(.in-level) .hint-bar {
   color: var(--text-secondary);
 }
 
+/* 进阶强化：黑底、内侧一圈蓝色细框、右上角“进阶”标签。 */
+.forge-card {
+  position: relative;
+}
+
+.forge-card.adv {
+  color: var(--paper);
+  background: var(--ink);
+  box-shadow: inset 0 0 0 4px var(--ink), inset 0 0 0 5px var(--accent);
+}
+
+.forge-card.adv small,
+.forge-card.adv .t-meta,
+.forge-card.adv .forge-shapes i {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.forge-card.adv .shape-svg rect.off {
+  fill: rgba(255, 255, 255, 0.16);
+}
+
+.forge-card.adv .shape-svg rect.on {
+  fill: var(--paper);
+}
+
+.forge-card.adv .shape-svg .pivot {
+  fill: var(--ink);
+}
+
+.forge-tag {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 3px 9px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--accent-on);
+  background: var(--accent);
+}
+
+.forge-card b .up-icon {
+  width: 24px;
+  height: 24px;
+  margin: 0 8px 0 0;
+  vertical-align: -3px;
+}
+
+.forge-card b .up-icon .icon {
+  width: 17px;
+  height: 17px;
+  color: inherit;
+}
+
 .forge-shapes {
   display: flex;
   align-items: center;
@@ -2768,22 +2821,6 @@ body:not(.in-level) .hint-bar {
   font-feature-settings: "tnum";
 }
 
-.chase-pips {
-  display: flex;
-  gap: 3px;
-  margin-left: 4px;
-}
-
-.chase-pips i {
-  width: 8px;
-  height: 8px;
-  border: 1.5px solid currentColor;
-}
-
-.chase-pips i.on {
-  background: currentColor;
-}
-
 /* 预览：这一击接得上，标记发亮；接不上，标记变成虚线框。 */
 .combo-badge.rising {
   outline: 2px solid var(--accent);
@@ -2902,6 +2939,21 @@ body:not(.in-level) .hint-bar {
 .weapon.selected .up-icon {
   color: var(--accent);
   background: var(--accent-on);
+}
+
+/* 进阶强化：蓝底白色图标，外面再描一圈，和黑底的基础强化一眼分开。 */
+.up-icon.adv {
+  color: var(--accent-on);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--paper), 0 0 0 2px var(--accent);
+}
+
+/* 在蓝底（选中的招式卡、出战的构筑卡）上反过来：白底蓝图标加白圈。 */
+.weapon.selected .up-icon.adv,
+.build-card.on .up-icon.adv {
+  color: var(--accent);
+  background: var(--accent-on);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 0 2px var(--accent-on);
 }
 
 /* ——— 构筑 ——— */

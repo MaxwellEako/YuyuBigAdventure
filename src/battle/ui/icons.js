@@ -110,10 +110,32 @@ export const SPRITE = `
       <path d="M12 2v20" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2.5 2"/>
       <path d="M9 6 3 12l6 6zM15 6l6 6-6 6z" fill="currentColor"/>
     </symbol>
-    <!-- 稳击：三格实心 + 一格虚线，表示“有一格落空也照样算数”。 -->
-    <symbol id="i-steady" viewBox="0 0 24 24">
-      <path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3z" fill="currentColor"/>
-      <path d="M14 14h6v6h-6z" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="2.5 2"/>
+    <!-- 垫步：沙漏上划一道，表示“其余武器的冷却少一回合”。 -->
+    <symbol id="i-relay" viewBox="0 0 24 24">
+      <path d="M5.5 3h11M5.5 21h11M7 3l8 18M15 3 7 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/>
+      <path d="M17 12h6" stroke="currentColor" stroke-width="2.6" stroke-linecap="square"/>
+    </symbol>
+    <!-- 死灭：方格里一个叉，格子被抹去。 -->
+    <symbol id="i-doom" viewBox="0 0 24 24">
+      <path d="M3.5 3.5h17v17h-17z" fill="none" stroke="currentColor" stroke-width="2.2"/>
+      <path d="m8 8 8 8M16 8l-8 8" stroke="currentColor" stroke-width="2.6" stroke-linecap="square"/>
+    </symbol>
+    <!-- 贯通：一支箭穿过一排格子，停在虚线（空位）前。 -->
+    <symbol id="i-line" viewBox="0 0 24 24">
+      <path d="M2 12h14M12 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="square" stroke-linejoin="miter"/>
+      <path d="M21 4v16" stroke="currentColor" stroke-width="2.2" stroke-dasharray="2.5 2"/>
+    </symbol>
+    <!-- 巨化：一块实心方块向外扩成更大的虚线框。 -->
+    <symbol id="i-giant" viewBox="0 0 24 24">
+      <path d="M3 13h8v8H3z" fill="currentColor"/>
+      <path d="M3 3h18v18" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2"/>
+      <path d="M13 11l6-6M14 5h5v5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/>
+    </symbol>
+    <!-- 震地：重锤落地，两侧震波。 -->
+    <symbol id="i-quake" viewBox="0 0 24 24">
+      <path d="M7 3h10v6H7z" fill="currentColor"/>
+      <path d="M12 9v8M3 21h18" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"/>
+      <path d="M3 15l2 2-2 2M21 15l-2 2 2 2" fill="none" stroke="currentColor" stroke-width="1.8"/>
     </symbol>
     <symbol id="i-extend" viewBox="0 0 24 24">
       <path d="M2 8h8v8H2z" fill="currentColor"/>
