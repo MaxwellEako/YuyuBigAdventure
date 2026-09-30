@@ -756,6 +756,8 @@ async function step(r, c) {
     if (gen !== levelGen) return "over";
     world.updateFog(board);
     board.monsters.forEach((m) => world.updateMonster(m));
+    // 第一次被怪物发现（或被突袭）时，才讲“巡猎的怪物”。
+    if (monsters.alerts.length || monsters.ambush) await explain(["ambush"]);
     if (monsters.ambush) {
       const m = monsters.ambush;
       toast(`<b>${m.def.name}</b> 发起突袭`, "danger");
@@ -780,6 +782,9 @@ async function pickup(item) {
   } else if (item.type === "key") {
     sfx.play("pickup");
     toast(`${icon("key")} 获得 <b>钥匙</b>`);
+    await world.collectItem(item.r, item.c);
+    await explain(["key-door"]);
+    return;
   } else if (item.type === "plate") {
     sfx.play("pickup");
     toast(`${icon("armor")} 获得 <b>护甲片</b>`);
@@ -824,6 +829,9 @@ function battleTopics(monster, features) {
   // 暗王战不能撤退，也就不讲撤退。
   const shown = ([id, feature]) => (!feature || features.has(feature)) && !(id === "tour-retreat" && monster.def.boss);
   const topics = tour.filter(shown).map(([id]) => id);
+  // 带着技能进入战斗：讲技能是什么，以及带着的每一个新技能。
+  const skills = board.hero.equippedSkills ?? [];
+  if (skills.length) topics.push("skills", ...skills.map((id) => ({ id: `skill-${id}`, topic: skillTopic(id) })));
   if (monster.matrix.some((row) => row.some((v) => v >= 2))) topics.push("armor");
   if (monster.def.pattern.some((p) => p.kind === "charge")) topics.push("charge");
   if (monster.def.pattern.some((p) => p.kind === "heal")) topics.push("heal");
@@ -856,7 +864,7 @@ async function battle(monster, heroFirst) {
     sfx,
     heroFirst,
     features,
-    coach: () => explain(topics, ctx),
+    coach: () => explain(topics, ctx, { context: "battle" }),
     afterPerfectHit: features.has("combo") ? () => explain(["combo-energy"]) : null,
   });
   document.body.classList.remove("in-battle");
@@ -927,9 +935,7 @@ async function begin() {
   if (level.tutorial) topics.push("move");
   if (has("H") || has("P")) topics.push("chest");
   if (slotsBefore && board.hero.slots > slotsBefore) topics.push({ id: `slots-${board.hero.slots}`, topic: TOPICS_SLOTS_UP });
-  if (has("K")) topics.push("key-door");
-  if (level.monsters.some((m) => m.ai === "chase")) topics.push("ambush");
-  if (level.skill) topics.push("skills", { id: `skill-${level.skill}`, topic: skillTopic(level.skill) });
+  // 钥匙、巡猎的怪物、新技能不在开场讲：分别在拾取钥匙、第一次被怪物发现、第一场能用上技能的战斗时再讲。
   if (level.fog) topics.push("fog");
   if (level.monsters.some((m) => MONSTERS[m.type].boss)) topics.push("boss");
   await explain(topics, { slots: board.hero.slots });
@@ -1388,14 +1394,14 @@ function showFieldHeal() {
   });
 }
 
-/** 棋盘上使用护甲片：在自己的心阵上选择一块田字区域，披上护甲。 */
+/** 棋盘上使用护甲片：在自己的心阵上选择一块 2×2 区域，附加护甲。 */
 function showFieldArmor() {
   if (!playing || busy || board.hero.plates <= 0) return;
   showHeroPlacement({
     name: "armor",
     kickerHtml: kicker(icon("armor"), "护甲", "ARMOR", `<em>${board.hero.plates}</em>`),
     title: "护甲片",
-    bodyHtml: rich(`选择一个位置，为 <span class="inline-shape">${shapeSvg(PLATE_SHAPE, { cell: 9 })}</span> 田字范围内的红心加上护甲。[护甲心]被击中时先掉护甲，需要两次命中才会消除。`),
+    bodyHtml: rich(`选择一个位置，为 <span class="inline-shape">${shapeSvg(PLATE_SHAPE, { cell: 9 })}</span> 2×2 范围内的红心附加护甲。[护甲心]首次被击中时失去护甲，第二次被击中时消除。`),
     shape: PLATE_SHAPE,
     resolve: (r, c) => previewPlate(board, r, c),
     apply: (r, c) => armorHero(board, r, c).changes,

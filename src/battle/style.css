@@ -1840,8 +1840,15 @@ body:not(.in-level) .hint-bar {
   min-height: 0;
 }
 
+/* 界外格平时透明，心阵四周保持干净；鼠标移到心阵上时淡淡显出虚线，提示攻击范围可以越过边缘。 */
 .cell.outside {
-  border: 1px dashed var(--grey-2);
+  border: 1px dashed transparent;
+}
+
+@media (hover: hover) {
+  .matrix:hover .cell.outside {
+    border-color: var(--grey-2);
+  }
 }
 
 .cell.slot {

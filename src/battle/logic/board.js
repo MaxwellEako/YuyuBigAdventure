@@ -99,7 +99,7 @@ export function createBoard(
       skills: { ...skills },
       equippedSkills: skillPick,
       potions: level.potions ?? 0,
-      // 护甲片：拾取后可以给自己红心矩阵的一块田字区域加上护甲（见 armorHero）。
+      // 护甲片：拾取后可以给自己红心矩阵的一块 2×2 区域加上护甲（见 armorHero）。
       plates: 0,
       keys: 0,
     },
@@ -280,7 +280,7 @@ function collectAt(state, r, c) {
   return events;
 }
 
-/** 护甲片覆盖的范围：锚点在左上角的田字（2×2）。 */
+/** 护甲片覆盖的范围：锚点在左上角的 2×2 方格。 */
 export const PLATE_SHAPE = parseShape(["@#", "##"]);
 
 /** 预览：护甲片放在 (r,c) 时，哪些红心会披上护甲（只有还在的普通红心才会，空位与已有护甲的不变）。 */
@@ -290,7 +290,7 @@ export function previewPlate(state, r, c) {
     .map(([hr, hc]) => ({ r: hr, c: hc, before: HEART, after: ARMOR }));
 }
 
-/** 用掉一块护甲片，给田字范围内的红心加上护甲。护甲心被击中一次先掉护甲，再掉红心。 */
+/** 用掉一块护甲片，给 2×2 范围内的红心加上护甲。护甲心被击中一次先掉护甲，再掉红心。 */
 export function armorHero(state, r, c) {
   if (state.hero.plates <= 0) return { ok: false, reason: "没有护甲片" };
   const changes = previewPlate(state, r, c);

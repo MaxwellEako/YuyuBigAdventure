@@ -164,7 +164,7 @@ export const TOPICS = {
   plate: {
     title: "护甲片",
     body: () => `${legend([
-      [icon("armor"), "护甲片可为自己[红心矩阵]中一块田字（2×2）范围的红心加上护甲。"],
+      [icon("armor"), "护甲片可为自己[红心矩阵]中 2×2 范围内的红心附加护甲。"],
       [heartSvg("armor"), "[护甲心]首次被击中时失去护甲，第二次被击中时消除。"],
     ])}${coarse() ? "点击信息栏的护甲片图标" : "在棋盘上按 G 键或点击信息栏的护甲片图标"}，选择位置后使用。`,
   },
@@ -285,12 +285,24 @@ function placeCard(card, arrow, spot, el) {
  * 主题带 target 时高亮界面上的对应区域，说明卡贴在旁边；否则居中显示。
  * 返回 Promise，全部看完后 resolve，方便在战斗开始前或进入章节后等待。
  */
+/** 同一时刻最多讲几张新机制卡；界面导览（tour-*）是一组指向式说明，不计入、也不拆开。 */
+export const TOPICS_PER_MOMENT = 2;
+
 export function createCoach({ root, enabled, seen, markSeen, sfx }) {
-  return async function explain(items, ctx = {}) {
+  // 超出数量、这次没讲的说明卡，按场合（棋盘 / 战斗）顺延到下一次同类场合再讲。
+  const deferred = new Map();
+  return async function explain(items, ctx = {}, { context = "board", limit = TOPICS_PER_MOMENT } = {}) {
     if (!enabled()) return;
-    const queue = items
+    const fresh = items
       .map((item) => (typeof item === "string" ? { id: item, topic: TOPICS[item] } : item))
       .filter((item) => item.topic && !seen(item.id));
+    const pending = (deferred.get(context) ?? []).filter((item) => !seen(item.id) && !fresh.some((f) => f.id === item.id));
+    const all = [...pending, ...fresh];
+    const isTour = (item) => item.id.startsWith("tour-");
+    const tour = all.filter(isTour);
+    const rest = all.filter((item) => !isTour(item));
+    const queue = [...tour, ...rest.slice(0, limit)];
+    deferred.set(context, rest.slice(limit));
     if (!queue.length) return;
     // 指向式说明要等界面（如刚打开的战斗窗口）展开、排好版，才能准确指到位置。
     if (queue.some((item) => item.topic.target)) await new Promise((r) => setTimeout(r, 360));

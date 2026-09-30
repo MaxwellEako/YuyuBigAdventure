@@ -168,6 +168,8 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   const enemyView = new MatrixView($("[data-enemy-matrix]"), { margin: enemyMargin, maxSize, side: "enemy", box: enemyBox, minCell: compact ? 12 : 22 });
   // 主角心阵只需容纳药水的十字（每边 1 格）。
   const heroView = new MatrixView($("[data-hero-matrix]"), { margin: compact ? 0 : 1, maxSize, side: "hero", box: heroBox, minCell: compact ? 12 : 22 });
+  // 竖屏手机：旋转 / 镜像按钮挪进怪物卡，悬浮在右下角，不占招式栏的高度。
+  if (stacked) $(".side.enemy").appendChild($("[data-transform]"));
   // 左右并排时两块心阵共用同一个格子边长，红心一样大；上下排布时各自按自己的外框取最大。
   const syncSize = () => {
     const enemySize = enemyView.fitSize(combat.monsterMatrix.length, combat.monsterMatrix[0].length);
@@ -300,12 +302,17 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     $("[data-weapons]").innerHTML = `<div class="move-group" aria-label="武器">${weapons}</div>${
       skills ? `<div class="move-group skills" aria-label="技能">${skills}</div>` : ""
     }`;
-    // 选中的武器若有变形强化，显示旋转 / 镜像按钮（不消耗回合）。
+    // 旋转 / 镜像按钮（不消耗回合）：只要带着的武器里有一件拥有这项强化，按钮就一直占着位置，
+    // 选中的武器用不了时只是隐藏。这样切换武器时整排高度不变，上面的心阵不会跟着抖一下。
     const slot = slotOf(combat, selected);
     const up = slot?.kind === "weapon" ? combat.upgrades[slot.id] ?? {} : {};
+    const owned = (k) => combat.weapons.some((w) => w.kind === "weapon" && combat.upgrades[w.id]?.[k]);
     $("[data-transform]").innerHTML = ["rotate", "mirror"]
-      .filter((k) => up[k])
-      .map((k) => `<button class="action transform" data-transform-kind="${k}">${icon(UPGRADE_TEXT[k].icon)}<span>${UPGRADE_TEXT[k].name}</span><small class="key-hint">${k === "rotate" ? "R" : "F"}</small></button>`)
+      .filter(owned)
+      .map(
+        (k) =>
+          `<button class="action transform ${up[k] ? "" : "idle"}" data-transform-kind="${k}" ${up[k] ? "" : 'disabled aria-hidden="true" tabindex="-1"'}>${icon(UPGRADE_TEXT[k].icon)}<span>${UPGRADE_TEXT[k].name}</span><small class="key-hint">${k === "rotate" ? "R" : "F"}</small></button>`,
+      )
       .join("");
   }
 
@@ -789,9 +796,14 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   // 竖屏手机：招式栏、变形按钮排好之后怪物心阵的外框才定下来；外框大小变了（例如出现旋转按钮）就按新尺寸重排。
   if (stacked) {
     let pending = 0;
+    // 上一次排版时的格子边长与外框尺寸：都没变就不重建，避免无谓的闪动。
+    let applied = "";
     const refit = () => {
       pending = 0;
       syncSize();
+      const now = [enemyView.fixedSize, heroView.fixedSize, enemyBox.clientWidth, enemyBox.clientHeight, heroBox.clientWidth, heroBox.clientHeight].join(",");
+      if (now === applied) return;
+      applied = now;
       enemyView.relayout();
       heroView.relayout();
       refreshPreview();

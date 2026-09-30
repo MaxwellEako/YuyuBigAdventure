@@ -761,6 +761,8 @@ export class BoardWorld {
     const shift = w > 900 ? (this.screenShift ?? 0) : 0;
     if (shift) this.camera.setViewOffset(w, h, -w * shift, 0, w, h);
     else this.camera.clearViewOffset();
+    // 手机屏幕小、像素密度高（iPhone 为 3 倍）：按实际密度渲染才清晰；大屏幕仍以 2 倍封顶，避免显卡压力过大。
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, w * h < 600000 ? 3 : 2));
     this.renderer.setSize(w, h, false);
     const aspect = w / h;
     const portrait = aspect < 0.9;

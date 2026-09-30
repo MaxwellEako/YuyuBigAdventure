@@ -59,12 +59,16 @@ export function gridTexture(repeat) {
   return texture;
 }
 
+/** 铭牌画布的放大倍数。 */
+const LABEL_SCALE = 2;
+
 /** 头顶的直角铭牌：墨黑底 + 细字重数字；发现主角时右侧亮起 IKB 方块，晕眩时为灰色 Z。 */
 export class LabelSprite {
   constructor() {
+    // 画布按 2 倍分辨率绘制（逻辑尺寸仍是 320×96），放大显示时数字依然清晰。
     this.canvas = document.createElement("canvas");
-    this.canvas.width = 320;
-    this.canvas.height = 96;
+    this.canvas.width = 320 * LABEL_SCALE;
+    this.canvas.height = 96 * LABEL_SCALE;
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
     this.sprite = new THREE.Sprite(
@@ -81,7 +85,9 @@ export class LabelSprite {
 
   draw({ hearts, total, armor = 0, alert = false, stun = false }) {
     const ctx = this.canvas.getContext("2d");
-    const { width: w, height: h } = this.canvas;
+    ctx.setTransform(LABEL_SCALE, 0, 0, LABEL_SCALE, 0, 0);
+    const w = this.canvas.width / LABEL_SCALE;
+    const h = this.canvas.height / LABEL_SCALE;
     ctx.clearRect(0, 0, w, h);
     const sans = '"Inter", "Helvetica Neue", Helvetica, Arial, sans-serif';
     const text = String(hearts);
