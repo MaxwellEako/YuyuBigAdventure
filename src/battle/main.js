@@ -481,9 +481,13 @@ async function interact(r, c) {
   }
 }
 
-/** 第一只护甲怪出场的章节。在那之前，铁砧不会刷出破甲。 */
-const FIRST_ARMOR_LEVEL = LEVELS.findIndex((l) => l.monsters.some((m) => MONSTERS[m.type].armored));
-const forgeRules = () => ({ pierce: levelIndex >= FIRST_ARMOR_LEVEL });
+/** 某类怪物第一次出场的章节。 */
+const firstLevelWith = (test) => LEVELS.findIndex((l) => l.monsters.some((m) => test(MONSTERS[m.type])));
+/** 第一只护甲怪出场之前，铁砧不会刷出破甲。 */
+const FIRST_ARMOR_LEVEL = firstLevelWith((def) => def.armored);
+/** 第一只会蓄力重击的怪物出场之前，铁砧不会刷出震慑（没有重击可打断）。 */
+const FIRST_CHARGE_LEVEL = firstLevelWith((def) => def.pattern.some((p) => p.kind === "charge"));
+const forgeRules = () => ({ pierce: levelIndex >= FIRST_ARMOR_LEVEL, stagger: levelIndex >= FIRST_CHARGE_LEVEL });
 
 /** 铁砧：随机给出三项强化，玩家选一项；也可以暂不强化，稍后再来。 */
 function showForge(item) {
@@ -501,7 +505,7 @@ function showForge(item) {
         <span class="t-meta forge-weapon">${w.name}${equipped ? "" : `<i class="in-bag" title="在背包里">${icon("bag")}</i>`}</span>
         <b>${icon(UPGRADE_TEXT[opt.kind].icon)}${UPGRADE_TEXT[opt.kind].name}</b>
         <span class="forge-shapes"><span>${shapeSvg(before, { cell: 14, gap: 3 })}</span><i aria-hidden="true">→</i><span>${shapeSvg(after, { cell: 14, gap: 3 })}</span></span>
-        <small>${opt.kind === "extend" ? `攻击范围增加 ${WEAPONS[opt.weapon].plusShape.size - WEAPONS[opt.weapon].shape.size} 格。` : UPGRADE_TEXT[opt.kind].desc}</small>
+        <small>${opt.kind === "extend" ? `战斗中可切换为加长形状（多 ${WEAPONS[opt.weapon].plusShape.size - WEAPONS[opt.weapon].shape.size} 格），不占用回合。` : UPGRADE_TEXT[opt.kind].desc}</small>
       </button>
       <button class="reroll" data-reroll="${i}" ${opt.rerolled ? "disabled" : ""}>${icon("restart")}${opt.rerolled ? "已重抽" : "重抽"}</button>`;
   };
@@ -1232,7 +1236,7 @@ function controlsHelp() {
     return `<h3><span class="t-meta">06</span>操作</h3>
           <p class="keys"><span>方向键 移动</span><span>点格子 自动寻路</span><span>单指拖动 转动视角</span><span>双指 缩放</span><span>攻击：点击格子预览范围，再次点击同一格确认</span><span>信息栏按钮 武器 / 目标 / 药水 / 护甲片</span></p>`;
   return `<h3><span class="t-meta">06</span>按键</h3>
-          <p class="keys"><span><kbd>WASD</kbd>移动</span><span><kbd>C</kbd>转动视角</span><span><kbd>B</kbd>构筑</span><span><kbd>G</kbd>护甲片</span><span><kbd>P</kbd>喝药水</span><span><kbd>1</kbd>~<kbd>7</kbd>选武器</span><span><kbd>R</kbd>旋转</span><span><kbd>F</kbd>镜像</span><span><kbd>Q</kbd>防御</span><span><kbd>E</kbd>药水</span><span><kbd>Z</kbd>等待</span></p>`;
+          <p class="keys"><span><kbd>WASD</kbd>移动</span><span><kbd>C</kbd>转动视角</span><span><kbd>B</kbd>构筑</span><span><kbd>G</kbd>护甲片</span><span><kbd>P</kbd>喝药水</span><span><kbd>1</kbd>~<kbd>7</kbd>选武器</span><span><kbd>R</kbd>旋转</span><span><kbd>F</kbd>镜像</span><span><kbd>X</kbd>延长</span><span><kbd>Q</kbd>防御</span><span><kbd>E</kbd>药水</span><span><kbd>Z</kbd>等待</span></p>`;
 }
 
 function showHelp() {

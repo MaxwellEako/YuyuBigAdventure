@@ -894,6 +894,12 @@ html {
   border: 1px solid var(--ink);
 }
 
+.battle-modal.portrait .side.enemy .transform-bar .action.on {
+  color: var(--accent-on);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .battle-modal.portrait .side.enemy .transform-bar .action span {
   display: none;
 }

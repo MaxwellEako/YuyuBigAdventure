@@ -29,7 +29,7 @@ export function heroSheetHtml({ hero, features, kicker, sheetHead }) {
     ${sheetHead("武器与构筑")}
     ${kicker("01", "主角", "HERO")}
     ${heroBlock(hero, features)}
-    ${kicker("02", "出战", "ARSENAL", `<em class="slot-count">${hero.equipped.length} / ${hero.slots}</em><button class="build-chip" data-cmd="armory" title="构筑（B）">${icon("bag")}构筑<kbd class="key-hint">B</kbd></button>`)}
+    ${kicker("02", "出战", "ARSENAL", `<em class="slot-count">${hero.equipped.length} / ${hero.slots}</em><button class="build-chip" data-cmd="armory" title="构筑">${icon("bag")}构筑</button>`)}
     <ul class="sheet-list">${hero.equipped.map((id, i) => weaponRow(id, i, hero.upgrades)).join("")}</ul>
     ${bagLine(hero)}
     ${skillBlock(hero, kicker)}

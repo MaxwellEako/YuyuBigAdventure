@@ -32,6 +32,7 @@ const GLOSSARY = {
   延长: { icon: "extend" },
   精准: { icon: "perfect" },
   破甲: { icon: "pierce" },
+  稳击: { icon: "steady" },
   打断: { icon: "stagger" },
   重击: { icon: "stagger", tone: "ink" },
 };

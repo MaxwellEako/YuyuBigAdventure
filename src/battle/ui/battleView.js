@@ -37,6 +37,9 @@ const MOVE_TEXT = { orth: "直行一格", diag: "斜行一格", king: "八方一
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** 不消耗回合的变形及其快捷键：旋转 R、镜像 F、切换加长形状 X。 */
+const TRANSFORM_KEYS = { rotate: "R", mirror: "F", extend: "X" };
+
 const INTENT_ICON = { charge: "", heal: heartSvg("heart"), armor: heartSvg("armor"), curse: icon("cd") };
 
 /** 招式形状画在固定高度的一行里：行数越多，格子越小，行高始终不变。 */
@@ -152,11 +155,13 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
       : Math.max(240, Math.min(460, (innerWidth - 220) / 2.3, innerHeight - 520));
   // 怪物心阵四周的界外圈按主角武器的实际覆盖范围来留：锚点在形状左上角的武器，只需要上方和左侧的界外格。
   const enemyMargin = { top: 0, bottom: 0, left: 0, right: 0 };
-  // 所有招式在所有可能朝向下的形状（武器可能被强化为可旋转、可镜像、延长）。
+  // 所有招式在所有可能朝向下的形状（武器可能被强化为可旋转、可镜像、可切换为加长形状）。
   const allShapes = combat.weapons.flatMap((slot) =>
     slot.kind === "skill"
       ? [slotShape(combat, slot)]
-      : [0, 1, 2, 3].flatMap((rot) => [false, true].map((flip) => weaponShape(slot.id, combat.upgrades, { rot, flip }))),
+      : [0, 1, 2, 3].flatMap((rot) =>
+          [false, true].flatMap((flip) => [false, true].map((ext) => weaponShape(slot.id, combat.upgrades, { rot, flip, ext }))),
+        ),
   );
   for (const shape of allShapes) {
     const r = reach(shape);
@@ -309,16 +314,18 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     $("[data-weapons]").innerHTML = `<div class="move-group" aria-label="武器">${weapons}</div>${
       skills ? `<div class="move-group skills" aria-label="技能">${skills}</div>` : ""
     }`;
-    // 旋转 / 镜像按钮（不消耗回合）：只要带着的武器里有一件拥有这项强化，按钮就一直占着位置，
+    // 旋转 / 镜像 / 延长按钮（不消耗回合）：只要带着的武器里有一件拥有这项强化，按钮就一直占着位置，
     // 选中的武器用不了时只是隐藏。这样切换武器时整排高度不变，上面的心阵不会跟着抖一下。
     const slot = slotOf(combat, selected);
     const up = slot?.kind === "weapon" ? combat.upgrades[slot.id] ?? {} : {};
     const owned = (k) => combat.weapons.some((w) => w.kind === "weapon" && combat.upgrades[w.id]?.[k]);
-    $("[data-transform]").innerHTML = ["rotate", "mirror"]
+    // 延长是开关：切到加长形状时按钮保持按下的样子。
+    const on = (k) => k === "extend" && slot?.orient?.ext;
+    $("[data-transform]").innerHTML = Object.keys(TRANSFORM_KEYS)
       .filter(owned)
       .map(
         (k) =>
-          `<button class="action transform ${up[k] ? "" : "idle"}" data-transform-kind="${k}" ${up[k] ? "" : 'disabled aria-hidden="true" tabindex="-1"'}>${icon(UPGRADE_TEXT[k].icon)}<span>${UPGRADE_TEXT[k].name}</span><small class="key-hint">${k === "rotate" ? "R" : "F"}</small></button>`,
+          `<button class="action transform ${up[k] ? "" : "idle"} ${on(k) ? "on" : ""}" data-transform-kind="${k}" title="${UPGRADE_TEXT[k].name}（${TRANSFORM_KEYS[k]}）" ${up[k] ? "" : 'disabled aria-hidden="true" tabindex="-1"'} ${k === "extend" ? `aria-pressed="${Boolean(on(k))}"` : ""}>${icon(UPGRADE_TEXT[k].icon)}<span>${UPGRADE_TEXT[k].name}</span><small class="key-hint">${TRANSFORM_KEYS[k]}</small></button>`,
       )
       .join("");
   }
@@ -757,6 +764,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     if (digit >= 0 && digit < combat.weapons.length) selectWeapon(combat.weapons[digit].id);
     else if (e.key === "r" || e.key === "R") transform("rotate");
     else if (e.key === "f" || e.key === "F") transform("mirror");
+    else if (e.key === "x" || e.key === "X") transform("extend");
     else if (e.key === "q" || e.key === "Q") shield();
     else if (e.key === "z" || e.key === "Z") wait();
     else if (e.key === "e" || e.key === "E") togglePotion();

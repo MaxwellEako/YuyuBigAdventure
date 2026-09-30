@@ -385,7 +385,7 @@ test("变形：绕锚点旋转与镜像；战锤和圣十字没有变形强化�
   assert.equal(distinctRotations("hook", { hook: { rotate: true } }).length, 4);
 });
 
-test("强化：延长让形状变大；候选项不会重复已有的强化；强化会带进战斗", () => {
+test("强化：延长可切换为加长形状；候选项不会重复已有的强化；强化会带进战斗", () => {
   // 中型武器延长一格；重武器延长得更多（战锤 +2，圣十字 +4）；轻武器不能延长。
   for (const [id, weapon] of Object.entries(WEAPONS))
     if (weapon.weight === "medium") assert.equal(weapon.plusShape.size, weapon.shape.size + 1, id);
@@ -404,13 +404,14 @@ test("强化：延长让形状变大；候选项不会重复已有的强化；�
       "hammer:extend",
       "hammer:pierce",
       "hammer:stagger",
+      "hammer:steady",
       "hook:extend",
       "hook:mirror",
       "hook:pierce",
       "hook:precise",
       "hook:rotate",
     ],
-    "轻武器走灵活路线（连锁、灵巧）；中型延长、精准、破甲；重武器延长、破甲、震慑",
+    "轻武器走灵活路线（连锁、灵巧）；中型延长、精准、破甲；重武器稳击、延长、破甲、震慑",
   );
   applyUpgrade(hero, { weapon: "dagger", kind: "rotate" });
   assert.equal(upgradeOptions(hero, createRng(1), 10).some((o) => o.weapon === "dagger" && o.kind === "rotate"), false);
@@ -422,7 +423,51 @@ test("强化：延长让形状变大；候选项不会重复已有的强化；�
   assert.equal(heroTransform(combat, "dagger", "mirror").ok, false, "没有镜像强化");
   assert.equal(heroTransform(combat, "dagger", "rotate").ok, true);
   assert.deepEqual(hitSet(previewAttack(combat, "dagger", 0, 1)), ["0,1", "1,1"], "旋转后变成竖向两格");
-  assert.equal(weaponShape("dagger", { dagger: { extend: true } }).size, 3);
+  // 延长是开关：默认仍是原形状，切换后才用加长形状。
+  assert.equal(weaponShape("hook", { hook: { extend: true } }).size, 3, "默认原形状");
+  assert.equal(weaponShape("hook", { hook: { extend: true } }, { ext: true }).size, 4, "切换后加长");
+  assert.equal(weaponShape("hook", {}, { ext: true }).size, 3, "没有延长强化时切换无效");
+});
+
+test("延长：战斗中不占回合地切换长短，可以随时切回原形状", () => {
+  const combat = createCombat({
+    hero: { matrix: filledMatrix(4, 4), weapons: ["spear"], potions: 0, upgrades: { spear: { extend: true } } },
+    monster: { def: MONSTERS.pawn, matrix: parseMatrix(["####", "####", "####", "####"]) },
+    rng: createRng(1),
+  });
+  assert.equal(previewAttack(combat, "spear", 1, 0).length, 3, "默认纵向三格");
+  assert.equal(heroTransform(combat, "spear", "extend").ok, true);
+  assert.equal(combat.phase, "hero", "切换不消耗回合");
+  assert.equal(previewAttack(combat, "spear", 1, 0).length, 4, "加长后四格");
+  heroTransform(combat, "spear", "extend");
+  assert.equal(previewAttack(combat, "spear", 1, 0).length, 3, "切回原形状");
+  const plain = createCombat({
+    hero: { matrix: filledMatrix(4, 4), weapons: ["spear"], potions: 0 },
+    monster: { def: MONSTERS.pawn, matrix: MONSTERS.pawn.matrixValues },
+    rng: createRng(1),
+  });
+  assert.equal(heroTransform(plain, "spear", "extend").ok, false, "没有延长强化");
+});
+
+test("稳击：一半以上的攻击格命中红心时，其余格子落空也能接上连击", () => {
+  // 心阵中间有空位：战锤 2×2 盖上去只有 2 格是红心。
+  const make = (upgrades) => {
+    const c = createCombat({
+      hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "hammer"], potions: 0, upgrades },
+      monster: { def: MONSTERS.pawn, matrix: parseMatrix(["#####", "##...", "#####"]) },
+      rng: createRng(1),
+    });
+    c.energy = ENERGY_MAX;
+    return c;
+  };
+  const plain = make({});
+  assert.equal(previewCombo(plain, "hammer", 1, 1), "break", "没有稳击：落在空位上就算落空");
+  const steady = make({ hammer: { steady: true } });
+  assert.equal(previewCombo(steady, "hammer", 1, 1), "start", "稳击：2/4 格命中即不算落空");
+  heroAttack(steady, "dagger", 0, 0);
+  steady.phase = "hero";
+  assert.equal(previewCombo(steady, "hammer", 1, 1), "link", "紧挨上一击，接上连击");
+  assert.equal(previewCombo(steady, "hammer", 0, 4), "break", "只有 1/4 格命中（其余在空位与界外）仍算落空");
 });
 
 test("技能：次数有限；疾风斩后可以立刻再用一次普通武器；定身让怪物跳过一次行动；汲血恢复红心", () => {
@@ -613,6 +658,8 @@ test("破甲强化：普通武器也能一击击碎护甲心", () => {
   assert.ok(!upgradeOptions({ weapons: ["dagger", "slash"], upgrades: {} }, createRng(2), 99).some((o) => o.kind === "pierce" || o.kind === "extend"), "轻武器不能破甲、不能延长");
   assert.deepEqual(sanitizeUpgrades({ dagger: { pierce: true, rotate: true }, slash: { extend: true } }), { dagger: { rotate: true } }, "旧存档里不再允许的强化会被去掉");
   assert.ok(!upgradeOptions({ weapons: ["awl"], upgrades: {} }, createRng(2), 99).some((o) => o.kind === "pierce"), "破甲锥本来就破甲");
+  assert.ok(!upgradeOptions({ weapons: ["hammer"], upgrades: {} }, createRng(2), 99, { stagger: false }).some((o) => o.kind === "stagger"), "蓄力怪出场前不刷震慑");
+  assert.deepEqual(sanitizeUpgrades({ hammer: { steady: true }, hook: { steady: true } }), { hammer: { steady: true } }, "稳击只给重武器");
 });
 
 test("打断重击：怪物蓄力后，重武器一下打碎 3 颗心就能打断；震慑降到 2 颗", () => {

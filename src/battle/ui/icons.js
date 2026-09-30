@@ -110,6 +110,11 @@ export const SPRITE = `
       <path d="M12 2v20" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2.5 2"/>
       <path d="M9 6 3 12l6 6zM15 6l6 6-6 6z" fill="currentColor"/>
     </symbol>
+    <!-- 稳击：三格实心 + 一格虚线，表示“有一格落空也照样算数”。 -->
+    <symbol id="i-steady" viewBox="0 0 24 24">
+      <path d="M3 3h8v8H3zM13 3h8v8h-8zM3 13h8v8H3z" fill="currentColor"/>
+      <path d="M14 14h6v6h-6z" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="2.5 2"/>
+    </symbol>
     <symbol id="i-extend" viewBox="0 0 24 24">
       <path d="M2 8h8v8H2z" fill="currentColor"/>
       <path d="M13 8h8v8h-8z" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2"/>

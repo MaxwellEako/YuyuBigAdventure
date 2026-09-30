@@ -6,23 +6,27 @@ import { transformShape, shapeKey } from "./shapes.js";
 export const UPGRADE_TEXT = {
   rotate: { name: "旋转", icon: "rotate", desc: "战斗中可将攻击形状旋转 90°。" },
   mirror: { name: "镜像", icon: "mirror", desc: "战斗中可将攻击形状左右翻转。" },
-  extend: { name: "延长", icon: "extend", desc: "攻击范围扩大。" },
+  extend: { name: "延长", icon: "extend", desc: "战斗中可在原形状与加长形状之间切换，不占用回合。" },
   precise: { name: "精准", icon: "energy", desc: "该武器构成连击时，额外获得 1 点充能。" },
   chain: { name: "连锁", icon: "combo", desc: "该武器构成连击时，连击数额外 +1。" },
   nimble: { name: "灵巧", icon: "run", desc: "该武器无须紧邻上一击：攻击未落空且更换了武器，即构成连击。" },
   pierce: { name: "破甲", icon: "pierce", desc: "一击消除护甲心。" },
   stagger: { name: "震慑", icon: "stagger", desc: "单次消除不少于 2 颗红心即可打断重击。" },
+  steady: { name: "稳击", icon: "steady", desc: "至少一半的攻击格命中红心时，其余格子落在空位或心阵外也不算落空。" },
 };
 
 /** 武器槽与技能槽。技能不占武器槽，但最多只能携带 SKILL_SLOTS 个。 */
 export const MAX_WEAPON_SLOTS = 5;
 export const SKILL_SLOTS = 3;
 
-/** 武器当前的攻击形状：先看是否延长，再按战斗中的朝向变形。 */
+/**
+ * 武器当前的攻击形状：先看是否切换到了加长形状，再按战斗中的朝向变形。
+ * 延长是“可切换”的：orient.ext 为 true 时才用加长形状，界面上默认展示原形状。
+ */
 export function weaponShape(id, upgrades = {}, orient = {}) {
   const weapon = WEAPONS[id];
   const up = upgrades[id] ?? {};
-  const base = up.extend ? weapon.plusShape : weapon.shape;
+  const base = up.extend && orient.ext ? weapon.plusShape : weapon.shape;
   return transformShape(base, {
     rot: up.rotate ? orient.rot ?? 0 : 0,
     flip: up.mirror ? Boolean(orient.flip) : false,
@@ -54,20 +58,27 @@ export function nextRotation(id, upgrades = {}, orient = {}) {
 }
 
 /**
- * 每种定位能拿到的强化（旋转、镜像另看武器自己的 transforms）：
+ * 每种定位能拿到的强化（旋转、镜像另看武器自己的 transforms）。
+ *
+ * 设计依据是怪物的心阵：心阵里空位很多，而连击要求“每一格都落在红心上”。
+ * 所以强化只做两件事——让武器更容易完整地落进心阵（多一种朝向、可以切换长短、容忍空位），
+ * 或者在落进去之后给更多回报（连击、充能、破甲、打断）；绝不强行把形状变大、让它更难落进去。
+ *
  *  - 轻武器“灵活”：连锁（连击涨得更快）、灵巧（不必紧挨上一击）。不延长、不破甲，保持两格的小巧。
- *  - 中型“接招”：延长、精准（连上时多得充能）、破甲。
- *  - 重武器“范围大”：延长、破甲、震慑（降低打断重击的门槛）。不给精准：它是花充能的终结技，不是攒充能的。
+ *  - 中型“接招”：延长（可切换）、精准（连上时多得充能）、破甲。
+ *  - 重武器“范围大”：稳击（大形状在稀疏的心阵里也能接住连击）、延长（可切换）、破甲、震慑。
+ *    不给精准：它是花充能的终结技，不是攒充能的。
  */
 const ROLE_UPGRADES = {
   light: ["chain", "nimble"],
   medium: ["extend", "precise", "pierce"],
-  heavy: ["extend", "pierce", "stagger"],
+  heavy: ["steady", "extend", "pierce", "stagger"],
 };
 
 /**
  * 某件武器能不能拿到某项强化。
- * 破甲要等护甲怪出现以后才会在铁砧上刷出来（opts.pierce 为 false 时不出）；天生破甲的破甲锥不再出破甲。
+ * 只在用得上的时候才刷出来：破甲要等护甲怪出场（opts.pierce 为 false 时不出），
+ * 震慑要等会蓄力重击的怪物出场（opts.stagger 为 false 时不出）；天生破甲的破甲锥不再出破甲。
  */
 export function upgradeAllowed(id, kind, opts = {}) {
   const w = WEAPONS[id];
@@ -75,6 +86,7 @@ export function upgradeAllowed(id, kind, opts = {}) {
   if (kind === "rotate" || kind === "mirror") return w.transforms.includes(kind);
   if (!ROLE_UPGRADES[w.weight]?.includes(kind)) return false;
   if (kind === "pierce") return !w.pierce && opts.pierce !== false;
+  if (kind === "stagger") return opts.stagger !== false;
   return true;
 }
 
@@ -88,8 +100,8 @@ export function sanitizeUpgrades(upgrades = {}) {
   return clean;
 }
 
-/** 各类强化出现的相对概率。精准、连锁对连击的收益大，出得少一些；延长直接加伤害，也压低一些。 */
-const UPGRADE_WEIGHT = { rotate: 1, mirror: 1, extend: 0.6, precise: 0.5, chain: 0.5, nimble: 1, pierce: 1, stagger: 1 };
+/** 各类强化出现的相对概率。精准、连锁对连击的收益大，出得少一些；延长可以切换、只有好处，也略微压低。 */
+const UPGRADE_WEIGHT = { rotate: 1, mirror: 1, extend: 0.8, precise: 0.5, chain: 0.5, nimble: 1, pierce: 1, stagger: 1, steady: 1 };
 
 /**
  * 武器强化格随机给出的候选项：只从已经拿到的武器里出，已拥有的强化不再出现。
@@ -122,7 +134,7 @@ export function applyUpgrade(hero, option) {
 export function upgradePreview(option, upgrades = {}) {
   const before = weaponShape(option.weapon, upgrades);
   const next = { ...upgrades, [option.weapon]: { ...(upgrades[option.weapon] ?? {}), [option.kind]: true } };
-  const orient = option.kind === "rotate" ? { rot: 1 } : option.kind === "mirror" ? { flip: true } : {};
+  const orient = { rotate: { rot: 1 }, mirror: { flip: true }, extend: { ext: true } }[option.kind] ?? {};
   return { before, after: weaponShape(option.weapon, next, orient) };
 }
 

@@ -66,7 +66,7 @@ export function createCombat({
     // 武器与技能共用一排“招式位”：武器有冷却和朝向，技能有剩余次数。
     // 只有装备在武器槽 / 技能槽里的招式才会进入战斗。
     weapons: [
-      ...(hero.equipped ?? hero.weapons).map((id) => ({ id, kind: "weapon", cd: 0, orient: { rot: 0, flip: false } })),
+      ...(hero.equipped ?? hero.weapons).map((id) => ({ id, kind: "weapon", cd: 0, orient: { rot: 0, flip: false, ext: false } })),
       ...Object.entries(hero.skills ?? {})
         .filter(([id]) => !hero.equippedSkills || hero.equippedSkills.includes(id))
         .map(([id, charges]) => ({ id, kind: "skill", cd: 0, charges })),
@@ -183,6 +183,12 @@ export function isClean(matrix, cells) {
   return cells.every(([r, c]) => inBounds(matrix, r, c) && matrix[r][c] > EMPTY);
 }
 
+/** 稳击：至少一半的攻击格命中红心（护甲心也算），其余格子落在空位或心阵外也不算落空。 */
+export function isSteady(matrix, cells) {
+  const landed = cells.filter(([r, c]) => inBounds(matrix, r, c) && matrix[r][c] > EMPTY).length;
+  return landed * 2 >= cells.length;
+}
+
 /** 两次攻击的范围是否相邻：有格子重合，或上下左右紧挨着。 */
 export function touches(a, b) {
   return a.some(([r, c]) => b.some(([r2, c2]) => Math.abs(r - r2) + Math.abs(c - c2) <= 1));
@@ -190,14 +196,15 @@ export function touches(a, b) {
 
 /**
  * 这一击对连击的影响。
- * break：落空，连击清零。
+ * break：落空，连击清零（带「稳击」的武器只要一半的格子命中红心就不算落空）。
  * repeat：没落空，但和上一击用的是同一件武器，从这一击重新起手（照常造成伤害，只是刷不了连击）。
  * start：没落空，但不挨着上一击（或还没有连击），从这一击重新起手。
  * link：没落空、换了武器、并且紧挨着上一击，连击 +1。带「灵巧」的武器不必紧挨上一击。
  */
 export function comboOutcome(state, shape, r, c, weaponId) {
   const cells = footprint(shape, r, c);
-  if (!isClean(state.monsterMatrix, cells)) return "break";
+  const steady = Boolean(weaponId && state.upgrades[weaponId]?.steady);
+  if (!(steady ? isSteady : isClean)(state.monsterMatrix, cells)) return "break";
   if (state.combo === 0 || !state.lastFootprint) return "start";
   if (weaponId && weaponId === state.lastWeaponId) return "repeat";
   if (weaponId && state.upgrades[weaponId]?.nimble) return "link";
@@ -224,13 +231,15 @@ export function previewAttack(state, weaponId, r, c) {
   return resolveHits(state.monsterMatrix, slotShape(state, slot), r, c, { pierce: slotPierce(state, slot) });
 }
 
-/** 变形（不消耗回合）：旋转到下一个朝向，或左右翻转。只对拥有对应强化的武器生效。 */
+/** 变形（不消耗回合）：旋转到下一个朝向、左右翻转，或在原形状与加长形状之间切换。只对拥有对应强化的武器生效。 */
 export function heroTransform(state, weaponId, kind) {
   const slot = slotOf(state, weaponId);
   if (!slot || slot.kind !== "weapon") return { ok: false, reason: "技能不可变形" };
   if (!state.upgrades[weaponId]?.[kind]) return { ok: false, reason: `${WEAPONS[weaponId].name}没有这项强化` };
   if (kind === "rotate") slot.orient = { ...slot.orient, rot: nextRotation(weaponId, state.upgrades, slot.orient) };
-  else slot.orient = { ...slot.orient, flip: !slot.orient.flip };
+  else if (kind === "mirror") slot.orient = { ...slot.orient, flip: !slot.orient.flip };
+  else if (kind === "extend") slot.orient = { ...slot.orient, ext: !slot.orient.ext };
+  else return { ok: false, reason: "无法变形" };
   return { ok: true };
 }
 
