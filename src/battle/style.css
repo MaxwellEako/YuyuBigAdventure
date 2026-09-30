@@ -227,9 +227,11 @@ body:not(.in-level) [data-cmd="rotate"] {
   transition: background var(--ease-prod) 0.11s, color var(--ease-prod) 0.11s;
 }
 
-.icon-btn:hover {
-  background: var(--ink);
-  color: var(--paper);
+@media (hover: hover) {
+  .icon-btn:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
 }
 
 /* ——— 小标题（kicker） ——— */
@@ -397,9 +399,11 @@ body.in-battle .dpad {
   line-height: 1;
 }
 
-.chip-btn:not(:disabled):hover {
-  background: var(--accent);
-  color: var(--accent-on);
+@media (hover: hover) {
+  .chip-btn:not(:disabled):hover {
+    background: var(--accent);
+    color: var(--accent-on);
+  }
 }
 
 .chip-btn:disabled {
@@ -952,8 +956,10 @@ body:not(.in-level) .hint-bar {
   background: var(--accent);
 }
 
-.primary:hover {
-  background: var(--ink);
+@media (hover: hover) {
+  .primary:hover {
+    background: var(--ink);
+  }
 }
 
 .ghost {
@@ -961,9 +967,11 @@ body:not(.in-level) .hint-bar {
   border: 1px solid var(--ink);
 }
 
-.ghost:hover {
-  color: var(--paper);
-  background: var(--ink);
+@media (hover: hover) {
+  .ghost:hover {
+    color: var(--paper);
+    background: var(--ink);
+  }
 }
 
 .panel {
@@ -1083,21 +1091,29 @@ body:not(.in-level) .hint-bar {
   font-size: 15px;
 }
 
-.level-card:not(.locked):hover {
-  background: var(--accent);
-  color: var(--accent-on);
+@media (hover: hover) {
+  .level-card:not(.locked):hover {
+    background: var(--accent);
+    color: var(--accent-on);
+  }
 }
 
-.level-card:not(.locked):hover .t-meta {
-  color: var(--accent-on);
+@media (hover: hover) {
+  .level-card:not(.locked):hover .t-meta {
+    color: var(--accent-on);
+  }
 }
 
-.level-card:not(.locked):hover .stars i {
-  border-color: var(--accent-on);
+@media (hover: hover) {
+  .level-card:not(.locked):hover .stars i {
+    border-color: var(--accent-on);
+  }
 }
 
-.level-card:not(.locked):hover .stars i.on {
-  background: var(--accent-on);
+@media (hover: hover) {
+  .level-card:not(.locked):hover .stars i.on {
+    background: var(--accent-on);
+  }
 }
 
 .level-card.locked {
@@ -1321,9 +1337,11 @@ body:not(.in-level) .hint-bar {
   background: var(--accent-on);
 }
 
-.panel.ending .primary:hover {
-  color: var(--accent-on);
-  background: var(--ink);
+@media (hover: hover) {
+  .panel.ending .primary:hover {
+    color: var(--accent-on);
+    background: var(--ink);
+  }
 }
 
 .panel.ending .ghost {
@@ -1346,9 +1364,11 @@ body:not(.in-level) .hint-bar {
   border-color: var(--paper);
 }
 
-.panel.lost .ghost:hover {
-  color: var(--ink);
-  background: var(--paper);
+@media (hover: hover) {
+  .panel.lost .ghost:hover {
+    color: var(--ink);
+    background: var(--paper);
+  }
 }
 
 /* 玩法说明 */
@@ -2118,8 +2138,10 @@ body:not(.in-level) .hint-bar {
   font-size: 10px;
 }
 
-.weapon:not(.cooling):not(.selected):hover {
-  background: var(--grey-1);
+@media (hover: hover) {
+  .weapon:not(.cooling):not(.selected):hover {
+    background: var(--grey-1);
+  }
 }
 
 .weapon.selected {
@@ -2199,13 +2221,17 @@ body:not(.in-level) .hint-bar {
   height: 20px;
 }
 
-.action:not(:disabled):hover {
-  color: var(--paper);
-  background: var(--ink);
+@media (hover: hover) {
+  .action:not(:disabled):hover {
+    color: var(--paper);
+    background: var(--ink);
+  }
 }
 
-.action:not(:disabled):hover small {
-  color: var(--grey-2);
+@media (hover: hover) {
+  .action:not(:disabled):hover small {
+    color: var(--grey-2);
+  }
 }
 
 .action:disabled {
@@ -2364,9 +2390,11 @@ body:not(.in-level) .hint-bar {
   border-color: var(--accent);
 }
 
-.action.transform:hover {
-  color: var(--accent-on);
-  background: var(--accent);
+@media (hover: hover) {
+  .action.transform:hover {
+    color: var(--accent-on);
+    background: var(--accent);
+  }
 }
 
 .up-tag {
@@ -2428,27 +2456,37 @@ body:not(.in-level) .hint-bar {
   color: var(--grey-3);
 }
 
-.forge-card:hover {
-  color: var(--accent-on);
-  background: var(--accent);
+@media (hover: hover) {
+  .forge-card:hover {
+    color: var(--accent-on);
+    background: var(--accent);
+  }
 }
 
-.forge-card:hover .t-meta,
-.forge-card:hover small,
-.forge-card:hover .forge-shapes i {
-  color: var(--accent-on);
+@media (hover: hover) {
+  .forge-card:hover .t-meta,
+  .forge-card:hover small,
+  .forge-card:hover .forge-shapes i {
+    color: var(--accent-on);
+  }
 }
 
-.forge-card:hover .shape-svg rect.on {
-  fill: var(--accent-on);
+@media (hover: hover) {
+  .forge-card:hover .shape-svg rect.on {
+    fill: var(--accent-on);
+  }
 }
 
-.forge-card:hover .shape-svg rect.off {
-  fill: rgba(255, 255, 255, 0.2);
+@media (hover: hover) {
+  .forge-card:hover .shape-svg rect.off {
+    fill: rgba(255, 255, 255, 0.2);
+  }
 }
 
-.forge-card:hover .shape-svg .pivot {
-  fill: var(--accent);
+@media (hover: hover) {
+  .forge-card:hover .shape-svg .pivot {
+    fill: var(--accent);
+  }
 }
 
 @media (max-width: 600px) {
@@ -2473,10 +2511,17 @@ body:not(.in-level) .hint-bar {
   animation: fade-in 0.2s;
 }
 
+/*
+ * 说明卡：纵向排版，标题和按钮固定，只有正文在卡片里滚动。
+ * 高度上限按实际可见区域（dvh，手机浏览器的工具栏不算在内）减去安全区，卡片永远不会超出屏幕。
+ */
 .coach-card {
+  display: flex;
+  flex-direction: column;
   width: min(520px, 100%);
   max-height: calc(100vh - 32px);
-  overflow: auto;
+  max-height: calc(100dvh - 32px - var(--safe-top, 0px) - var(--safe-bottom, 0px));
+  overflow: hidden;
   padding: var(--sp-7);
   color: var(--ink);
   background: var(--paper);
@@ -2500,7 +2545,18 @@ body:not(.in-level) .hint-bar {
   letter-spacing: -0.02em;
 }
 
+.coach-inner {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .coach-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   font-size: 15px;
   line-height: 1.75;
   color: var(--text-secondary);
@@ -2525,6 +2581,7 @@ body:not(.in-level) .hint-bar {
 }
 
 .coach-actions {
+  flex: none;
   display: flex;
   justify-content: flex-end;
   gap: var(--sp-3);
@@ -2573,17 +2630,13 @@ body:not(.in-level) .hint-bar {
   position: relative;
 }
 
+/* 指向式：卡片的高度上限由定位脚本按目标上下的空间设置；overflow 可见，指向箭头才不会被裁掉。 */
 .coach.pointed .coach-card {
   position: fixed;
   width: min(360px, calc(100vw - 24px));
-  max-height: none;
+  max-height: calc(100dvh - 24px);
   overflow: visible;
   padding: var(--sp-6);
-}
-
-.coach.pointed .coach-inner {
-  max-height: calc(100vh - 80px);
-  overflow: auto;
 }
 
 .coach.pointed .coach-card h3 {
@@ -2900,8 +2953,10 @@ body:not(.in-level) .hint-bar {
   transition: background 0.11s var(--ease-prod), color 0.11s var(--ease-prod);
 }
 
-.build-card:hover {
-  border-color: var(--ink);
+@media (hover: hover) {
+  .build-card:hover {
+    border-color: var(--ink);
+  }
 }
 
 .build-card.on {
@@ -2962,9 +3017,11 @@ body:not(.in-level) .hint-bar {
   border-top: 1px solid var(--grey-2);
 }
 
-.reroll:hover:not(:disabled) {
-  color: var(--accent-on);
-  background: var(--accent);
+@media (hover: hover) {
+  .reroll:hover:not(:disabled) {
+    color: var(--accent-on);
+    background: var(--accent);
+  }
 }
 
 .reroll:disabled {
@@ -3653,8 +3710,10 @@ body:not(.in-level) .hint-bar {
   transition: opacity 0.11s var(--ease-prod);
 }
 
-.build-card:hover .build-move {
-  opacity: 1;
+@media (hover: hover) {
+  .build-card:hover .build-move {
+    opacity: 1;
+  }
 }
 
 .build-card.on .cd-mark,
@@ -3726,8 +3785,10 @@ body:not(.in-level) .hint-bar {
   color: var(--accent);
 }
 
-.forge-card:hover b .icon {
-  color: inherit;
+@media (hover: hover) {
+  .forge-card:hover b .icon {
+    color: inherit;
+  }
 }
 
 .forge-weapon {
@@ -4212,9 +4273,11 @@ body:not(.in-level) .hint-bar {
   height: 14px;
 }
 
-.ghost.subtle:hover {
-  color: var(--ink);
-  border-color: var(--ink);
+@media (hover: hover) {
+  .ghost.subtle:hover {
+    color: var(--ink);
+    border-color: var(--ink);
+  }
 }
 
 .reset-panel {
@@ -4244,8 +4307,10 @@ body:not(.in-level) .hint-bar {
   border-color: var(--ink);
 }
 
-.primary.danger:hover {
-  background: #2a2a2a;
+@media (hover: hover) {
+  .primary.danger:hover {
+    background: #2a2a2a;
+  }
 }
 
 .help .panel-actions {
@@ -4279,14 +4344,18 @@ body:not(.in-level) .hint-bar {
   border: 0;
 }
 
-.build-chip:hover {
-  color: var(--accent-on);
-  background: var(--accent);
+@media (hover: hover) {
+  .build-chip:hover {
+    color: var(--accent-on);
+    background: var(--accent);
+  }
 }
 
-.build-chip:hover kbd {
-  color: var(--accent);
-  background: var(--accent-on);
+@media (hover: hover) {
+  .build-chip:hover kbd {
+    color: var(--accent);
+    background: var(--accent-on);
+  }
 }
 
 /* ——— 怪物特性、打断标记、连击破甲 ——— */

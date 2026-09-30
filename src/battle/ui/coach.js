@@ -112,7 +112,7 @@ export const TOPICS = {
   slots: {
     title: "武器槽",
     body: (ctx) =>
-      `出战的武器置于[武器槽]中，本章共有 ${ctx.slots} 个武器槽，其余武器存放在[背包]中。${slotDiagram(ctx.slots)}在棋盘上按 B 键打开[构筑]，可随时更换出战武器。`,
+      `出战的武器置于[武器槽]中，本章共有 ${ctx.slots} 个武器槽，其余武器存放在[背包]中。${slotDiagram(ctx.slots)}${coarse() ? "点信息栏的「武器」，再点底部的[构筑]" : "在棋盘上按 B 键打开[构筑]"}，可随时更换出战武器。`,
   },
   "slots-up": {
     title: "武器槽增加",
@@ -163,10 +163,10 @@ export const TOPICS = {
   // 第一次拿到战锤这样的重武器时弹出。
   plate: {
     title: "护甲片",
-    body: `${legend([
+    body: () => `${legend([
       [icon("armor"), "护甲片可为自己[红心矩阵]中一块田字（2×2）范围的红心加上护甲。"],
       [heartSvg("armor"), "[护甲心]被击中时先失去护甲，需要两次命中才会消除。"],
-    ])}在棋盘上按 G 键或点击信息栏的护甲片图标，选择位置使用。`,
+    ])}${coarse() ? "点信息栏的护甲片图标" : "在棋盘上按 G 键或点击信息栏的护甲片图标"}，选择位置使用。`,
   },
   heavy: {
     title: "重型武器",
@@ -234,28 +234,48 @@ function placeCard(card, arrow, spot, el) {
     width: `${t.width + pad * 2}px`,
     height: `${t.height + pad * 2}px`,
   });
+  // 先按内容的自然高度量尺寸，再决定放哪一边。
+  card.style.maxHeight = "";
   const cw = card.offsetWidth;
   const ch = card.offsetHeight;
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
   const cx = t.left + t.width / 2;
   const cy = t.top + t.height / 2;
+  const room = { below: H - t.bottom - pad - gap - margin, above: t.top - pad - gap - margin };
   const sides = [
-    ["below", H - t.bottom - pad - gap - margin >= ch, () => [clamp(cx - cw / 2, margin, W - cw - margin), t.bottom + pad + gap]],
-    ["above", t.top - pad - gap - margin >= ch, () => [clamp(cx - cw / 2, margin, W - cw - margin), t.top - pad - gap - ch]],
+    ["below", room.below >= ch, () => [clamp(cx - cw / 2, margin, W - cw - margin), t.bottom + pad + gap]],
+    ["above", room.above >= ch, () => [clamp(cx - cw / 2, margin, W - cw - margin), t.top - pad - gap - ch]],
     ["right", W - t.right - pad - gap - margin >= cw, () => [t.right + pad + gap, clamp(cy - ch / 2, margin, H - ch - margin)]],
     ["left", t.left - pad - gap - margin >= cw, () => [t.left - pad - gap - cw, clamp(cy - ch / 2, margin, H - ch - margin)]],
   ];
-  const fit = sides.find(([, ok]) => ok);
-  const [side, , pos] = fit ?? ["none", true, () => [(W - cw) / 2, H - ch - margin]];
+  let fit = sides.find(([, ok]) => ok);
+  if (!fit) {
+    // 哪一边都放不下（手机上的长说明）：贴在上下空间更大的一边，卡片压到那一边的高度，正文在卡片里滚动，
+    // 标题和按钮始终在屏幕内。实在太挤（目标几乎占满屏幕）就直接压在屏幕中间。
+    const side = room.below >= room.above ? "below" : "above";
+    const space = Math.max(room[side], 0);
+    if (space >= Math.min(ch, 220)) {
+      card.style.maxHeight = `${space}px`;
+      const h = Math.min(ch, space);
+      const x = clamp(cx - cw / 2, margin, W - cw - margin);
+      fit = [side, true, () => [x, side === "below" ? t.bottom + pad + gap : t.top - pad - gap - h]];
+    } else {
+      card.style.maxHeight = `${H - margin * 2}px`;
+      const h = Math.min(ch, H - margin * 2);
+      fit = ["none", true, () => [(W - cw) / 2, (H - h) / 2]];
+    }
+  }
+  const [side, , pos] = fit;
   const [x, y] = pos();
   card.style.left = `${x}px`;
   card.style.top = `${y}px`;
   arrow.dataset.side = side;
+  const shownH = card.offsetHeight;
   if (side === "below" || side === "above") {
     arrow.style.left = `${clamp(cx - x, 18, cw - 18)}px`;
     arrow.style.top = "";
   } else if (side === "left" || side === "right") {
-    arrow.style.top = `${clamp(cy - y, 18, ch - 18)}px`;
+    arrow.style.top = `${clamp(cy - y, 18, shownH - 18)}px`;
     arrow.style.left = "";
   }
 }

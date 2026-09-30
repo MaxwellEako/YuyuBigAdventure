@@ -1306,7 +1306,7 @@ function showHelp() {
           <h3><span class="t-meta">05</span>棋盘</h3>
           <ul class="help-legend">
             <li><span class="legend-glyph">${icon("chest")}</span><span>${rich("走到[宝箱]或[药水]所在格子可以拾取该物品。站在[铁砧]相邻的格子上点击铁砧即可使用。")}</span></li>
-            <li><span class="legend-glyph">${icon("bag")}</span><span>${rich("[武器槽]数量决定可装备的武器数，[技能]最多装备三个。按 B 键打开[构筑]。")}</span></li>
+            <li><span class="legend-glyph">${icon("bag")}</span><span>${rich("[武器槽]数量决定可装备的武器数，[技能]最多装备三个。在[构筑]中更换出战的武器与技能。")}</span></li>
             <li><span class="legend-glyph">${icon("fog")}</span><span>${rich(`[迷雾]中仅显示${getHeroName()}周围的格子。`)}</span></li>
           </ul>
           ${controlsHelp()}
@@ -1610,6 +1610,14 @@ window.__heartGambit = {
   },
   startLevel,
   world,
+  /** 直接弹出指定的说明卡（忽略“看过”记录），用于检查每张说明卡在各种屏幕上的排版。 */
+  coach: (ids, ctx = {}) =>
+    createCoach({ root: $("#coach-root"), enabled: () => true, seen: () => false, markSeen: () => {}, sfx })(ids, {
+      slots: board?.hero.slots ?? 2,
+      weapons: board?.hero.weapons ?? [],
+      skills: Object.keys(board?.hero.skills ?? {}),
+      ...ctx,
+    }),
 };
 
 // 网页字体加载完成后重绘 3D 铭牌，让 Canvas 里的数字也用上 Inter。

@@ -4,8 +4,8 @@ import { transformShape, shapeKey } from "./shapes.js";
 
 /** 强化种类的文字说明（界面与测试共用）。 */
 export const UPGRADE_TEXT = {
-  rotate: { name: "旋转", icon: "rotate", desc: "战斗中按 R 键，攻击形状旋转 90°。" },
-  mirror: { name: "镜像", icon: "mirror", desc: "战斗中按 F 键，攻击形状左右翻转。" },
+  rotate: { name: "旋转", icon: "rotate", desc: "战斗中可以把攻击形状旋转 90°。" },
+  mirror: { name: "镜像", icon: "mirror", desc: "战斗中可以把攻击形状左右翻转。" },
   extend: { name: "延长", icon: "extend", desc: "攻击范围扩大。" },
   precise: { name: "精准", icon: "energy", desc: "该武器构成连击时，额外获得 1 点充能。" },
   chain: { name: "连锁", icon: "combo", desc: "该武器构成连击时，连击数额外 +1，更快触发追击。" },
