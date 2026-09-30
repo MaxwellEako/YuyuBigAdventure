@@ -13,8 +13,8 @@ import { validateName, NAME_MAX_WIDTH } from "../data/heroName.js";
  */
 export function nameEntryHtml({ current = "", cancelable = false, kickerHtml = "" }) {
   return `<form class="panel name-panel" data-name-form novalidate autocomplete="off">
-    <header class="panel-head"><div>${kickerHtml}<h2>你叫什么名字？</h2></div></header>
-    <p class="body">这个名字会出现在冒险的每一个角落：战斗、故事和说明里，都会这样称呼你。</p>
+    <header class="panel-head"><div>${kickerHtml}<h2>输入名字</h2></div></header>
+    <p class="body">该名字将作为主角的名字，用于章节故事、战斗记录与各项说明。</p>
     <label class="name-field">
       <span class="t-meta">Name · 名字</span>
       <input type="text" name="hero-name" value="${current}" spellcheck="false" autocapitalize="off" aria-describedby="name-hint" />
@@ -26,7 +26,7 @@ export function nameEntryHtml({ current = "", cancelable = false, kickerHtml = "
     <p class="name-rule t-meta">中文最多 9 个字 · 英文最多 18 个字母</p>
     <div class="panel-actions">
       ${cancelable ? '<button type="button" class="ghost" data-cmd="back">取消</button>' : ""}
-      <button type="submit" class="primary" data-name-submit>出发<span aria-hidden="true">→</span></button>
+      <button type="submit" class="primary" data-name-submit>确认<span aria-hidden="true">→</span></button>
     </div>
   </form>`;
 }

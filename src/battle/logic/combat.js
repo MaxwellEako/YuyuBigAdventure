@@ -227,7 +227,7 @@ export function previewAttack(state, weaponId, r, c) {
 /** 变形（不消耗回合）：旋转到下一个朝向，或左右翻转。只对拥有对应强化的武器生效。 */
 export function heroTransform(state, weaponId, kind) {
   const slot = slotOf(state, weaponId);
-  if (!slot || slot.kind !== "weapon") return { ok: false, reason: "技能无法变形" };
+  if (!slot || slot.kind !== "weapon") return { ok: false, reason: "技能不可变形" };
   if (!state.upgrades[weaponId]?.[kind]) return { ok: false, reason: `${WEAPONS[weaponId].name}没有这项强化` };
   if (kind === "rotate") slot.orient = { ...slot.orient, rot: nextRotation(weaponId, state.upgrades, slot.orient) };
   else slot.orient = { ...slot.orient, flip: !slot.orient.flip };
@@ -291,7 +291,7 @@ function settleCombo(state, slot, outcome, wasBonus, events) {
 }
 
 export function heroAttack(state, weaponId, r, c) {
-  if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
+  if (state.phase !== "hero") return { ok: false, reason: "当前不是己方回合" };
   const slot = slotOf(state, weaponId);
   if (!slot) return { ok: false, reason: "未装备该武器" };
   const blocked = slotBlocked(state, slot);
@@ -361,10 +361,10 @@ export function heroAttack(state, weaponId, r, c) {
 }
 
 /** 某项机制还没解锁时给出的拒绝结果；解锁了返回 null。 */
-const locked = (state, feature) => (state.features.has(feature) ? null : { ok: false, reason: "还没有学会这个动作" });
+const locked = (state, feature) => (state.features.has(feature) ? null : { ok: false, reason: "该操作尚未解锁" });
 
 export function heroHeal(state, r, c) {
-  if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
+  if (state.phase !== "hero") return { ok: false, reason: "当前不是己方回合" };
   const lock = locked(state, "potion");
   if (lock) return lock;
   if (state.potions <= 0) return { ok: false, reason: "药水已用尽" };
@@ -380,7 +380,7 @@ export function heroHeal(state, r, c) {
 }
 
 export function heroShield(state) {
-  if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
+  if (state.phase !== "hero") return { ok: false, reason: "当前不是己方回合" };
   const lock = locked(state, "shield");
   if (lock) return lock;
   if (state.shieldUp) return { ok: false, reason: "已处于防御状态" };
@@ -397,7 +397,7 @@ export function heroShield(state) {
  * 保证任何时候都有合法动作：例如装备的武器全部在冷却、又没有药水时。
  */
 export function heroWait(state) {
-  if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
+  if (state.phase !== "hero") return { ok: false, reason: "当前不是己方回合" };
   const lock = locked(state, "wait");
   if (lock) return lock;
   state.bonus = false;
@@ -408,7 +408,7 @@ export function heroWait(state) {
 }
 
 export function heroRetreat(state) {
-  if (state.phase !== "hero") return { ok: false, reason: "现在不是你的回合" };
+  if (state.phase !== "hero") return { ok: false, reason: "当前不是己方回合" };
   const lock = locked(state, "retreat");
   if (lock) return lock;
   if (!state.canRetreat) return { ok: false, reason: "暗王战无法撤退" };
@@ -576,9 +576,9 @@ export function monsterTurn(state) {
       // 短剑等无冷却的基础武器不受影响，保证主角总有招可出。
       for (const slot of state.weapons)
         if (slot.kind === "weapon" && WEAPONS[slot.id].cooldown) slot.cd = Math.max(slot.cd, 1) + intent.amount;
-      state.log.push(`${name}喊出「${intent.name}」，武器冷却 +${intent.amount}${comboLinks(state.combo) ? "，连击中断" : ""}。`);
+      state.log.push(`${name}使用「${intent.name}」，武器冷却 +${intent.amount}${comboLinks(state.combo) ? "，连击中断" : ""}。`);
       state.combo = 0;
-      events.push({ type: "curse", blocked: false });
+      events.push({ type: "curse", blocked: false, amount: intent.amount });
     }
   }
   state.step += 1;

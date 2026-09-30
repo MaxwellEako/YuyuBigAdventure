@@ -45,7 +45,7 @@ export const TOPICS = {
     title: "移动",
     body: () =>
       coarse()
-        ? `点击屏幕右下角的方向键移动一格，也可以直接点棋盘上的格子，自动寻路前往。进入[出口]即完成本章。`
+        ? `点击屏幕右下角的方向键移动一格；点击棋盘上的格子，可自动寻路前往。进入[出口]即完成本章。`
         : `使用方向键或 WASD 移动一格，点击棋盘上的格子可自动寻路前往。进入[出口]即完成本章。`,
   },
   // 第一场战斗的引导：逐个高亮战斗界面上的区域，说明卡贴在旁边。
@@ -64,20 +64,20 @@ export const TOPICS = {
   "tour-intent": {
     title: "怪物的下一招",
     target: "[data-side=enemy] .intent",
-    body: `怪物按固定顺序行动。此处显示它的下一招，以及之后几招的顺序。`,
+    body: `怪物按固定顺序出招。此处显示其下一招及之后的出招顺序。`,
   },
   "tour-attack": {
     title: "攻击",
     target: "[data-weapons]",
     body: () =>
       `选择一件[武器]，${
-        coarse() ? "点击怪物红心矩阵上的格子预览攻击范围，再次点击同一格发动攻击" : "将指针移至怪物的红心矩阵上预览攻击范围，点击发动攻击"
-      }。范围内的红心将被消除，攻击范围可以越出矩阵边缘。<p class="coach-example"><span class="inline-shape">${shapeSvg(WEAPONS.dagger.shape, { cell: 10 })}</span>短剑：横向攻击两格。</p>`,
+        coarse() ? "点击怪物红心矩阵上的格子预览攻击范围，再次点击同一格发动攻击" : "将指针移至怪物的红心矩阵上预览攻击范围，单击发动攻击"
+      }。范围内的红心将被消除，攻击范围可越出矩阵边缘。<p class="coach-example"><span class="inline-shape">${shapeSvg(WEAPONS.dagger.shape, { cell: 10 })}</span>短剑：横向攻击两格。</p>`,
   },
   "tour-energy": {
     title: "充能",
     target: "[data-energy]",
-    body: `钩镰等武器每次使用消耗 1 点[充能]。${legend([[icon("energy"), `每场战斗开始时持有 ${ENERGY_START} 点，最多积蓄 ${ENERGY_MAX} 点。`]])}`,
+    body: `中型武器（如钩镰）每次使用消耗 1 点[充能]。${legend([[icon("energy"), `每场战斗开始时持有 ${ENERGY_START} 点，最多积蓄 ${ENERGY_MAX} 点。`]])}`,
   },
   "tour-shield": {
     title: "防御",
@@ -87,12 +87,12 @@ export const TOPICS = {
   "tour-potion": {
     title: "药水",
     target: "[data-act=potion]",
-    body: `[药水]恢复十字范围内的红心，消耗一回合。数字为剩余的瓶数。`,
+    body: `[药水]恢复十字范围内的红心，消耗一回合。数字为剩余瓶数。`,
   },
   "tour-retreat": {
     title: "撤退",
     target: "[data-act=retreat]",
-    body: `承受怪物的一次追击后返回棋盘，怪物晕眩两回合。`,
+    body: `承受怪物的一次追击后返回棋盘，该怪物晕眩两回合。`,
   },
   // 第一次打出完美命中、心阵上出现蓝色虚线框之后才弹出。
   "combo-energy": {
@@ -103,16 +103,16 @@ export const TOPICS = {
       { glyph: icon("combo"), title: "连击", note: "更换武器，紧邻虚线框" },
       { glyph: icon("energy"), title: "连击 ×2 起", note: "每次连击获得 1 点充能", tone: "accent" },
       { glyph: icon("chase"), title: `连击 ×${CHASE_EVERY}`, note: "追击：怪物行动前再攻击一次", tone: "accent" },
-    ])}顺着怪物心阵的形状换着武器“拼”下去，比一件武器慢慢磨快得多。攻击落空、未紧邻虚线框或连续使用同一件武器时，连击中断；[追击]中不会再触发追击。`,
+    ])}按怪物红心矩阵的形状交替使用不同武器，可更快消除全部红心。攻击落空、未紧邻虚线框或连续使用同一件武器时，连击中断。[追击]期间不会再次触发追击。`,
   },
   chest: {
     title: "宝箱与药水",
-    body: "走到[宝箱]或[药水]所在格子可以拾取该物品。宝箱中装有新武器。",
+    body: "进入[宝箱]或[药水]所在的格子即可拾取。宝箱中装有新武器。",
   },
   slots: {
     title: "武器槽",
     body: (ctx) =>
-      `出战的武器置于[武器槽]中，本章共有 ${ctx.slots} 个武器槽，其余武器存放在[背包]中。${slotDiagram(ctx.slots)}${coarse() ? "点信息栏的「武器」，再点底部的[构筑]" : "在棋盘上按 B 键打开[构筑]"}，可随时更换出战武器。`,
+      `出战的武器置于[武器槽]中，本章共有 ${ctx.slots} 个武器槽，其余武器存放在[背包]中。${slotDiagram(ctx.slots)}${coarse() ? "点击信息栏的「武器」，再点击底部的[构筑]" : "在棋盘上按 B 键打开[构筑]"}，可随时更换出战武器。`,
   },
   "slots-up": {
     title: "武器槽增加",
@@ -120,12 +120,12 @@ export const TOPICS = {
   },
   "key-door": {
     title: "钥匙与铁栅门",
-    body: "[铁栅门]需要[钥匙]才能开启。拾取本章棋盘上的钥匙后，走入铁栅门即可将其打开。",
+    body: "[铁栅门]须使用[钥匙]开启。拾取本章棋盘上的钥匙后，进入铁栅门所在的格子即可将其打开。",
   },
   ambush: {
     title: "巡猎的怪物",
     get body() {
-      return `部分怪物发现${getHeroName()}后会主动追击。被怪物接触时，由怪物先手。将指针停在怪物上，可查看其招式与移动方式。`;
+      return `部分怪物发现${getHeroName()}后会主动追击。被怪物接触时，由怪物先手。${coarse() ? "在「目标」中可查看怪物的移动方式。" : "将指针停在怪物上，可查看其招式与移动方式。"}`;
     },
   },
   skills: {
@@ -134,14 +134,14 @@ export const TOPICS = {
   },
   forge: {
     title: "铁砧",
-    body: "站在[铁砧]相邻的格子上点击铁砧，可从三项强化中选择一项。每项可重抽一次。每座铁砧仅能使用一次。",
+    body: "站在[铁砧]相邻的格子上点击铁砧，可从三项强化中选择一项。每项可重抽一次，每座铁砧仅可使用一次。",
   },
   // 护甲只讲玩家手里已经有的破甲手段。
   armor: {
     title: "护甲心",
     target: "[data-side=enemy] .matrix-box",
     body: (ctx) =>
-      `带黑框的[护甲心]需要命中两次才会消除。命中护甲心同样计入[完美命中]。${legend(
+      `带黑框的[护甲心]须命中两次才会消除。命中护甲心同样计入[完美命中]。${legend(
         [
           ctx.weapons?.includes("awl") ? [icon("pierce"), "破甲锥可一击消除护甲心。"] : null,
           ctx.skills?.includes("crush") ? [icon("pierce"), "技能碎甲可一击消除护甲心。"] : null,
@@ -165,14 +165,14 @@ export const TOPICS = {
     title: "护甲片",
     body: () => `${legend([
       [icon("armor"), "护甲片可为自己[红心矩阵]中一块田字（2×2）范围的红心加上护甲。"],
-      [heartSvg("armor"), "[护甲心]被击中时先失去护甲，需要两次命中才会消除。"],
-    ])}${coarse() ? "点信息栏的护甲片图标" : "在棋盘上按 G 键或点击信息栏的护甲片图标"}，选择位置使用。`,
+      [heartSvg("armor"), "[护甲心]首次被击中时失去护甲，第二次被击中时消除。"],
+    ])}${coarse() ? "点击信息栏的护甲片图标" : "在棋盘上按 G 键或点击信息栏的护甲片图标"}，选择位置后使用。`,
   },
   heavy: {
     title: "重型武器",
     body: (ctx) =>
-      `${ctx.weapon ? `<p class="coach-example"><span class="inline-shape">${shapeSvg(ctx.weapon.shape, { cell: 12 })}</span>${ctx.weapon.name}可一次消除大片红心。</p>` : ""}${legend([
-        [icon("energy").repeat(ENERGY_COST.heavy), `每次使用消耗 ${ENERGY_COST.heavy} 点[充能]，比开局持有的多，需要先打出[连击]。`],
+      `${ctx.weapon ? `<p class="coach-example"><span class="inline-shape">${shapeSvg(ctx.weapon.shape, { cell: 12 })}</span>${ctx.weapon.name}可一次消除大范围的红心。</p>` : ""}${legend([
+        [icon("energy").repeat(ENERGY_COST.heavy), `每次使用消耗 ${ENERGY_COST.heavy} 点[充能]，多于战斗开始时持有的 ${ENERGY_START} 点，须先通过[连击]积蓄。`],
         [icon("stagger"), "单次消除不少于 3 颗红心，可[打断]怪物蓄力后的[重击]。可打断时，怪物的下一招旁显示此标记。"],
       ])}`,
   },

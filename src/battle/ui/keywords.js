@@ -42,7 +42,12 @@ export function kw(label, key = label) {
   return `<b class="kw ${entry.tone ?? "accent"}">${glyph}${label}</b>`;
 }
 
-/** 把文案里的 [关键词] 或 [显示文字|关键词] 换成关键词标记。 */
+/**
+ * 把文案里的 [关键词] 或 [显示文字|关键词] 换成关键词标记。
+ * 关键词整体不换行；紧跟在后面的中文标点和它绑在一起，避免标点被挤到下一行的行首。
+ */
 export function rich(text) {
-  return String(text).replace(/\[([^\]|]+)(?:\|([^\]]+))?\]/g, (_, label, key) => kw(label, key ?? label));
+  return String(text).replace(/\[([^\]|]+)(?:\|([^\]]+))?\]([，。、；：！？）」]?)/g, (_, label, key, punct) =>
+    punct ? `<span class="kw-keep">${kw(label, key ?? label)}${punct}</span>` : kw(label, key ?? label),
+  );
 }

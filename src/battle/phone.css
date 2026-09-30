@@ -912,3 +912,23 @@ html {
     font-size: 14px;
   }
 }
+
+/* 关键词与紧随其后的标点不拆行。 */
+.kw-keep {
+  white-space: nowrap;
+}
+
+/* 触屏上不需要键盘焦点框（打开弹窗时按钮会被自动聚焦，外框只会显得多了一层边）。 */
+@media (pointer: coarse) {
+  button:focus-visible {
+    outline: none;
+  }
+}
+
+/* 说明卡正文较长需要滚动时，用一条细线把按钮区和正文分开。 */
+@media (max-width: 600px) {
+  .coach-actions {
+    padding-top: 12px;
+    border-top: 1px solid var(--grey-2);
+  }
+}

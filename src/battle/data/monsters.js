@@ -62,7 +62,7 @@ export const MONSTERS = {
   pawn: {
     id: "pawn",
     name: "暗影兵",
-    title: "守在关口的步兵",
+    title: "驻守关口的步兵",
     model: "pawn",
     // 缺口和凸起是给武器“拼图”留的：顺着形状换着武器打，连击 ×3 时追击收尾。
     ranks: {
@@ -77,7 +77,7 @@ export const MONSTERS = {
   knight: {
     id: "knight",
     name: "暗影骑士",
-    title: "踏着马步巡夜",
+    title: "按马步移动的骑兵",
     model: "knight",
     ranks: {
       0: ["..##.", "#####", "#..#.", "###.."],
@@ -96,7 +96,7 @@ export const MONSTERS = {
   bishop: {
     id: "bishop",
     name: "暗影主教",
-    title: "斜行祷告的主教",
+    title: "斜向移动，以祷告恢复红心",
     model: "bishop",
     // 祷告会把打出的缺口补回来，拖久了就连不上：趁它还没祷告，一口气连下去。
     ranks: {
@@ -114,7 +114,7 @@ export const MONSTERS = {
   rook: {
     id: "rook",
     name: "暗影城堡",
-    title: "披着护甲的城堡",
+    title: "为红心附加护甲",
     model: "rook",
     // 带护甲的心要打两下（或用破甲一下击碎），拼图时要把它们算进去。
     ranks: {
@@ -171,7 +171,8 @@ export const MONSTERS = {
  */
 export function heartsAt(def, rank = 0) {
   const defined = Object.keys(def.ranks).map(Number).sort((a, b) => a - b);
-  const pick = defined.filter((k) => k <= rank).at(-1) ?? defined[0];
+  const lower = defined.filter((k) => k <= rank);
+  const pick = lower.length ? lower[lower.length - 1] : defined[0];
   return def.rankValues[pick];
 }
 

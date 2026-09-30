@@ -57,8 +57,8 @@ export function validateName(raw) {
   const name = String(raw ?? "").trim().replace(/\s+/g, " ");
   const width = nameWidth(name);
   if (!name) return { ok: false, name, width, error: "请输入名字。" };
-  if (!ALLOWED.test(name)) return { ok: false, name, width, error: "名字里只能使用文字、数字和 · . _ - 符号。" };
-  if (width > NAME_MAX_WIDTH) return { ok: false, name, width, error: "名字太长了：中文最多 9 个字，英文最多 18 个。" };
+  if (!ALLOWED.test(name)) return { ok: false, name, width, error: "名字仅可包含文字、数字及 · . _ - 符号。" };
+  if (width > NAME_MAX_WIDTH) return { ok: false, name, width, error: "名字超出长度限制：中文最多 9 个字，英文最多 18 个字母。" };
   return { ok: true, name, width, error: "" };
 }
 

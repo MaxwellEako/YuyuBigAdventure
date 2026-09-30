@@ -85,7 +85,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
           <div class="energy" data-energy title="充能 · 连击 ×2 起，每次连击获得 1 点"></div>
           <div class="combo-badge" data-combo title="连击">${icon("combo", "combo-icon")}<b data-combo-count></b></div>
         </div>
-        <div class="turn-banner" data-banner>你的回合</div>
+        <div class="turn-banner" data-banner>己方回合</div>
         <div class="round"><span class="t-meta">Round</span><b data-round>01</b></div>
       </header>
       <div class="arena">
@@ -208,7 +208,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   function flyBean(count) {
     const from = $("[data-enemy-matrix]").getBoundingClientRect();
     const beans = [...$("[data-energy]").querySelectorAll(".bean.on")];
-    const to = beans.at(-1)?.getBoundingClientRect() ?? $("[data-energy]").getBoundingClientRect();
+    const to = beans[beans.length - 1]?.getBoundingClientRect() ?? $("[data-energy]").getBoundingClientRect();
     const card = $(".battle-card").getBoundingClientRect();
     for (let k = 0; k < count; k += 1) {
       const bean = document.createElement("i");
@@ -322,7 +322,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     potion.classList.toggle("active", mode === "heal");
     const retreat = $("[data-act=retreat]");
     retreat.disabled = !combat.canRetreat;
-    retreat.title = combat.canRetreat ? "承受一次追击后脱离战斗，怪物晕眩两回合" : "这一战没有退路";
+    retreat.title = combat.canRetreat ? "承受一次追击后脱离战斗，该怪物晕眩两回合" : "本场战斗无法撤退";
   }
 
   function renderIntent() {
@@ -346,9 +346,11 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
         ? `${icon("shield")}<strong>格挡</strong><span class="aim-name">${combat.intent.name}</span>`
         : `<span class="aim-swatch"></span><strong>${combat.intent.name}</strong><b>−${hits}</b>${heartSvg("heart")}`;
       note.className = `aim-note ${combat.shieldUp ? "safe" : "danger"}`;
+      $(".battle-card").classList.toggle("shielded", combat.shieldUp);
     } else {
       note.innerHTML = "";
       note.className = "aim-note";
+      $(".battle-card").classList.remove("shielded");
     }
   }
 
@@ -381,7 +383,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     $("[data-hero-status]").textContent = combat.shieldUp ? "防御中" : "白色小兵";
     const banner = $("[data-banner]");
     const heroTurn = combat.phase === "hero" && !busy;
-    banner.textContent = heroTurn ? (mode === "heal" ? "选择治疗位置" : combat.bonus ? (combat.bonusReason === "chase" ? "追击" : "追加攻击") : "你的回合") : "敌方回合";
+    banner.textContent = heroTurn ? (mode === "heal" ? "选择治疗位置" : combat.bonus ? (combat.bonusReason === "chase" ? "追击" : "追加攻击") : "己方回合") : "敌方回合";
     banner.classList.toggle("enemy-turn", !heroTurn);
     modal.classList.toggle("heal-mode", mode === "heal");
     modal.classList.toggle("locked", !heroTurn);
@@ -438,7 +440,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   enemyView.onArm = heroView.onArm = () => {
     if (armHints >= ARM_HINT_TIMES) return;
     armHints += 1;
-    toast("再点一次同一格确认");
+    toast("再次点击同一格以确认攻击");
   };
   enemyView.onPick = (r, c) => {
     if (mode === "heal") return toast(`药水只能用于${getHeroName()}的红心矩阵`);
@@ -673,7 +675,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
         await delay(650);
       } else if (event.type === "curse") {
         sfx.play(event.blocked ? "block" : "curse");
-        floatText("hero", event.blocked ? "格挡" : "冷却 +1", event.blocked ? "block" : "curse");
+        floatText("hero", event.blocked ? "格挡" : `冷却 +${event.amount}`, event.blocked ? "block" : "curse");
         if (!event.blocked && linksBefore) setTimeout(() => floatText("enemy", "连击中断", "miss"), 200);
         await delay(550);
       }

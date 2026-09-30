@@ -4,12 +4,12 @@ import { transformShape, shapeKey } from "./shapes.js";
 
 /** 强化种类的文字说明（界面与测试共用）。 */
 export const UPGRADE_TEXT = {
-  rotate: { name: "旋转", icon: "rotate", desc: "战斗中可以把攻击形状旋转 90°。" },
-  mirror: { name: "镜像", icon: "mirror", desc: "战斗中可以把攻击形状左右翻转。" },
+  rotate: { name: "旋转", icon: "rotate", desc: "战斗中可将攻击形状旋转 90°。" },
+  mirror: { name: "镜像", icon: "mirror", desc: "战斗中可将攻击形状左右翻转。" },
   extend: { name: "延长", icon: "extend", desc: "攻击范围扩大。" },
   precise: { name: "精准", icon: "energy", desc: "该武器构成连击时，额外获得 1 点充能。" },
-  chain: { name: "连锁", icon: "combo", desc: "该武器构成连击时，连击数额外 +1，更快触发追击。" },
-  nimble: { name: "灵巧", icon: "run", desc: "该武器不必紧挨上一击，只要不落空、换了武器就能连上。" },
+  chain: { name: "连锁", icon: "combo", desc: "该武器构成连击时，连击数额外 +1。" },
+  nimble: { name: "灵巧", icon: "run", desc: "该武器无须紧邻上一击：攻击未落空且更换了武器，即构成连击。" },
   pierce: { name: "破甲", icon: "pierce", desc: "一击消除护甲心。" },
   stagger: { name: "震慑", icon: "stagger", desc: "单次消除不少于 2 颗红心即可打断重击。" },
 };
@@ -138,7 +138,7 @@ export function createForgeOptions(hero, rng = Math.random, opts = {}) {
 
 export function rerollForgeOption(hero, options, index, rng = Math.random, opts = {}) {
   const current = options[index];
-  if (!current || current.rerolled) return { ok: false, reason: "每项强化仅能重抽一次" };
+  if (!current || current.rerolled) return { ok: false, reason: "每项强化仅可重抽一次" };
   const pool = upgradeOptions(hero, rng, 99, opts).filter((o) => !options.some((x) => sameOption(x, o)));
   if (!pool.length) return { ok: false, reason: "没有其他可选的强化" };
   options[index] = { ...pool[0], rerolled: true };

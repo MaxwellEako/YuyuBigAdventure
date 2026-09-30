@@ -117,9 +117,9 @@ test("用真实键鼠通关序章：说明弹窗、移动、悬停预览、出�
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   // 第一次进游戏先起名，起完名才进入标题页。
-  await expect(page.locator(".name-panel h2")).toHaveText("你叫什么名字？");
+  await expect(page.locator(".name-panel h2")).toHaveText("输入名字");
   await page.locator(".name-panel input").fill("阿福");
-  await page.getByRole("button", { name: /出发/ }).click();
+  await page.getByRole("button", { name: /确认/ }).click();
   await expect(page.locator(".title-card h1")).toHaveText("心阵棋局");
   await expect(page.locator(".title-card .lede")).toContainText("阿福");
   await page.screenshot({ path: ".playwright/battle-title.png" });
@@ -231,7 +231,7 @@ test("重置进度：先确认再清空，取消不丢进度，音乐音效开�
   // 名字随进度一起清空，重置后要重新起名。
   await expect(page.locator(".name-panel h2")).toBeVisible();
   await page.locator(".name-panel input").fill("Lily");
-  await page.getByRole("button", { name: /出发/ }).click();
+  await page.getByRole("button", { name: /确认/ }).click();
   await expect(page.getByRole("button", { name: "开始冒险" })).toBeVisible();
   await expect(page.getByRole("button", { name: "重置进度" })).toHaveCount(0);
   const after = JSON.parse(await page.evaluate(() => localStorage.getItem("heart-gambit-progress-v3")));
@@ -250,7 +250,7 @@ test("起名：中文最多 9 个字、英文最多 18 个，超长或非法时�
   await page.reload();
 
   const input = page.locator(".name-panel input");
-  const submit = page.getByRole("button", { name: /出发/ });
+  const submit = page.getByRole("button", { name: /确认/ });
   const hint = page.locator("[data-name-error]");
   await expect(submit).toBeDisabled();
 
