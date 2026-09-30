@@ -1,6 +1,8 @@
 import { MatrixView } from "./matrixView.js";
 import { icon, shapeSvg, heartSvg } from "./icons.js";
 import { WEAPONS, SHIELD, POTION } from "../data/weapons.js";
+import { SKILLS } from "../data/skills.js";
+import { upgradeKeys, upLogos, costMarks, cdMask, chargePips } from "./marks.js";
 import { INTENT_TEXT } from "../data/monsters.js";
 import { getHeroName } from "../data/heroName.js";
 import { ALL_FEATURES } from "../data/features.js";
@@ -28,7 +30,7 @@ import {
   slotBlocked,
   heroTransform,
 } from "../logic/combat.js";
-import { weaponShape, weaponCooldown, UPGRADE_TEXT } from "../logic/arsenal.js";
+import { weaponShape, UPGRADE_TEXT } from "../logic/arsenal.js";
 
 export const GLYPH = { ink: "✹", pawn: "♟", knight: "♞", bishop: "♝", rook: "♜", queen: "♛", king: "♚" };
 const MOVE_TEXT = { orth: "直行一格", diag: "斜行一格", king: "八方一格", knight: "马步跳跃" };
@@ -41,14 +43,18 @@ const INTENT_ICON = { charge: "", heal: heartSvg("heart"), armor: heartSvg("armo
 const INTENT_SHAPE_H = 34;
 const intentCell = (shape) => Math.min(12, Math.floor((INTENT_SHAPE_H - (shape.rows - 1) * 2) / shape.rows));
 
-/** 怪物的下一招：攻击只画形状，其他招式配一个小图标和数值。 */
-function intentHtml(intent) {
+/**
+ * 怪物的下一招：攻击只画形状，其他招式配一个小图标和数值。
+ * @param {object} intent 怪物下一招
+ * @param {string} outcome 这一招落到主角身上的结果（“−5 ♥”或“格挡”），由调用方算好
+ */
+function intentHtml(intent, outcome = "") {
   if (!intent) return "";
   const extra =
     intent.kind === "attack"
       ? shapeSvg(intent.shape, { cell: intentCell(intent.shape), gap: 2, tone: "enemy", pivot: false })
       : `<span class="intent-fx ${intent.kind}">${INTENT_ICON[intent.kind] ?? ""}${INTENT_TEXT[intent.kind](intent)}${intent.kind === "curse" ? `<i class="fx-break">${icon("combo")}</i>` : ""}</span>`;
-  return `<span class="intent-label t-meta">Next</span><strong>${intent.name}</strong>${extra}`;
+  return `<span class="intent-label t-meta">Next</span><strong>${intent.name}</strong>${extra}${outcome}`;
 }
 
 /** 怪物的特性：一眼看出该带什么武器。 */
@@ -240,58 +246,59 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     setTimeout(() => el.remove(), 1200);
   }
 
-  function hpHtml(matrix) {
+  /**
+   * 红心数：“剩余 / 总数”写在同一行，不画血条——剩多少由心阵本身表达。
+   * @param {number[][]} matrix 心阵
+   * @param {number} loss 本回合预计失去的红心（怪物瞄准主角时显示为红色的 −N）
+   */
+  function hpHtml(matrix, loss = 0) {
     const { hearts, slots, armor } = countHearts(matrix);
-    return `<span class="num">${hearts}</span><span class="of">/${slots}</span>${armor ? `<em class="t-meta" title="护甲心">Armor ${armor}</em>` : ""}`;
+    return `<span class="num">${hearts}</span><span class="of">/ ${slots}</span>${
+      armor ? `<em class="hp-armor" title="护甲心 ${armor} 颗">${heartSvg("armor")}${armor}</em>` : ""
+    }${loss ? `<b class="hp-loss" title="怪物下一招预计消除的红心">−${loss}</b>` : ""}`;
   }
 
   const keyLabel = (i) => (i < 9 ? String(i + 1) : i === 9 ? "0" : "");
 
-  // 底栏的招式卡：固定尺寸的竖卡，上面是形状，下面是名字和状态；武器一组、技能一组。
+  // 底栏的招式卡：形状画在左上角的小方框里，格子边长按形状大小缩放。
   const cardCell = (shape) => {
     const n = Math.max(shape.rows, shape.cols);
-    return Math.min(10, Math.floor((38 - (n - 1) * 2) / n));
+    return Math.min(9, Math.floor((30 - (n - 1) * 2) / n));
   };
 
+  /**
+   * 一张招式卡，结构固定：
+   *   左上形状 · 右上强化标记
+   *   左下名字 · 右下充能消耗（技能是剩余次数）
+   * 冷却中整张卡盖上灰色遮罩（沙漏 + 回合数）。
+   */
   function moveCard(slot, i) {
     const def = slotDef(slot);
-    const blocked = slotBlocked(combat, slot);
-    const up = slot.kind === "weapon" ? combat.upgrades[slot.id] ?? {} : {};
-    const ups = [
-      ...Object.keys(UPGRADE_TEXT)
-        .filter((k) => up[k])
-        .map((k) => `<i class="up-icon" title="${UPGRADE_TEXT[k].name}">${icon(UPGRADE_TEXT[k].icon)}</i>`),
-      ...(def.pierce ? [`<i class="up-icon" title="破甲">${icon("pierce")}</i>`] : []),
-    ].join("");
-    // 中型、重型武器标出要消耗几点充能；冷却中显示沙漏。
+    const weapon = slot.kind === "weapon";
     const cost = energyCost(slot);
-    const starved = slot.kind === "weapon" && !slot.cd && cost > combat.energy;
-    const status =
-      slot.kind === "skill"
-        ? `${icon("skill")}×${slot.charges}`
-        : slot.cd
-          ? `${icon("cd")}${slot.cd}`
-          : cost
-            ? `<span class="cost">${Array.from({ length: cost }, () => icon("energy")).join("")}</span>`
-            : "";
+    const starved = weapon && !slot.cd && cost > combat.energy;
     const shape = slotShape(combat, slot);
-    // 连击中，上一击用过的招式角上画一个虚线框（和心阵上标出上一击范围的虚线一致）：换一件才接得上。
+    // 连击中，上一击用过的招式画一圈虚线（和心阵上标出上一击范围的虚线一致）：换一件才接得上。
     const lastUsed = combat.combo > 0 && slot.id === combat.lastWeaponId;
     const classes = [
       "weapon",
       slot.kind,
       slot.id === selected && mode === "attack" ? "selected" : "",
-      blocked ? "cooling" : "",
+      slotBlocked(combat, slot) ? "cooling" : "",
       lastUsed ? "last-used" : "",
-      slot.kind === "skill" && slot.charges <= 0 ? "spent" : "",
+      !weapon && slot.charges <= 0 ? "spent" : "",
       starved ? "starved" : "",
     ].join(" ");
+    const meta = weapon ? costMarks(cost) : chargePips(slot.charges, SKILLS[slot.id].charges);
+    // 强化标记超过两枚时加上 many：窄屏只显示第一枚，其余收成“+N”。
+    const ups = weapon ? upgradeKeys(slot.id, combat.upgrades) : [];
     return `<button class="${classes}" data-weapon="${slot.id}" title="${def.name} · ${def.desc}${lastUsed ? " · 上一击所用武器，无法接续连击" : ""}">
-      <kbd class="key-hint">${keyLabel(i)}</kbd>
-      <span class="weapon-ups">${ups}</span>
-      <span class="weapon-shape">${shapeSvg(shape, { cell: cardCell(shape), gap: 2, tone: slot.kind === "skill" ? "skill" : "attack" })}</span>
+      <span class="weapon-shape">${shapeSvg(shape, { cell: cardCell(shape), gap: 2, tone: weapon ? "attack" : "skill" })}</span>
+      <span class="weapon-ups ${ups.length > 2 ? "many" : ""}">${upLogos(ups)}</span>
       <span class="weapon-name">${def.name}</span>
-      <span class="weapon-cd t-meta">${status}</span>
+      <span class="weapon-meta">${meta}</span>
+      <kbd class="key-hint">${keyLabel(i)}</kbd>
+      ${weapon ? cdMask(slot.cd) : ""}
     </button>`;
   }
 
@@ -319,8 +326,8 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   function renderActions() {
     const shield = $("[data-act=shield]");
     // 防御中、冷却中显示状态；可用时显示快捷键 Q（触屏上隐藏）。
-    const shieldState = combat.shieldUp ? "防御中" : combat.shieldCd ? `冷却 ${combat.shieldCd}` : null;
-    shield.innerHTML = `${icon("shield")}<span>${SHIELD.name}</span>${shieldState ? `<small>${shieldState}</small>` : `<small class="key-hint">Q</small>`}`;
+    // 防御中：按钮变蓝；冷却中：盖上和招式卡一样的冷却遮罩。
+    shield.innerHTML = `${icon("shield")}<span>${combat.shieldUp ? "防御中" : SHIELD.name}</span><small class="key-hint">Q</small>${cdMask(combat.shieldUp ? 0 : combat.shieldCd)}`;
     shield.disabled = combat.shieldUp || combat.shieldCd > 0;
     shield.classList.toggle("up", combat.shieldUp);
     const potion = $("[data-act=potion]");
@@ -334,7 +341,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
 
   function renderIntent() {
     $("[data-intent]").innerHTML =
-      intentHtml(combat.intent) +
+      intentHtml(combat.intent, outcomeHtml()) +
       (interruptible(combat) ? `<i class="fx-interrupt" title="重型武器单次消除不少于 3 颗红心即可打断">${icon("stagger")}</i>` : "");
     const len = def.pattern.length;
     // 招式循环画成一排小方块，当前这一招涂黑；名字放在悬停提示里。
@@ -361,6 +368,16 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     }
   }
 
+  /** 下一招落到主角身上的结果：防御中写“格挡”，否则写会消除几颗红心。 */
+  function outcomeHtml() {
+    if (combat.intent?.kind !== "attack" || !combat.aim) return "";
+    if (combat.shieldUp) return `<span class="intent-dmg safe">${icon("shield")}格挡</span>`;
+    return `<span class="intent-dmg">−${previewAim()}${heartSvg("heart")}</span>`;
+  }
+
+  /** 本回合主角预计失去的红心数（防御中为 0）。 */
+  const aimLoss = () => (combat.intent?.kind === "attack" && combat.aim && !combat.shieldUp ? previewAim() : 0);
+
   function previewAim() {
     let n = 0;
     for (const [dr, dc] of combat.intent.shape.offsets) {
@@ -386,7 +403,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   function render() {
     $("[data-round]").textContent = String(combat.round).padStart(2, "0");
     $("[data-enemy-hp]").innerHTML = hpHtml(combat.monsterMatrix);
-    $("[data-hero-hp]").innerHTML = hpHtml(combat.heroMatrix);
+    $("[data-hero-hp]").innerHTML = hpHtml(combat.heroMatrix, aimLoss());
     $("[data-hero-status]").textContent = combat.shieldUp ? "防御中" : "白色小兵";
     const banner = $("[data-banner]");
     const heroTurn = combat.phase === "hero" && !busy;

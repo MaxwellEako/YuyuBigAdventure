@@ -2,8 +2,8 @@ import { heartSvg } from "./icons.js";
 import { VOID, EMPTY, ARMOR, footprint } from "../logic/shapes.js";
 
 /**
- * 可交互的红心矩阵。四周有一圈看不见的“界外格”，
- * 让形状的锚点也能放到矩阵外面——形状只需覆盖到对应区域即可，不设边界。
+ * 可交互的红心矩阵。四周有一圈“界外格”，让形状的锚点也能放到矩阵外面——形状只需覆盖到对应区域即可，不设边界。
+ * 武器够得到的那一圈界外格和心阵里的空位一样画成虚线格，提示攻击可以有一部分落在心阵之外。
  */
 export class MatrixView {
   constructor(el, { margin = 2, maxSize = 360, side = "enemy", box = null, minCell = 22 } = {}) {
@@ -93,6 +93,8 @@ export class MatrixView {
   build(rows, cols) {
     const GAP = 3;
     let { top, bottom, left, right } = this.margin;
+    // 武器够得到的那几圈界外格画成虚线格（near），再往外的只是填满外框的透明格。
+    let near = { top, bottom, left, right };
     let size;
     if (this.box) {
       // 先保证红心加上武器够得到的圈数能完整放下（上下、左右按较大的一侧对称留），再用界外格铺满外框。
@@ -104,6 +106,7 @@ export class MatrixView {
       size = Math.min(this.fixedSize ?? Infinity, this.fitSize(rows, cols));
       const ringV = Math.max(needV, Math.ceil((h / (size + GAP) - rows) / 2) + 1);
       const ringH = Math.max(needH, Math.ceil((w / (size + GAP) - cols) / 2) + 1);
+      near = { top: needV, bottom: needV, left: needH, right: needH };
       top = bottom = ringV;
       left = right = ringH;
     } else {
@@ -126,6 +129,7 @@ export class MatrixView {
         cell.dataset.c = c;
         const inside = r >= 0 && c >= 0 && r < rows && c < cols;
         if (!inside) cell.classList.add("outside");
+        if (!inside && r >= -near.top && r < rows + near.bottom && c >= -near.left && c < cols + near.right) cell.classList.add("near");
         else cell.style.setProperty("--i", r * cols + c);
         this.el.appendChild(cell);
         this.cells.set(`${r},${c}`, cell);

@@ -503,18 +503,19 @@ html {
 
 /*
  * ——— 手机竖屏战斗 ———
- * 按“谁的东西”分成三块卡片，块内不再画分隔线，界外格平时不显示：
- *  ┌ 充能 · 回合横幅 · 回合数            ┐
- *  │ ┌ 怪物卡（浅灰底）                ┐ │
- *  │ │ 名字 · 特性               红心数 │ │
- *  │ │ 下一招                           │ │
- *  │ │ 怪物心阵（占满剩余高度）         │ │
- *  │ └──────────────────────────────────┘ │
- *  │ ┌ 主角卡（细边框）                 ┐ │
- *  │ │ 缩略心阵 │ 名字 红心数 / 这招的伤害 │ │
- *  │ └──────────────────────────────────┘ │
- *  │ 招式：一行横向滑动                   │
- *  └ 防御 · 药水 · 等待 · 撤退            ┘
+ * 部件的样子由 battle.css 统一定义，这里只管竖屏上怎么摆：
+ *  ┌ 充能 · 回合横幅 · 回合数                  ┐
+ *  │ ┌ 怪物区（浅灰底）                      ┐ │
+ *  │ │ ENEMY 名字 特性            红心 / 总数 │ │
+ *  │ │ 怪物心阵（占满剩余高度，虚线格底）     │ │
+ *  │ ├ NEXT 招式 形状 −N♥（黑色横条）         ┤ │
+ *  │ └────────────────────────────────────────┘ │
+ *  │   主角心阵                                 │
+ *  │   HERO 名字                 红心 / 总数 −N │
+ *  │ ─────────────────────────────────────────  │
+ *  │ 武器：一行，列数 = 已装备的件数（3～5）    │
+ *  │ 技能：一行矮横条，固定三列                 │
+ *  └ [防御 | 药水 | 等待 | 撤退]（一整块）      ┘
  */
 .battle-modal.portrait {
   padding: 0;
@@ -525,11 +526,11 @@ html {
 .battle-modal.portrait .battle-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
   width: 100%;
   height: 100vh;
   height: 100dvh;
-  padding: calc(8px + var(--safe-top)) calc(12px + var(--safe-right)) calc(10px + var(--safe-bottom)) calc(12px + var(--safe-left));
+  padding: calc(6px + var(--safe-top)) calc(12px + var(--safe-right)) calc(10px + var(--safe-bottom)) calc(12px + var(--safe-left));
   overflow: hidden;
   border: 0;
 }
@@ -538,247 +539,343 @@ html {
 .battle-modal.portrait .battle-head {
   flex: none;
   min-height: 40px;
-  margin: 0;
+  margin: 0 0 8px;
   padding: 0;
   border: 0;
 }
 
 .battle-modal.portrait .turn-banner {
-  padding: 7px 16px;
-  font-size: 14px;
+  padding: 6px 14px;
+  font-size: 13px;
   letter-spacing: 0.08em;
 }
 
 .battle-modal.portrait .round b {
-  font-size: 24px;
+  font: 500 14px var(--mono);
+  color: var(--grey-3);
 }
 
 .battle-modal.portrait .combo-badge {
-  height: 32px;
+  height: 30px;
 }
 
 .battle-modal.portrait .combo-badge b {
-  font-size: 18px;
+  font-size: 17px;
 }
 
-/* 对战区 */
+/* 对战区：怪物区在上、主角区在下 */
 .battle-modal.portrait .arena {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
   min-height: 0;
 }
 
 .battle-modal.portrait .side {
-  gap: 4px;
+  gap: 0;
 }
 
-/* 怪物卡 */
-.battle-modal.portrait .side.enemy {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-  padding: 12px 12px 8px;
-  background: var(--grey-1);
-}
-
-/* 名字行与下一招是固定内容，空间不够时只压缩心阵，不压缩它们。 */
-.battle-modal.portrait .side-head,
-.battle-modal.portrait .intent {
+/* 名字行：ENEMY / HERO 小标 · 名字 · 特性，红心数靠右，全部在同一行。 */
+.battle-modal.portrait .side-head {
   flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   height: auto;
-  min-height: 0;
+  min-height: 28px;
   overflow: visible;
 }
 
-.battle-modal.portrait .side.enemy .who {
+.battle-modal.portrait .who {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 2px 8px;
+  gap: 6px;
   min-width: 0;
+}
+
+.battle-modal.portrait .who .t-meta {
+  display: inline;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+
+.battle-modal.portrait .side.enemy .who .t-meta {
+  color: var(--grey-3);
 }
 
 .battle-modal.portrait .who h3 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .battle-modal.portrait .who p {
+  display: flex;
+  gap: 3px;
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .battle-modal.portrait .who p .trait {
-  padding: 2px 3px;
+  padding: 1px 2px;
   background: var(--paper);
 }
 
-.battle-modal.portrait .who p .trait .icon {
-  width: 15px;
-  height: 15px;
+.battle-modal.portrait .who p .trait span {
+  display: none;
 }
 
-.battle-modal.portrait .hp .num {
-  font-size: 30px;
-}
-
-.battle-modal.portrait .hp em {
-  display: inline;
-  margin-left: 2px;
-  font-size: 13px;
-  color: var(--grey-3);
-}
-
-/* 下一招 / 这招的伤害：纯文字行，不加上下框线 */
-.battle-modal.portrait .intent,
-.battle-modal.portrait .aim-note {
-  height: auto;
-  min-height: 30px;
-  gap: 8px;
-  padding: 0;
-  font-size: 14px;
-  border: 0;
-}
-
-.battle-modal.portrait .intent strong,
-.battle-modal.portrait .aim-note strong {
-  font-size: 15px;
-}
-
-.battle-modal.portrait .aim-note b {
-  font-size: 17px;
-}
-
-.battle-modal.portrait .side.enemy .matrix-box {
-  flex: 1 1 auto;
-  min-height: 140px;
-  background: transparent;
-}
-
-/* 界外格平时完全透明：心阵四周干干净净；预览越界攻击时，覆盖到的界外格才显示出来。 */
-.battle-modal.portrait .cell.outside:not(.pv) {
-  border-color: transparent;
-}
-
-/* 主角卡 */
-.battle-modal.portrait .side.hero {
-  flex: none;
-  display: grid;
-  grid-template-columns: 44% 1fr;
-  grid-template-rows: auto 1fr;
-  grid-template-areas:
-    "matrix head"
-    "matrix aim";
-  column-gap: 14px;
-  row-gap: 2px;
-  padding: 10px 12px;
-  border: 1px solid var(--grey-2);
-}
-
-.battle-modal.portrait .side.hero .matrix-box {
-  grid-area: matrix;
-  height: 120px;
-  background: transparent;
-}
-
-.battle-modal.portrait .side.hero .side-head {
-  grid-area: head;
-  align-items: flex-start;
+.battle-modal.portrait .who p .trait .icon,
+.battle-modal.portrait .who p .trait .heart-svg {
+  width: 14px;
+  height: 14px;
 }
 
 .battle-modal.portrait .side.hero .who p {
   display: none;
 }
 
-.battle-modal.portrait .side.hero .aim-note {
-  grid-area: aim;
-  align-self: start;
-  flex-wrap: wrap;
+.battle-modal.portrait .hp {
+  margin-left: auto;
 }
 
-/* 招式：一行横向滑动，不换行 */
+.battle-modal.portrait .hp .num {
+  font: 500 17px var(--mono);
+}
+
+.battle-modal.portrait .hp .of {
+  font-size: 13px;
+}
+
+.battle-modal.portrait .hp .hp-armor {
+  display: inline-flex;
+  font-size: 12px;
+}
+
+.battle-modal.portrait .hp .hp-loss {
+  font-size: 14px;
+}
+
+/* 怪物区：心阵占满剩余高度，下一招的黑色横条贴在底边、左右出血到卡片边缘。 */
+.battle-modal.portrait .side.enemy {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0 -12px;
+  padding: 10px 12px 0;
+  background: var(--grey-1);
+}
+
+.battle-modal.portrait .side.enemy .matrix-box {
+  order: 1;
+  flex: 1 1 auto;
+  min-height: 140px;
+  margin-top: 4px;
+  background: transparent;
+}
+
+.battle-modal.portrait .intent {
+  order: 2;
+  flex: none;
+  justify-content: center;
+  height: 38px;
+  margin: 0 -12px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.battle-modal.portrait .intent-main {
+  gap: 10px;
+}
+
+.battle-modal.portrait .intent-label {
+  display: inline;
+}
+
+.battle-modal.portrait .intent strong {
+  font-size: 14px;
+}
+
+.battle-modal.portrait .intent .shape-svg {
+  max-height: 22px;
+  width: auto;
+}
+
+.battle-modal.portrait .intent-dmg {
+  display: inline-flex;
+}
+
+/* 招式循环在竖屏上放不下，收起来；情报卡里仍能看到。 */
+.battle-modal.portrait .pattern {
+  display: none;
+}
+
+/* 主角区：心阵居中，名字行在下方；受击预告已经写进黑色横条和红心数里，不再单独占一行。 */
+.battle-modal.portrait .side.hero {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0 6px;
+  border: 0;
+}
+
+.battle-modal.portrait .side.hero .matrix-box {
+  order: 0;
+  height: 132px;
+  background: transparent;
+}
+
+.battle-modal.portrait .side.hero .side-head {
+  order: 1;
+  margin-top: 4px;
+}
+
+.battle-modal.portrait .side.hero .aim-note {
+  display: none;
+}
+
+/* 界外格：只有武器够得到的那一圈显示为虚线格。 */
+.battle-modal.portrait .cell.outside:not(.near):not(.pv) {
+  border-color: transparent;
+}
+
+/* ——— 招式 ——— */
 .battle-modal.portrait .battle-foot {
   flex: none;
+  flex-direction: column;
   gap: 8px;
   margin: 0;
-  padding: 0;
-  border: 0;
+  padding: 10px 0 0;
+  border-top: 1px solid var(--ink);
 }
 
 .battle-modal.portrait .weapon-bar {
   display: flex;
-  flex-wrap: nowrap;
+  flex-direction: column;
   gap: 6px;
   width: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
+  overflow: visible;
 }
 
-.battle-modal.portrait .weapon-bar::-webkit-scrollbar {
-  display: none;
-}
-
+/* 武器一行：列数跟着已装备的件数走，3 件就是 3 列、5 件就是 5 列。 */
 .battle-modal.portrait .move-group {
-  display: flex;
-  flex: none;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 6px;
-  width: auto;
+  width: 100%;
 }
 
+/* 技能一行：固定三列的矮横条，还没解锁的列不画。 */
 .battle-modal.portrait .move-group.skills {
-  padding-left: 6px;
-  border-left: 1px solid var(--grey-2);
+  grid-auto-flow: row;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0;
+  border: 0;
 }
 
 .battle-modal.portrait .weapon {
-  flex: none;
-  width: 76px;
-  height: auto;
-  min-height: 62px;
-  grid-template-rows: 26px auto auto;
+  width: auto;
+  height: 68px;
+  min-height: 0;
+  padding: 7px 6px 6px;
   row-gap: 2px;
-  padding: 6px 4px 4px;
-}
-
-/* 技能卡用浅蓝底区分，不再用虚线框。 */
-.battle-modal.portrait .weapon.skill {
-  border-style: solid;
-  border-color: var(--accent-tint);
-  background: var(--accent-tint);
 }
 
 .battle-modal.portrait .weapon .weapon-shape {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
+  width: auto;
+  height: auto;
 }
 
 .battle-modal.portrait .weapon .weapon-shape .shape-svg {
-  width: auto;
-  height: auto;
   max-width: 26px;
   max-height: 26px;
 }
 
 .battle-modal.portrait .weapon .weapon-name {
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.battle-modal.portrait .weapon .weapon-cd {
   font-size: 12px;
 }
 
-/* 旋转 / 镜像：悬浮在怪物卡右下角的两枚方形图标按钮。 */
+/* 充能菱形在窄卡上缩小一号：重武器的三颗菱形也能和名字排在同一行。 */
+.battle-modal.portrait .weapon .cost .icon {
+  width: 8px;
+  height: 8px;
+}
+
+.battle-modal.portrait .weapon .cost {
+  gap: 0;
+}
+
+/* 窄屏（如 iPhone SE）上五列武器卡再收一点内边距，“战锤 ◆◆◆”也能完整排在一行。 */
+@media (max-width: 380px) {
+  .battle-modal.portrait .weapon {
+    padding-right: 4px;
+    padding-left: 5px;
+    column-gap: 3px;
+  }
+}
+
+.battle-modal.portrait .weapon .weapon-ups .up-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.battle-modal.portrait .weapon .weapon-ups .up-icon .icon {
+  width: 10px;
+  height: 10px;
+}
+
+/* 强化超过两枚：只留第一枚，其余收成“+N”。 */
+.battle-modal.portrait .weapon-ups.many .up-icon:nth-of-type(n + 2) {
+  display: none;
+}
+
+.battle-modal.portrait .weapon-ups.many .up-more {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  font: 500 9px var(--mono);
+  font-style: normal;
+  border: 1px solid currentColor;
+}
+
+/* 技能卡：一行排开——形状、名字、次数。 */
+.battle-modal.portrait .weapon.skill {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: 1fr;
+  grid-template-areas: "shape name meta";
+  align-items: center;
+  column-gap: 6px;
+  height: 40px;
+  padding: 0 7px;
+}
+
+.battle-modal.portrait .weapon.skill .weapon-name,
+.battle-modal.portrait .weapon.skill .weapon-meta {
+  align-self: center;
+}
+
+.battle-modal.portrait .weapon.skill .weapon-shape .shape-svg {
+  max-width: 20px;
+  max-height: 20px;
+}
+
+.battle-modal.portrait .weapon .cd-mask .icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* 旋转 / 镜像：悬浮在怪物区右下角、黑色横条上方的两枚方形图标按钮。 */
 .battle-modal.portrait .side.enemy .transform-bar {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
+  right: 12px;
+  bottom: 46px;
   z-index: 2;
   display: flex;
   gap: 6px;
@@ -790,7 +887,9 @@ html {
   width: 44px;
   height: 44px;
   min-width: 0;
+  margin: 0;
   padding: 0;
+  justify-content: center;
   background: var(--paper);
   border: 1px solid var(--ink);
 }
@@ -799,58 +898,96 @@ html {
   display: none;
 }
 
-/* 动作按钮：细框、等宽四格 */
+/* ——— 动作条：四格拼成一块，图标在上、文字在下 ——— */
 .battle-modal.portrait .action-bar {
-  grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: 46px;
-  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: 52px;
+  width: 100%;
+  height: auto;
+  margin: 2px 0 0;
 }
 
 .battle-modal.portrait .action-bar .action {
-  gap: 6px;
-  margin: 0;
-  font-size: 14px;
-  border: 1px solid var(--grey-2);
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-areas:
+    "icon count"
+    "label label";
+  justify-content: center;
+  justify-items: center;
+  align-content: center;
+  gap: 2px 3px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  border-right: 1px solid var(--grey-2);
+  border-bottom: 0;
+}
+
+.battle-modal.portrait .action-bar .action:last-child {
+  border-right: 0;
 }
 
 .battle-modal.portrait .action-bar .action .icon {
+  grid-area: icon;
   width: 18px;
   height: 18px;
+  color: var(--ink);
 }
 
-/* 提示条落在怪物卡的名字行下方，不遮挡名字与红心数。 */
+.battle-modal.portrait .action-bar .action span {
+  grid-area: label;
+}
+
+.battle-modal.portrait .action-bar .action .count {
+  grid-area: count;
+  align-self: center;
+}
+
+.battle-modal.portrait .action-bar .action small {
+  display: none;
+}
+
+/* 遮罩要盖住整个按钮，不能落进网格的某一格里。 */
+.battle-modal.portrait .action-bar .action .cd-mask {
+  grid-area: auto;
+}
+
+.battle-modal.portrait .action-bar .action .cd-mask .icon {
+  width: 16px;
+  height: 16px;
+  color: #ffffff;
+}
+
+/* 提示条落在怪物区的名字行下方，不遮挡名字与红心数。 */
 .battle-modal.portrait .battle-toast {
-  top: calc(var(--safe-top) + 112px);
+  top: calc(var(--safe-top) + 96px);
   max-width: calc(100% - 32px);
   font-size: 14px;
   text-align: center;
 }
 
-/* 矮屏手机（如 iPhone SE）：主角卡和招式卡再压矮，把高度让给怪物心阵。 */
+/* 矮屏手机（如 iPhone SE）：主角心阵和招式卡再压矮，把高度让给怪物心阵。 */
 @media (max-height: 740px) {
-  .battle-modal.portrait .battle-card {
-    gap: 8px;
-  }
   .battle-modal.portrait .side.hero .matrix-box {
-    height: 92px;
-  }
-  .battle-modal.portrait .hp .num {
-    font-size: 26px;
+    height: 96px;
   }
   .battle-modal.portrait .weapon {
-    min-height: 54px;
-    grid-template-rows: 22px auto auto;
+    height: 58px;
   }
-  .battle-modal.portrait .weapon .weapon-shape {
-    width: 22px;
-    height: 22px;
+  .battle-modal.portrait .weapon.skill {
+    height: 34px;
   }
   .battle-modal.portrait .weapon .weapon-shape .shape-svg {
     max-width: 22px;
     max-height: 22px;
   }
+  .battle-modal.portrait .intent {
+    height: 34px;
+  }
   .battle-modal.portrait .action-bar {
-    grid-template-rows: 42px;
+    grid-template-rows: 46px;
   }
 }
 

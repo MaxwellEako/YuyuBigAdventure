@@ -1,10 +1,14 @@
 import "./style.css";
+// 战斗界面的统一设计语言（电脑与手机共用），覆盖 style.css 里的旧样式。
+import "./battle.css";
+// 武器与构筑面板（电脑左侧面板、手机抽屉共用）。
+import "./sheet.css";
 // 手机竖屏的专用样式，必须在 style.css 之后加载才能覆盖。
 import "./phone.css";
 import { BoardWorld } from "./render/world.js";
 import { Sfx } from "./audio.js";
 import { LEVELS, LEGACY_ORDER, weaponsForLevel, skillsForLevel } from "./data/levels.js";
-import { WEAPONS, STARTING_WEAPONS, POTION, SHIELD } from "./data/weapons.js";
+import { WEAPONS, STARTING_WEAPONS, POTION } from "./data/weapons.js";
 import { SKILLS } from "./data/skills.js";
 import {
   weaponShape,
@@ -56,6 +60,8 @@ import { countHearts, resolveHeal, applyChanges } from "./logic/shapes.js";
 import { runBattle, GLYPH, MOVE_TEXT, traitChips } from "./ui/battleView.js";
 import { MatrixView } from "./ui/matrixView.js";
 import { SPRITE, icon, shapeSvg, matrixSvg, heartSvg } from "./ui/icons.js";
+import { heroSheetHtml } from "./ui/heroSheet.js";
+import { upgradeKeys, upLogo, costMarks, weaponCost } from "./ui/marks.js";
 
 // v3：新增序章；每章开始时的构筑（强化、装备的武器与技能）一起保存；记录看过的新机制说明。
 const STORAGE_KEY = "heart-gambit-progress-v3";
@@ -244,39 +250,7 @@ function renderHud() {
     <span class="strip-gap"></span>
     <button class="strip-btn" data-cmd="sheetHero">${icon("sword")}武器</button>
     <button class="strip-btn" data-cmd="sheetGoal">${icon("exit")}目标<em>${alive.length}</em></button>`;
-  $("#hero-hud").innerHTML = `
-    ${sheetHead("武器与构筑")}
-    ${kicker("01", "主角", "HERO")}
-    <div class="hud-hero">
-      <div class="hud-name"><b>${getHeroName()}</b><small>白色小兵 · ${hero.matrix.length}×${hero.matrix[0].length} 红心矩阵</small></div>
-      <div class="hud-hp ${hearts / slots < 0.35 ? "low" : ""}"><span class="num">${hearts}</span><span class="of">/${slots}</span></div>
-    </div>
-    <div class="hud-matrix" title="${getHeroName()}的红心矩阵">${matrixSvg(hero.matrix, { cell: 12, gap: 2.5 })}</div>
-    <div class="hud-items">
-      ${unlockedFeatures().has("potion") ? `<button class="chip-btn" data-cmd="potion" ${hero.potions && hearts < slots ? "" : "disabled"} title="喝药水（P）">${icon("potion")}<span>药水</span><b>${hero.potions}</b></button>` : ""}
-      <span class="chip ${hero.keys ? "on" : ""}" title="钥匙">${icon("key")}<span>钥匙</span><b>${hero.keys}</b></span>
-      ${hero.plates ? `<button class="chip-btn" data-cmd="armor" title="使用护甲片（G）">${icon("armor")}<span>护甲片</span><b>${hero.plates}</b></button>` : ""}
-    </div>
-    ${kicker("02", "武器", "ARSENAL", `${slotPips(hero.equipped.length, hero.slots)}<button class="build-chip" data-cmd="armory" title="构筑（B）">${icon("bag")}构筑<kbd class="key-hint">B</kbd></button>`)}
-    <ul class="weapon-list">${hero.equipped
-      .map((id, i) => {
-        const w = WEAPONS[id];
-        return `<li title="${w.desc}"><span class="wi key-hint">${i + 1}</span><span class="ws">${shapeSvg(weaponShape(id, hero.upgrades), { cell: 8, gap: 1.5 })}</span><span class="wn"><b>${w.name}${upIcons(id, hero.upgrades)}</b></span><em>${costMark(id)}</em></li>`;
-      })
-      .join("")}
-      <li class="shield-row" title="${SHIELD.desc}"><span class="wi key-hint">Q</span><span class="ws">${icon("shield")}</span><span class="wn"><b>${SHIELD.name}</b></span><em>${cdMark(SHIELD.cooldown)}</em></li>
-    </ul>
-    ${hero.weapons.length > hero.equipped.length ? `<p class="bag-line" title="背包">${icon("bag")}${hero.weapons.filter((id) => !hero.equipped.includes(id)).map((id) => `<span title="${WEAPONS[id].name}">${shapeSvg(weaponShape(id, hero.upgrades), { cell: 6, gap: 1.5 })}</span>`).join("")}</p>` : ""}
-    ${Object.keys(hero.skills).length ? `${kicker("03", "技能", "SKILLS", slotPips(hero.equippedSkills.length, SKILL_SLOTS, "skill"))}
-    <ul class="weapon-list skill-list">${hero.equippedSkills
-      .map((id) => {
-        const sk = SKILLS[id];
-        const charges = hero.skills[id];
-        return `<li class="${charges ? "" : "spent"}" title="${sk.desc}"><span class="wi">${icon("skill")}</span><span class="ws">${shapeSvg(sk.shape, { cell: 8, gap: 1.5, tone: "skill" })}</span><span class="wn"><b>${sk.name}</b></span><em>×${charges}</em></li>`;
-      })
-      .join("")}</ul>` : ""}
-    <button class="primary sheet-build" data-cmd="armory">${icon("bag")}<span>构筑 · 更换出战武器与技能</span><span aria-hidden="true">→</span></button>
-`;
+  $("#hero-hud").innerHTML = heroSheetHtml({ hero, features: unlockedFeatures(), kicker, sheetHead });
 
   $("#goal-hud").innerHTML = `
     ${sheetHead("目标")}
@@ -298,22 +272,6 @@ function renderHud() {
 function slotPips(used, total, tone = "") {
   return `<em class="slot-pips ${tone}" title="${used}/${total}">${Array.from({ length: total }, (_, i) => `<i class="${i < used ? "on" : ""}"></i>`).join("")}</em>`;
 }
-
-/** 中型、重型武器每用一次要消耗的充能，画成蓝色菱形。 */
-const costMark = (id) => {
-  const n = ENERGY_COST[WEAPONS[id].weight] ?? 0;
-  return n ? `<span class="cost-mark" title="每次消耗 ${n} 点充能">${Array.from({ length: n }, () => icon("energy")).join("")}</span>` : "";
-};
-
-/** 冷却标记：沙漏 + 回合数；不需要冷却的武器不标。 */
-const cdMark = (n) => (n ? `<span class="cd-mark" title="冷却 ${n} 回合">${icon("cd")}${n}</span>` : "");
-
-/** 武器已获得的强化，用小图标表示。 */
-const upIcons = (id, upgrades) =>
-  Object.keys(UPGRADE_TEXT)
-    .filter((k) => upgrades[id]?.[k])
-    .map((k) => `<i class="up-icon" title="${UPGRADE_TEXT[k].name}">${icon(UPGRADE_TEXT[k].icon)}</i>`)
-    .join("") + (WEAPONS[id].pierce ? `<i class="up-icon" title="破甲">${icon("pierce")}</i>` : "");
 
 // ——— 棋盘高亮与情报卡 ———
 
@@ -624,8 +582,8 @@ function showArmory() {
     const picked = pending?.kind === "weapon" && pending.id === id;
     return `<button class="build-card ${side} ${picked ? "picked" : ""}" data-kind="weapon" data-id="${id}" title="${w.desc}">
       <span class="build-shape">${shapeSvg(weaponShape(id, hero.upgrades), { cell: 11, gap: 2 })}</span>
-      <span class="build-text"><b>${w.name}${upIcons(id, hero.upgrades)}</b><small>${w.desc}</small></span>
-      <span class="build-meta">${costMark(id)}</span>
+      <span class="build-text"><b>${w.name}${upgradeKeys(id, hero.upgrades).map(upLogo).join("")}</b><small>${w.desc}</small></span>
+      <span class="build-meta">${costMarks(weaponCost(id))}</span>
       <span class="build-move" aria-hidden="true">${side === "on" ? "→" : pending?.kind === "weapon" && !picked ? "" : "←"}</span>
     </button>`;
   };

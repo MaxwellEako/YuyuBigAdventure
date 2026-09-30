@@ -1,0 +1,316 @@
+/*
+ * ——— 武器与构筑面板（电脑左侧面板 / 手机底部窄卡）———
+ * 与战斗界面同一套设计语言：红心数写在同一行、强化用黑底白色图标、
+ * 充能消耗是蓝色菱形、技能次数是一排小方块。结构见 ui/heroSheet.js。
+ * 这里用 #hero-hud 做选择器，确保盖过 style.css / phone.css 里旧版面板的规则。
+ */
+
+/* ——— 主角：名字与红心数同一行 ——— */
+#hero-hud .hud-id {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+#hero-hud .hud-id-name {
+  font-size: 20px;
+  font-weight: 500;
+}
+
+#hero-hud .hud-id-hp {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+#hero-hud .hud-id-hp .num {
+  font-size: 34px;
+  font-weight: 300;
+  line-height: 1;
+  font-feature-settings: "tnum";
+}
+
+#hero-hud .hud-id-hp .of {
+  margin-left: 4px;
+  font: 500 14px var(--mono);
+  color: var(--grey-3);
+}
+
+#hero-hud .hud-id-hp.low .num {
+  color: var(--heart);
+}
+
+/* 缩略心阵在左，道具与防御排成一张小表在右。 */
+#hero-hud .hud-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 10px 0 4px;
+}
+
+#hero-hud .hud-matrix {
+  flex: none;
+  display: block;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 8px;
+  line-height: 0;
+  background: var(--grey-1);
+}
+
+#hero-hud .hud-stats {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+}
+
+#hero-hud .hud-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0;
+  font-size: 13px;
+  text-align: left;
+  color: var(--text-secondary);
+  background: none;
+  border: 0;
+}
+
+#hero-hud .hud-stat .icon {
+  width: 14px;
+  height: 14px;
+}
+
+#hero-hud .hud-stat b {
+  margin-left: auto;
+  font: 500 13px var(--mono);
+  color: var(--ink);
+}
+
+#hero-hud .hud-stat.off {
+  opacity: 0.55;
+}
+
+/* 能点的道具（药水、护甲片）用主题蓝，提示可以直接使用。 */
+#hero-hud button.hud-stat:not(:disabled) {
+  color: var(--accent);
+  cursor: pointer;
+}
+
+#hero-hud button.hud-stat:disabled {
+  cursor: default;
+}
+
+@media (hover: hover) {
+  #hero-hud button.hud-stat:not(:disabled):hover span {
+    text-decoration: underline;
+  }
+}
+
+#hero-hud .hud-stat .cd-mark {
+  color: var(--ink);
+}
+
+#hero-hud .hud-stat .cd-mark b {
+  margin: 0;
+}
+
+/* ——— 小标题右侧：已用 / 总槽数 ——— */
+#hero-hud .slot-count {
+  margin-left: auto;
+  font: 500 11px var(--mono);
+  font-style: normal;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+#hero-hud .slot-count + .build-chip {
+  margin-left: 8px;
+}
+
+/* ——— 出战武器与技能：一行一件 ——— */
+#hero-hud .sheet-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#hero-hud .sheet-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  border-bottom: 1px solid var(--grey-2);
+}
+
+/* 快捷键序号：电脑上是一个淡灰的等宽数字，不画成按键框。 */
+#hero-hud .sheet-list .wi {
+  flex: none;
+  width: 14px;
+  min-width: 0;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  font: 500 11px var(--mono);
+  color: var(--grey-3);
+  background: none;
+  border: 0;
+}
+
+#hero-hud .sheet-list.skills .wi .icon {
+  width: 12px;
+  height: 12px;
+  color: var(--accent);
+}
+
+#hero-hud .sheet-list .ws {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+}
+
+#hero-hud .sheet-list .wn {
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+#hero-hud .sheet-list .cost .icon {
+  width: 10px;
+  height: 10px;
+}
+
+#hero-hud .sheet-list .ups {
+  display: flex;
+  gap: 3px;
+  margin-left: auto;
+}
+
+#hero-hud .sheet-list .up-icon {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+#hero-hud .sheet-list .up-icon .icon {
+  width: 13px;
+  height: 13px;
+}
+
+#hero-hud .sheet-list .up-more {
+  display: none;
+}
+
+#hero-hud .sheet-list .pips i {
+  width: 8px;
+  height: 8px;
+}
+
+#hero-hud .sheet-list li.spent {
+  opacity: 0.5;
+}
+
+/* ——— 强化图例：说明书式“标记 · 名称 · 作用” ——— */
+#hero-hud .up-legend {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 10px 0 0;
+  list-style: none;
+  border-top: 1px solid var(--ink);
+}
+
+#hero-hud .up-legend li {
+  display: grid;
+  grid-template-columns: 16px auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+#hero-hud .up-legend .up-icon {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+#hero-hud .up-legend .up-icon .icon {
+  width: 12px;
+  height: 12px;
+}
+
+#hero-hud .up-legend b {
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/*
+ * ——— 手机与窄屏：底部居中的窄卡 ———
+ * 不再横跨整个屏幕：左右各留一段空白，最宽 380px；内容多时中间滚动，
+ * 顶部标题栏与底部“构筑”按钮固定不动。
+ */
+@media (max-width: 900px) {
+  #hero-hud,
+  #goal-hud {
+    left: max(calc(12px + var(--safe-left)), calc(50% - 190px));
+    right: max(calc(12px + var(--safe-right)), calc(50% - 190px));
+    bottom: calc(12px + var(--safe-bottom));
+    max-height: calc(100vh - var(--topbar) - 120px);
+    max-height: calc(100dvh - var(--topbar) - 120px);
+    padding: 0 18px;
+    border: 1px solid var(--ink);
+  }
+
+  #hero-hud {
+    display: block;
+  }
+
+  #hero-hud .sheet-head,
+  #goal-hud .sheet-head {
+    min-height: 52px;
+    margin: 0 -18px 4px;
+    padding: 0 6px 0 18px;
+  }
+
+  #hero-hud .sheet-head b,
+  #goal-hud .sheet-head b {
+    font-size: 16px;
+  }
+
+  #hero-hud > .kicker {
+    margin-top: 16px;
+  }
+
+  #hero-hud .sheet-list li {
+    min-height: 46px;
+  }
+
+  #hero-hud .sheet-list .wn {
+    font-size: 15px;
+  }
+
+  #hero-hud .hud-stat {
+    min-height: 32px;
+    font-size: 14px;
+  }
+
+  /* 底部主按钮贴在卡片底边，列表滚动时一直点得到。 */
+  #hero-hud .sheet-build {
+    width: 100%;
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin: 16px 0 0;
+    box-shadow: 0 14px 0 var(--paper), 0 -10px 0 var(--paper);
+  }
+
+  #hero-hud::after {
+    content: "";
+    display: block;
+    height: 14px;
+  }
+}

@@ -1,0 +1,527 @@
+/*
+ * ——— 战斗界面的统一设计语言（电脑与手机共用） ———
+ * 在 style.css 之后、phone.css 之前加载：这里定下各个部件“长什么样”，
+ * phone.css 只负责手机竖屏 / 横屏时部件“怎么摆”。
+ *
+ *  心阵      空位与武器够得到的那一圈界外格画成虚线格，攻击可以有一部分落在心阵外
+ *  红心数    “剩余 / 总数”写在同一行，不画血条；主角一侧附带红色的 −N（下一招预计损失）
+ *  下一招    黑色横条：NEXT · 招式名 · 形状 · 结果
+ *  招式卡    左上形状 · 右上强化标记 · 左下名字 · 右下充能消耗或技能次数
+ *  冷却      灰色遮罩 + 沙漏 + 剩余回合数（招式卡与防御按钮一致）
+ *  动作条    四个按钮拼成一块带外框的整体，按钮之间只画细分隔线
+ */
+
+.battle-card {
+  --dash: #c4c4c1;
+}
+
+/* ——— 心阵：虚线格底 ——— */
+
+/* 界外格默认透明（只用来铺满外框、接住点击）；武器够得到的那一圈画成虚线格。 */
+.battle-card .cell.outside {
+  border: 1px dashed transparent;
+}
+
+.battle-card .cell.outside.near {
+  border-color: var(--dash);
+}
+
+@media (hover: hover) {
+  .battle-card .matrix:hover .cell.outside:not(.near) {
+    border-color: transparent;
+  }
+}
+
+/* 心阵里没有心的空位：同样是虚线格，和界外连成一片。 */
+.battle-card .cell.void {
+  border: 1px dashed var(--dash);
+}
+
+.battle-card .cell.void::before {
+  content: none;
+}
+
+/* ——— 红心数：同一行 ——— */
+
+.battle-card .hp {
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.battle-card .hp .num {
+  font-size: 40px;
+  font-weight: 300;
+  line-height: 1;
+  font-feature-settings: "tnum";
+}
+
+.battle-card .hp .of {
+  font: 500 15px var(--mono);
+  color: var(--grey-3);
+}
+
+.battle-card .hp .hp-armor {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+  font: 500 13px var(--mono);
+  font-style: normal;
+  color: var(--ink);
+}
+
+.battle-card .hp .hp-armor .heart-svg {
+  width: 15px;
+  height: auto;
+}
+
+.battle-card .hp .hp-loss {
+  margin-left: 4px;
+  font: 600 16px var(--mono);
+  color: var(--heart);
+}
+
+/* ——— 下一招：黑色横条 ——— */
+
+.battle-card .intent {
+  height: 44px;
+  padding: 0 12px;
+  gap: 12px;
+  color: var(--paper);
+  background: var(--ink);
+  border: 0;
+}
+
+.battle-card .intent-label {
+  padding: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.62);
+  background: none;
+}
+
+.battle-card .intent strong {
+  font-weight: 500;
+}
+
+/* 黑底上的形状与图标改用纸白。 */
+.battle-card .intent .shape-svg rect.on {
+  fill: var(--paper);
+}
+
+.battle-card .intent .shape-svg rect.off {
+  fill: rgba(255, 255, 255, 0.16);
+}
+
+.battle-card .intent-fx {
+  color: var(--paper);
+}
+
+.battle-card .intent-fx .fx-break {
+  color: var(--ink);
+  background: var(--paper);
+}
+
+.battle-card .pattern i {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.battle-card .pattern i.now {
+  background: var(--paper);
+  border-color: var(--paper);
+}
+
+.battle-card .pattern i.unknown {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.battle-card .fx-interrupt {
+  color: var(--paper);
+  border-color: var(--paper);
+}
+
+/* 这一招的结果（−N ♥ / 格挡）。电脑上主角一侧另有一行专门写，这里只在手机上显示。 */
+.battle-card .intent-dmg {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  font: 600 15px var(--mono);
+  color: #ff8a8f;
+  white-space: nowrap;
+}
+
+.battle-card .intent-dmg .heart-svg {
+  width: 16px;
+  height: auto;
+}
+
+.battle-card .intent-dmg.safe {
+  gap: 4px;
+  font-family: inherit;
+  color: var(--paper);
+}
+
+.battle-card .intent-dmg .icon {
+  width: 15px;
+  height: 15px;
+}
+
+/* 主角一侧与下一招同高的一行：受击预告，浅灰底。 */
+.battle-card .aim-note {
+  height: 44px;
+  padding: 0 12px;
+  background: var(--grey-1);
+  border: 0;
+}
+
+.battle-card .aim-note .heart-svg {
+  margin-left: 0;
+}
+
+/* ——— 招式卡 ——— */
+
+.battle-card .battle-foot {
+  align-items: flex-start;
+  gap: var(--sp-5);
+}
+
+.battle-card .weapon-bar {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+
+/* 武器一组、技能一组，技能组前面用一条细竖线隔开。 */
+.battle-card .move-group {
+  display: flex;
+  gap: 8px;
+}
+
+.battle-card .move-group.skills {
+  padding-left: var(--sp-4);
+  border-left: 1px solid var(--grey-2);
+}
+
+.battle-card .weapon {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "shape shape"
+    "name meta";
+  align-items: start;
+  justify-items: stretch;
+  gap: 4px;
+  width: 84px;
+  height: 80px;
+  min-width: 0;
+  padding: 8px;
+  text-align: left;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  outline: 0;
+}
+
+.battle-card .weapon .weapon-shape {
+  grid-area: shape;
+  display: block;
+  width: auto;
+  height: auto;
+  line-height: 0;
+}
+
+.battle-card .weapon .weapon-shape .shape-svg {
+  width: auto;
+  height: auto;
+  max-width: 32px;
+  max-height: 32px;
+}
+
+/* 强化标记贴在右上角，不占名字那一行的宽度。 */
+.battle-card .weapon .weapon-ups {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: flex;
+  gap: 2px;
+}
+
+.battle-card .weapon .weapon-ups .up-icon {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.battle-card .weapon .weapon-ups .up-icon .icon {
+  width: 10px;
+  height: 10px;
+}
+
+/* “+N”只在窄屏上出现（见 phone.css），电脑上强化标记全部排开。 */
+.battle-card .up-more {
+  display: none;
+}
+
+.battle-card .weapon .weapon-name {
+  grid-area: name;
+  align-self: end;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.battle-card .weapon .weapon-meta {
+  grid-area: meta;
+  align-self: end;
+  display: flex;
+  align-items: center;
+  height: 15px;
+}
+
+/* 快捷键角标压在卡片左上角外侧，不占卡内位置。 */
+.battle-card .weapon kbd {
+  top: -7px;
+  left: -7px;
+  z-index: 1;
+}
+
+/* 充能消耗：蓝色小菱形（各界面通用）；战斗中充能不够时变淡。 */
+.cost {
+  display: inline-flex;
+  gap: 1px;
+}
+
+.cost .icon {
+  width: 11px;
+  height: 11px;
+}
+
+.battle-card .weapon.starved .cost .icon {
+  opacity: 0.3;
+}
+
+/* 技能次数：实心方块是还能用的次数。 */
+.pips {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.pips i {
+  width: 7px;
+  height: 7px;
+  border: 1px solid currentColor;
+}
+
+.pips i.on {
+  background: currentColor;
+}
+
+/* 技能卡：结构与武器相同，边框改为浅灰，一眼分开两组。 */
+.battle-card .weapon.skill {
+  border: 1px solid var(--grey-3);
+  background: var(--paper);
+}
+
+.battle-card .weapon.skill .weapon-meta {
+  color: var(--accent);
+}
+
+@media (hover: hover) {
+  .battle-card .weapon:not(.cooling):not(.selected):hover {
+    background: var(--grey-1);
+  }
+}
+
+/* 选中：整张卡变蓝，形状、强化标记、菱形反白。 */
+.battle-card .weapon.selected,
+.battle-card .weapon.skill.selected {
+  color: var(--accent-on);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.battle-card .weapon.selected .shape-svg rect.on {
+  fill: var(--accent-on);
+}
+
+.battle-card .weapon.selected .shape-svg rect.off {
+  fill: rgba(255, 255, 255, 0.2);
+}
+
+.battle-card .weapon.selected .shape-svg .pivot {
+  fill: var(--accent);
+}
+
+.battle-card .weapon.selected .weapon-meta {
+  color: var(--accent-on);
+}
+
+.battle-card .weapon.selected .cost {
+  --accent: var(--accent-on);
+}
+
+/* 冷却中：卡片本身保持原样，由遮罩表达状态。 */
+.battle-card .weapon.cooling {
+  color: var(--ink);
+  background: var(--paper);
+  border-color: var(--ink);
+}
+
+.battle-card .weapon.cooling .shape-svg rect.on {
+  fill: var(--accent);
+}
+
+/* 次数用完的技能：整张变淡。 */
+.battle-card .weapon.spent {
+  opacity: 0.45;
+}
+
+/* 连击中上一击用过的招式：卡内一圈蓝色虚线，提示换一件才接得上。 */
+.battle-card .weapon.last-used::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  width: auto;
+  height: auto;
+  border: 1.5px dashed var(--accent);
+  pointer-events: none;
+}
+
+.battle-card .weapon.selected.last-used::after {
+  border-color: var(--accent-on);
+}
+
+/* ——— 冷却遮罩 ——— */
+
+.cd-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #ffffff;
+  background: rgba(82, 82, 82, 0.62);
+  pointer-events: none;
+}
+
+.cd-mask .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.cd-mask b {
+  font: 600 15px var(--mono);
+}
+
+/* 动作按钮很窄，遮罩再深一些，免得底下的文字和沙漏叠在一起。 */
+.action .cd-mask {
+  background: #5a5a5a;
+}
+
+/* ——— 动作条 ——— */
+
+.battle-card .action-bar {
+  display: grid;
+  grid-template-columns: repeat(2, 96px);
+  grid-template-rows: repeat(2, 40px);
+  gap: 0;
+  margin-left: auto;
+  border: 1px solid var(--ink);
+}
+
+.battle-card .action-bar .action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.battle-card .action-bar .action .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.battle-card .action-bar .action small {
+  margin-left: auto;
+}
+
+.battle-card .action-bar .action .count {
+  min-width: 16px;
+  padding: 0 3px;
+  font: 600 11px var(--mono);
+  text-align: center;
+  color: var(--paper);
+  background: var(--heart);
+}
+
+.battle-card .action-bar .action:disabled .count {
+  background: var(--grey-3);
+}
+
+/* 旋转 / 镜像：竖着排在动作条左边，样式与动作条一致。 */
+/* 边框画在按钮上：选中的武器用不了变形时，按钮连同边框一起隐藏，但仍占着位置。 */
+.battle-card .transform-bar {
+  display: grid;
+  grid-auto-rows: 40px;
+}
+
+.battle-card .transform-bar:empty {
+  display: none;
+}
+
+.battle-card .transform-bar .action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0 10px;
+  font-size: 13px;
+  border: 1px solid var(--ink);
+}
+
+.battle-card .transform-bar .action + .action {
+  margin-top: -1px;
+}
+
+.battle-card .transform-bar .action .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.battle-card .action-bar .action {
+  position: relative;
+  margin: 0;
+  border: 0;
+  border-right: 1px solid var(--grey-2);
+  border-bottom: 1px solid var(--grey-2);
+}
+
+.battle-card .action-bar .action:nth-child(2n) {
+  border-right: 0;
+}
+
+.battle-card .action-bar .action:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+/* 冷却中的按钮由遮罩表达，底下的文字不再额外变灰。 */
+.battle-card .action-bar .action:disabled {
+  background: var(--paper);
+}
