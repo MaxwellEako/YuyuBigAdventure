@@ -245,11 +245,14 @@ function renderHud() {
   const hero = board.hero;
   // 手机上：两块大面板收起来，只在棋盘上方留一条信息栏，点按钮才从底部拉出面板。
   const alive = board.monsters.filter((m) => m.alive);
+  // 钥匙、护甲片的格子只看本章地图里有没有：整章固定占位（数量为 0 时变淡），
+  // 拾取的那一刻不会凭空多出一格、把旁边的东西挤开。
+  const carries = levelCarries(level);
   $("#hud-strip").innerHTML = `
     <span class="strip-hp ${hearts / slots < 0.35 ? "low" : ""}">${heartSvg("heart")}<b>${hearts}</b><small>/${slots}</small></span>
     ${unlockedFeatures().has("potion") ? `<button class="strip-chip" data-cmd="potion" ${hero.potions && hearts < slots ? "" : "disabled"} aria-label="喝药水">${icon("potion")}<b>${hero.potions}</b></button>` : ""}
-    ${hero.keys ? `<span class="strip-chip">${icon("key")}<b>${hero.keys}</b></span>` : ""}
-    ${hero.plates ? `<button class="strip-chip" data-cmd="armor" aria-label="使用护甲片">${icon("armor")}<b>${hero.plates}</b></button>` : ""}
+    ${carries.keys || hero.keys ? `<span class="strip-chip ${hero.keys ? "" : "off"}">${icon("key")}<b>${hero.keys}</b></span>` : ""}
+    ${carries.plates || hero.plates ? `<button class="strip-chip" data-cmd="armor" ${hero.plates ? "" : "disabled"} aria-label="使用护甲片">${icon("armor")}<b>${hero.plates}</b></button>` : ""}
     <span class="strip-gap"></span>
     <button class="strip-btn" data-cmd="sheetHero">${icon("sword")}武器</button>
     <button class="strip-btn" data-cmd="sheetGoal">${icon("exit")}目标<em>${alive.length}</em></button>`;
@@ -259,7 +262,7 @@ function renderHud() {
     el.innerHTML = html;
     el.scrollTop = top;
   };
-  keepScroll($("#hero-hud"), heroSheetHtml({ hero, features: unlockedFeatures(), kicker, sheetHead }));
+  keepScroll($("#hero-hud"), heroSheetHtml({ hero, features: unlockedFeatures(), kicker, sheetHead, carries }));
 
   keepScroll(
     $("#goal-hud"),
@@ -278,6 +281,15 @@ function renderHud() {
       .join("")}</ul>
     <p class="hud-foot"><span class="sq ${board.exitOpen ? "on" : ""}"></span>${board.exitOpen ? "出口已开启" : "出口已被封印"}</p>`,
   );
+}
+
+/**
+ * 本章地图上有没有钥匙（或铁栅门）、护甲片：决定信息栏和武器面板里要不要给它们留一格。
+ * 只看地图字符画，拾取之后也不变，所以整章里这些格子的位置是固定的。
+ */
+function levelCarries(level) {
+  const has = (ch) => level.map.some((row) => row.includes(ch));
+  return { keys: has("K") || has("L"), plates: has("A") };
 }
 
 /** 槽位小方块：实心为已占用。 */

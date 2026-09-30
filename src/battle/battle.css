@@ -76,7 +76,19 @@
   height: auto;
 }
 
+/* 暂时为 0 的护甲数、−N：只隐藏、不收起，数字的位置保持不变。 */
+.battle-card .hp .none {
+  visibility: hidden;
+}
+
+/* 回合横幅（己方回合 / 敌方回合 / 选择治疗位置 / 追击）：最小宽度按最长的文字留，切换时不忽宽忽窄。 */
+.battle-card .turn-banner {
+  min-width: 7.5em;
+  text-align: center;
+}
+
 .battle-card .hp .hp-loss {
+  min-width: 3ch;
   margin-left: 4px;
   font: 600 16px var(--mono);
   color: var(--heart);

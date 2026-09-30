@@ -259,12 +259,16 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
    * @param {number[][]} matrix 心阵
    * @param {number} loss 本回合预计失去的红心（怪物瞄准主角时显示为红色的 −N）
    */
-  function hpHtml(matrix, loss = 0) {
+  function hpHtml(matrix, { loss = 0, lossSlot = false, armorSlot = false } = {}) {
     const { hearts, slots, armor } = countHearts(matrix);
-    return `<span class="num">${hearts}</span><span class="of">/ ${slots}</span>${
-      armor ? `<em class="hp-armor" title="护甲心 ${armor} 颗">${heartSvg("armor")}${armor}</em>` : ""
-    }${loss ? `<b class="hp-loss" title="怪物下一招预计消除的红心">−${loss}</b>` : ""}`;
+    // 护甲数、−N 这两格一旦可能出现，就整场战斗占着位置（为 0 时只是隐藏），数字不会左右跳。
+    const armorHtml = armor || armorSlot ? `<em class="hp-armor ${armor ? "" : "none"}" title="护甲心 ${armor} 颗">${heartSvg("armor")}${armor}</em>` : "";
+    const lossHtml = loss || lossSlot ? `<b class="hp-loss ${loss ? "" : "none"}" title="怪物下一招预计消除的红心">−${loss}</b>` : "";
+    return `<span class="num">${hearts}</span><span class="of">/ ${slots}</span>${armorHtml}${lossHtml}`;
   }
+
+  // 开战时就带护甲心的一方，护甲数那一格整场保留。
+  const armorSlot = { enemy: countHearts(combat.monsterMatrix).armor > 0 || Boolean(def.armored), hero: countHearts(combat.heroMatrix).armor > 0 };
 
   const keyLabel = (i) => (i < 9 ? String(i + 1) : i === 9 ? "0" : "");
 
@@ -429,8 +433,8 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
 
   function render() {
     $("[data-round]").textContent = String(combat.round).padStart(2, "0");
-    $("[data-enemy-hp]").innerHTML = hpHtml(combat.monsterMatrix);
-    $("[data-hero-hp]").innerHTML = hpHtml(combat.heroMatrix, aimLoss());
+    $("[data-enemy-hp]").innerHTML = hpHtml(combat.monsterMatrix, { armorSlot: armorSlot.enemy });
+    $("[data-hero-hp]").innerHTML = hpHtml(combat.heroMatrix, { loss: aimLoss(), lossSlot: true, armorSlot: armorSlot.hero });
     $("[data-hero-status]").textContent = combat.shieldUp ? "防御中" : "白色小兵";
     const banner = $("[data-banner]");
     const heroTurn = combat.phase === "hero" && !busy;

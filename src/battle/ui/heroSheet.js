@@ -25,11 +25,11 @@ import { weaponShape, UPGRADE_TEXT, SKILL_SLOTS } from "../logic/arsenal.js";
  * @param {(nb: string, zh: string, en: string, extra?: string) => string} p.kicker 统一风格的小标题
  * @param {(title: string) => string} p.sheetHead 手机抽屉顶部的标题栏
  */
-export function heroSheetHtml({ hero, features, kicker, sheetHead }) {
+export function heroSheetHtml({ hero, features, kicker, sheetHead, carries = { plates: false } }) {
   return `
     ${sheetHead("武器与构筑")}
     ${kicker("01", "主角", "HERO")}
-    ${heroBlock(hero, features)}
+    ${heroBlock(hero, features, carries)}
     ${kicker("02", "出战", "ARSENAL", `<em class="slot-count">${hero.equipped.length} / ${hero.slots}</em><button class="build-chip" data-cmd="armory" title="构筑">${icon("bag")}构筑</button>`)}
     ${dropList("weapon", "on", hero.equipped.map((id, i) => weaponRow(id, i, hero.upgrades, "on")))}
     ${idleWeapons(hero)}
@@ -38,8 +38,11 @@ export function heroSheetHtml({ hero, features, kicker, sheetHead }) {
     <button class="primary sheet-build" data-cmd="armory">${icon("bag")}<span>构筑 · 更换出战武器与技能</span><span aria-hidden="true">→</span></button>`;
 }
 
-/** 主角：名字与红心数在同一行；下面是缩略心阵和一张小表（道具与防御）。 */
-function heroBlock(hero, features) {
+/**
+ * 主角：名字与红心数在同一行；下面是缩略心阵和一张小表（道具与防御）。
+ * 护甲片这一行按本章地图是否有护甲片决定（carries.plates），整章固定占位，拾取时面板不会被撑高。
+ */
+function heroBlock(hero, features, carries) {
   const { hearts, slots } = countHearts(hero.matrix);
   const low = hearts / slots < 0.35;
   const stats = [
@@ -47,8 +50,8 @@ function heroBlock(hero, features) {
       ? `<button class="hud-stat" data-cmd="potion" ${hero.potions && hearts < slots ? "" : "disabled"} title="喝药水（P）">${icon("potion")}<span>药水</span><b>${hero.potions}</b></button>`
       : "",
     `<span class="hud-stat ${hero.keys ? "" : "off"}" title="钥匙">${icon("key")}<span>钥匙</span><b>${hero.keys}</b></span>`,
-    hero.plates
-      ? `<button class="hud-stat" data-cmd="armor" title="使用护甲片（G）">${icon("armor")}<span>护甲片</span><b>${hero.plates}</b></button>`
+    carries.plates || hero.plates
+      ? `<button class="hud-stat" data-cmd="armor" ${hero.plates ? "" : "disabled"} title="使用护甲片（G）">${icon("armor")}<span>护甲片</span><b>${hero.plates}</b></button>`
       : "",
     features.has("shield")
       ? `<span class="hud-stat" title="${SHIELD.desc}每次使用后冷却 ${SHIELD.cooldown} 回合。">${icon("shield")}<span>${SHIELD.name}</span><b>${cdMark(SHIELD.cooldown)}</b></span>`

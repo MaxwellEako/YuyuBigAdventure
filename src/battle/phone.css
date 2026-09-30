@@ -101,8 +101,8 @@ html {
     left: calc(10px + var(--safe-left));
     right: calc(10px + var(--safe-right));
     height: 56px;
-    gap: 8px;
-    padding: 0 6px 0 12px;
+    gap: 6px;
+    padding: 0 5px 0 10px;
   }
   .strip-hp .heart-svg {
     width: 22px;
@@ -115,28 +115,45 @@ html {
   }
   .strip-chip {
     height: 44px;
-    min-width: 44px;
+    min-width: 42px;
     justify-content: center;
-    gap: 5px;
-    padding: 0 8px;
+    gap: 3px;
+    padding: 0 5px;
     font-size: 15px;
   }
   .strip-chip .icon {
     width: 18px;
     height: 18px;
   }
+  /*
+   * “武器”“目标”按钮：图标在上、文字在下，目标数压在右上角。
+   * 这样本章同时有药水、钥匙、护甲片三格时，整条信息栏也能在 375px 宽的手机上排成一行。
+   */
   .strip-btn {
-    height: 44px;
-    gap: 6px;
-    padding: 0 12px;
-    font-size: 15px;
+    position: relative;
+    flex-direction: column;
+    justify-content: center;
+    height: 46px;
+    min-width: 48px;
+    gap: 1px;
+    padding: 0 8px;
+    font-size: 12px;
+    line-height: 1.1;
   }
   .strip-btn .icon {
     width: 17px;
     height: 17px;
   }
   .strip-btn em {
-    font-size: 13px;
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    min-width: 16px;
+    margin: 0;
+    padding: 1px 3px;
+    font-size: 11px;
+    line-height: 14px;
+    text-align: center;
   }
 
   /* ——— 方向键：让开底部横条 ——— */

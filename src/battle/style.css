@@ -4341,9 +4341,12 @@ body:not(.in-level) .hint-bar {
     width: 18px;
     height: auto;
   }
+  /* 红心数固定两位数的宽度：从 10 掉到 9 时，后面的格子不会往左跳。 */
   .strip-hp b {
+    min-width: 2ch;
     font-size: 20px;
     font-weight: 300;
+    text-align: right;
     font-feature-settings: "tnum";
   }
   .strip-hp small {
@@ -4368,7 +4371,8 @@ body:not(.in-level) .hint-bar {
     width: 14px;
     height: 14px;
   }
-  .strip-chip:disabled {
+  .strip-chip:disabled,
+  .strip-chip.off {
     color: var(--grey-3);
   }
   .strip-gap {
