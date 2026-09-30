@@ -2575,8 +2575,17 @@ body:not(.in-level) .hint-bar {
 }
 
 .coach-example {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
   margin: var(--sp-4) 0 0;
   color: var(--ink);
+}
+
+/* 说明卡开头的武器形状：和后面的文字之间留出间距，不贴在一起。 */
+.coach-example .inline-shape {
+  flex: none;
+  margin: 0;
 }
 
 .coach-list {
@@ -3447,6 +3456,18 @@ body:not(.in-level) .hint-bar {
   height: 16px;
 }
 
+/* 一个图例格里要放几枚小图标（例如重武器的 3 颗充能菱形）时，横排并缩小，不撑出方框。 */
+.legend-glyph .glyph-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.legend-glyph .glyph-row .icon {
+  width: 9px;
+  height: 9px;
+}
+
 .coach-steps {
   display: flex;
   align-items: stretch;
@@ -3725,6 +3746,34 @@ body:not(.in-level) .hint-bar {
 .build-card.empty .icon {
   width: 20px;
   height: 20px;
+}
+
+/* 背包里的占位卡：不可见，只用来保持面板高度不变。 */
+/*
+ * 构筑卡固定高度：说明最多两行（超出省略），空槽、占位卡与真卡一样高。
+ * 换上换下时每一行的高度都不变，面板就不会跟着抽动。
+ */
+.loadout .build-card {
+  height: 64px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.loadout .build-text small {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.build-card.build-ghost {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* 出战卡是蓝底：充能菱形反白。 */
+.build-card.on .cost {
+  --accent: var(--accent-on);
 }
 
 .build-card.picked {

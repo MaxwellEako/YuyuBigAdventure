@@ -172,7 +172,7 @@ export const TOPICS = {
     title: "重型武器",
     body: (ctx) =>
       `${ctx.weapon ? `<p class="coach-example"><span class="inline-shape">${shapeSvg(ctx.weapon.shape, { cell: 12 })}</span>${ctx.weapon.name}可一次消除大范围的红心。</p>` : ""}${legend([
-        [icon("energy").repeat(ENERGY_COST.heavy), `每次使用消耗 ${ENERGY_COST.heavy} 点[充能]，多于战斗开始时持有的 ${ENERGY_START} 点，须先通过[连击]积蓄。`],
+        [`<span class="glyph-row">${icon("energy").repeat(ENERGY_COST.heavy)}</span>`, `每次使用消耗 ${ENERGY_COST.heavy} 点[充能]，多于战斗开始时持有的 ${ENERGY_START} 点，须先通过[连击]积蓄。`],
         [icon("stagger"), "单次消除不少于 3 颗红心，可[打断]怪物蓄力后的[重击]。可打断时，怪物的下一招旁显示此标记。"],
       ])}`,
   },

@@ -1073,6 +1073,10 @@ html {
   .build-card small {
     font-size: 13px;
   }
+  /* 固定行高（见 style.css）：手机上说明字号大，两行说明需要高一些。 */
+  .loadout .build-card {
+    height: 72px;
+  }
 }
 
 /* 触屏没有悬停：按下时给一个短暂的反馈，松手就恢复（style.css 的悬停样式只在有鼠标的设备上生效）。 */

@@ -250,9 +250,17 @@ function renderHud() {
     <span class="strip-gap"></span>
     <button class="strip-btn" data-cmd="sheetHero">${icon("sword")}武器</button>
     <button class="strip-btn" data-cmd="sheetGoal">${icon("exit")}目标<em>${alive.length}</em></button>`;
-  $("#hero-hud").innerHTML = heroSheetHtml({ hero, features: unlockedFeatures(), kicker, sheetHead });
+  // 面板内容重建时保留滚动位置：手机抽屉里喝完药水、换完武器，列表不会跳回顶部。
+  const keepScroll = (el, html) => {
+    const top = el.scrollTop;
+    el.innerHTML = html;
+    el.scrollTop = top;
+  };
+  keepScroll($("#hero-hud"), heroSheetHtml({ hero, features: unlockedFeatures(), kicker, sheetHead }));
 
-  $("#goal-hud").innerHTML = `
+  keepScroll(
+    $("#goal-hud"),
+    `
     ${sheetHead("目标")}
     ${kicker("04", "目标", "OBJECTIVE")}
     <p class="goal">${rich(level.goalText)}</p>
@@ -265,7 +273,8 @@ function renderHud() {
         return `<li class="${m.alive ? "" : "dead"} ${m.aggro && m.alive ? "alert" : ""}" data-uid="${m.uid}"><span class="avatar-sm ${m.def.model}">${GLYPH[m.def.model]}</span><span class="wn"><b>${m.def.name}${m.alive && !m.def.boss ? `<span class="traits mini">${traitChips(m.def)}</span>` : ""}</b><small>${m.alive ? `${m.def.boss ? "情报不明" : AI_TEXT[m.ai]}${m.stun ? " · 晕眩" : ""}` : "已击败"}</small></span><em>${m.alive ? hp : "0"}</em></li>`;
       })
       .join("")}</ul>
-    <p class="hud-foot"><span class="sq ${board.exitOpen ? "on" : ""}"></span>${board.exitOpen ? "出口已开启" : "出口已被封印"}</p>`;
+    <p class="hud-foot"><span class="sq ${board.exitOpen ? "on" : ""}"></span>${board.exitOpen ? "出口已开启" : "出口已被封印"}</p>`,
+  );
 }
 
 /** 槽位小方块：实心为已占用。 */
@@ -602,6 +611,9 @@ function showArmory() {
     </button>`;
   };
   const emptySlot = (kind) => `<div class="build-card empty empty-${kind}">${icon(kind === "skill" ? "skill" : "sword")}</div>`;
+  // 背包一侧预留到“最多可能有几件”的行数：换上换下时背包列表长短会变，占位卡让整个面板高度保持不变。
+  // 占位卡用一张真实卡片的内容撑出同样的高度（再整张隐藏），高度才能分毫不差。
+  const ghosts = (n, card) => card.replace('class="build-card', 'aria-hidden="true" tabindex="-1" class="build-card build-ghost').repeat(Math.max(0, n));
 
   const draw = () => {
     const bagWeapons = hero.weapons.filter((id) => !hero.equipped.includes(id));
@@ -622,8 +634,8 @@ function showArmory() {
           <div class="loadout-rule" aria-hidden="true"><span>⇄</span></div>
           <section class="loadout-col bag">
             <h4 class="build-title">${kw("闲置", "背包")}<em class="t-meta">${bagWeapons.length + bagSkills.length}</em></h4>
-            <div class="build-list">${bagWeapons.map((id) => weaponCard(id, "off")).join("") || '<div class="build-card empty bag"></div>'}</div>
-            ${bagSkills.length ? `<h4 class="build-title">${kw("技能")}</h4><div class="build-list">${bagSkills.map((id) => skillCard(id, "off")).join("")}</div>` : ""}
+            <div class="build-list">${bagWeapons.map((id) => weaponCard(id, "off")).join("") || '<div class="build-card empty bag"></div>'}${ghosts(hero.weapons.length - 1 - Math.max(1, bagWeapons.length), weaponCard(hero.weapons[0], "off"))}</div>
+            ${ownedSkills.length ? `<h4 class="build-title">${kw("技能")}</h4><div class="build-list">${bagSkills.map((id) => skillCard(id, "off")).join("") || '<div class="build-card empty bag"></div>'}${ghosts(ownedSkills.length - Math.max(1, bagSkills.length), skillCard(ownedSkills[0], "off"))}</div>` : ""}
           </section>
         </div>
         <div class="panel-actions"><button class="primary" data-cmd="back">完成<span aria-hidden="true">→</span></button></div>
@@ -636,7 +648,7 @@ function showArmory() {
       renderHud();
       refreshMarks();
     };
-    document.querySelectorAll(".armory [data-kind]").forEach((btn) => btn.addEventListener("click", () => pick(btn.dataset.kind, btn.dataset.id)));
+    document.querySelectorAll(".armory [data-kind]:not(.build-ghost)").forEach((btn) => btn.addEventListener("click", () => pick(btn.dataset.kind, btn.dataset.id)));
   };
 
   const done = (result) => {
@@ -918,9 +930,17 @@ function closeSheet() {
 
 function showScreen(name, html, { back = null, wide = false } = {}) {
   closeSheet();
+  const el = $("#screen");
+  // 同一个界面原地刷新（例如构筑里换武器）：只换内容，不重播入场动画，滚动位置保持不变，界面才不会抽动。
+  if (screenName === name && !el.hidden && el.classList.contains("open")) {
+    screenBack = back;
+    const scrolled = [el, el.querySelector(".panel")].map((node) => node?.scrollTop ?? 0);
+    el.innerHTML = html;
+    [el, el.querySelector(".panel")].forEach((node, i) => node && (node.scrollTop = scrolled[i]));
+    return;
+  }
   screenName = name;
   screenBack = back;
-  const el = $("#screen");
   el.hidden = false;
   el.className = `screen screen-${name} ${wide ? "wide" : ""}`;
   el.innerHTML = html;
