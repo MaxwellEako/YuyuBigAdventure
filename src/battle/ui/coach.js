@@ -3,6 +3,7 @@ import { rich } from "./keywords.js";
 import { WEAPONS } from "../data/weapons.js";
 import { SKILLS } from "../data/skills.js";
 import { getHeroName } from "../data/heroName.js";
+import { moveLegendHtml } from "./moveLegend.js";
 import { CHASE_EVERY, ENERGY_COST, ENERGY_START, ENERGY_MAX } from "../logic/combat.js";
 
 /** 4×4 示意矩阵：hit 中的格子标为被消除，anchor 为锚点。 */
@@ -44,12 +45,28 @@ const sides = () => (battleLayout() === "stacked" ? { enemy: "上方", hero: "�
  * body 可以是字符串，也可以是接收上下文（如本章武器槽数）的函数。
  */
 export const TOPICS = {
+  // 两种移动方式各配一个图标：键盘 / 屏幕方向键走一格，鼠标单击 / 手指点按格子自动寻路。
   move: {
     title: "移动",
     body: () =>
-      coarse()
-        ? `点击屏幕右下角的方向键移动一格；点击棋盘上的格子，可自动寻路前往。进入[出口]即完成本章。`
-        : `使用方向键或 WASD 移动一格，点击棋盘上的格子可自动寻路前往。进入[出口]即完成本章。`,
+      `${legend(
+        coarse()
+          ? [
+              [icon("keys"), "点击屏幕右下角的方向键：移动一格。"],
+              [icon("tap"), "点击棋盘上的格子：自动寻路前往。"],
+            ]
+          : [
+              [icon("keys"), "方向键或 WASD：移动一格。"],
+              [icon("mouse"), "单击棋盘上的格子：自动寻路前往。"],
+            ],
+      )}进入[出口]即完成本章。`,
+  },
+  // 序章开场：说明卡指着钉在第一只怪物头顶的标记（ui/boardPin.js），讲怎么发起战斗。
+  engage: {
+    title: "发起战斗",
+    target: ".board-pin-text",
+    body: () =>
+      `${coarse() ? "点击" : "单击"}怪物，即自动前往并发起战斗。向相邻的怪物移动一格，同样会发起战斗。`,
   },
   // 第一场战斗的引导：逐个高亮战斗界面上的区域，说明卡贴在旁边。
   "tour-enemy": {
@@ -101,24 +118,24 @@ export const TOPICS = {
   "combo-energy": {
     title: "连击",
     target: "[data-side=enemy] .matrix-box",
-    body: `每一格都打在红心上，就是一次[完美命中]，命中的位置留下蓝色虚线框。换一件武器，紧挨着虚线框再完美命中一次，就构成[连击]。
+    body: `攻击范围内的格子全部为红心时，即为[完美命中]，命中位置留下蓝色虚线框。切换武器，且攻击范围与蓝色虚线框相邻，再次完美命中，即构成[连击]。
       <div class="combo-explain">
         <figure class="combo-demo">
           ${demoGrid([[1, 0], [1, 1], [2, 0]], [1, 0], 3, 4, [[0, 0], [0, 1]])}
-          <figcaption><span class="demo-key prev"></span>上一击（短剑）留下的虚线框<br><span class="demo-key hit"></span>这一击换钩镰，紧挨虚线框</figcaption>
+          <figcaption><span class="demo-key prev"></span>上一次攻击留下的虚线框<br><span class="demo-key hit"></span>切换武器，与虚线框相邻</figcaption>
         </figure>
         ${ladder([
-          { glyph: icon("perfect"), title: "完美命中", note: "每一格都是红心，留下虚线框" },
-          { glyph: icon("combo"), title: "连击", note: "换武器，紧挨虚线框再完美命中" },
-          { glyph: icon("energy"), title: "连击 ×2 起", note: "每连上一次，得 1 点充能", tone: "accent" },
-          { glyph: icon("chase"), title: `连击 ×${CHASE_EVERY}`, note: "追击：怪物行动前再攻击一次", tone: "accent" },
+          { glyph: icon("perfect"), title: "完美命中", note: "攻击范围内全部为红心。" },
+          { glyph: icon("combo"), title: "连击", note: "切换武器，且攻击范围与蓝色虚线框相邻。" },
+          { glyph: icon("energy"), title: "连击 ×2 以上", note: "每次连击获得 1 点充能。", tone: "accent" },
+          { glyph: icon("chase"), title: `连击 ×${CHASE_EVERY}`, note: "追击：敌人行动前再追加一次攻击。", tone: "accent" },
         ])}
       </div>
-      <p class="combo-break"><b>连击中断</b>攻击落空 · 离虚线框太远 · 连用同一件武器。[追击]那一击不会再触发追击。</p>`,
+      <p class="combo-break"><b>连击中断</b>攻击落空、攻击范围与虚线框不相邻、连续使用同一件武器。追击不会再次触发追击。</p>`,
   },
   chest: {
     title: "宝箱与药水",
-    body: "进入[宝箱]或[药水]所在的格子即可拾取。宝箱中装有新武器。",
+    body: "进入[宝箱]或[药水]所在的格子即可拾取。宝箱的内容在开启后揭晓。",
   },
   slots: {
     title: "武器槽",
@@ -183,6 +200,11 @@ export const TOPICS = {
         [`<span class="glyph-row">${icon("energy").repeat(ENERGY_COST.heavy)}</span>`, `每次使用消耗 ${ENERGY_COST.heavy} 点[充能]，多于战斗开始时持有的 ${ENERGY_START} 点，须先通过[连击]积蓄。`],
         [icon("stagger"), "单次消除不少于 3 颗红心，可[打断]怪物蓄力后的[重击]。可打断时，怪物的下一招旁显示此标记。"],
       ])}`,
+  },
+  // 第一次遇到按马步移动的怪物（暗影骑士）时，用图例讲清各种棋子的走法。
+  "chess-moves": {
+    title: "棋子的走法",
+    body: () => `怪物按棋子的走法移动，每回合移动一次。蓝色格为下一步可到达的位置。${moveLegendHtml()}马步可越过障碍。`,
   },
   fog: {
     title: "战争迷雾",

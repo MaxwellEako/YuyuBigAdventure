@@ -29,7 +29,8 @@ import {
   SKILL_SLOTS,
   moveLoadout,
 } from "./logic/arsenal.js";
-import { createCoach, skillTopic, TOPICS } from "./ui/coach.js";
+import { createCoach, skillTopic, TOPICS, TOPICS_PER_MOMENT } from "./ui/coach.js";
+import { pinMonster } from "./ui/boardPin.js";
 import { rich, kw } from "./ui/keywords.js";
 import { getHeroName, setHeroName, validateName } from "./data/heroName.js";
 import { isDevMode, devLoadout } from "./logic/devMode.js";
@@ -217,6 +218,16 @@ let screenName = null;
 let screenBack = null;
 let currentCombat = null;
 let slotsBefore = 0;
+/** 本章新学会的技能（存档里还没有它），进入章节时就宣布；没有则为 null。 */
+let freshSkill = null;
+/** 序章里钉在第一只怪物头顶的“点击发起战斗”标记的移除函数；没有标记时为 null。 */
+let engagePin = null;
+
+/** 移除“点击发起战斗”标记（开战、换关、回到标题时都要收掉）。 */
+function clearEngagePin() {
+  engagePin?.();
+  engagePin = null;
+}
 /** “目标”面板里展开情报的那只怪物（uid，如 "pawn-0"），null 表示都收起。 */
 let intelUid = null;
 
@@ -386,9 +397,9 @@ function refreshMarks() {
 
 function showItemTip(item, event) {
   const tip = $("#tooltip");
-  const w = WEAPONS[item.weapon];
   const text = {
-    chest: ["宝箱", w ? `<span class="inline-shape">${shapeSvg(w.shape, { cell: 7, gap: 1.5 })}</span>${w.name}` : ""],
+    // 宝箱里是什么，打开之前不透露。
+    chest: ["宝箱", "内容在开启后揭晓。"],
     potion: ["红心药水", POTION.desc],
     forge: ["铁砧", "从三项强化中选择一项。"],
   }[item.type];
@@ -916,6 +927,7 @@ function battleTopics(monster, features) {
 
 async function battle(monster, heroFirst) {
   walkToken += 1;
+  clearEngagePin();
   sfx.play("battle");
   const monsterObj = world.monsters.get(monster.uid).group;
   monsterObj.visible = true;
@@ -975,6 +987,7 @@ function startLevel(index, { intro = true } = {}) {
   levelGen += 1;
   levelIndex = index;
   intelUid = null;
+  clearEngagePin();
   const level = LEVELS[index];
   // 开发者模式：不读正式存档，直接用满配构筑（全部武器、技能与强化）。
   const dev = isDevMode() ? devLoadout() : null;
@@ -985,6 +998,7 @@ function startLevel(index, { intro = true } = {}) {
   const skills = { ...skillsForLevel(index, SKILLS) };
   for (const id of profile?.skills ?? []) if (SKILLS[id]) skills[id] = SKILLS[id].charges;
   slotsBefore = profile?.slots ?? 0;
+  freshSkill = level.skill && !(profile?.skills ?? []).includes(level.skill) ? level.skill : null;
   board = createBoard(level, {
     weapons,
     skills,
@@ -1013,13 +1027,29 @@ async function begin() {
   const level = board.level;
   const has = (ch) => level.map.some((row) => row.includes(ch));
   const topics = [];
-  if (level.tutorial) topics.push("move");
+  // 新技能一进章节就到手：先报一声，再排在说明卡最前面讲它是什么（不等第一场战斗）。
+  if (freshSkill) {
+    toast(`${icon("skill")} 习得新技能 <b>${SKILLS[freshSkill].name}</b>`, "gold");
+    topics.push("skills", { id: `skill-${freshSkill}`, topic: skillTopic(freshSkill) });
+  }
+  // 本章出现按马步移动的怪物（暗影骑士）：讲棋子的走法（排在拾取说明等之前）。
+  if (level.monsters.some((m) => MONSTERS[m.type].moves === "knight")) topics.push("chess-moves");
+  if (level.tutorial) {
+    topics.push("move");
+    // 序章：在第一只怪物头顶钉一个“点击发起战斗”的标记，说明卡指着它讲怎么开战；标记一直留到开战。
+    const first = board.monsters[0];
+    if (first) {
+      engagePin = pinMonster(world, first.uid, isTouch() ? "点击怪物，发起战斗" : "单击怪物，发起战斗");
+      topics.push("engage");
+    }
+  }
   if (has("H") || has("P")) topics.push("chest");
   if (slotsBefore && board.hero.slots > slotsBefore) topics.push({ id: `slots-${board.hero.slots}`, topic: TOPICS_SLOTS_UP });
-  // 钥匙、巡猎的怪物、新技能不在开场讲：分别在拾取钥匙、第一次被怪物发现、第一场能用上技能的战斗时再讲。
+  // 钥匙、巡猎的怪物不在开场讲：分别在拾取钥匙、第一次被怪物发现时再讲。
   if (level.fog) topics.push("fog");
   if (level.monsters.some((m) => MONSTERS[m.type].boss)) topics.push("boss");
-  await explain(topics, { slots: board.hero.slots });
+  // 学到新技能的章节多讲一张（技能总说明 + 新技能 + 本章机制），新技能的卡片不挤掉本章要讲的机制。
+  await explain(topics, { slots: board.hero.slots }, { limit: freshSkill ? TOPICS_PER_MOMENT + 1 : TOPICS_PER_MOMENT });
   playing = true;
   refreshMarks();
 }
@@ -1121,6 +1151,7 @@ function resetProgress() {
   board = null;
   currentCombat = null;
   document.body.classList.remove("in-level", "in-battle");
+  clearEngagePin();
   setHeroName("");
   syncDevMode();
   enterGame();
@@ -1130,6 +1161,7 @@ function resetProgress() {
 function showTitle() {
   sfx.music.play("title");
   document.body.classList.remove("in-level");
+  clearEngagePin();
   playing = false;
   if (!board) {
     board = createBoard(LEVELS[0], { weapons: STARTING_WEAPONS });
@@ -1178,6 +1210,7 @@ function enterGame() {
 function showNameEntry({ cancelable = false } = {}) {
   sfx.music.play("title");
   document.body.classList.remove("in-level");
+  clearEngagePin();
   playing = false;
   // 背景棋盘照常转起来，和标题页保持一致。
   if (!board) {

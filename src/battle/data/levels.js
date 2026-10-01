@@ -57,7 +57,7 @@ export const LEVELS = [
     get story() {
       return `墨迹沿格线蔓延。三道书墙各留一个缺口，缺口均有墨渍怪或暗影兵把守。${getHeroName()}从第一排出发。`;
     },
-    tip: "本章起可使用钩镰。交替使用短剑与钩镰，可构成[连击]。[宝箱]中装有新武器。",
+    tip: "本章起可使用钩镰。交替使用短剑与钩镰，可构成[连击]。棋盘上有一个[宝箱]。",
     goal: "reach",
     goalText: "打通三道缺口，抵达[出口]",
     hero: { rows: 5, cols: 5 },
@@ -121,7 +121,7 @@ export const LEVELS = [
     name: "骑士巡夜",
     english: "KNIGHT'S WATCH",
     story: "被墨迹侵蚀的骑士按马步巡逻。出口位于铁栅门后，钥匙位于棋盘另一侧。",
-    tip: "习得新技能[疾风斩|技能]，使用后可追加一次攻击。[宝箱]中装有新武器。",
+    tip: "习得新技能[疾风斩|技能]，使用后可追加一次攻击。棋盘上有一个[宝箱]。",
     skill: "swift",
     goal: "reach",
     goalText: "找到[钥匙]，打开[铁栅门]",
@@ -323,7 +323,7 @@ export const LEVELS = [
     slots: 5,
     name: "王后回廊",
     english: "THE QUEEN'S GALLERY",
-    story: "王后驻守回廊尽头，一座城堡沿走廊巡逻。宝箱中装有最后一件武器。",
+    story: "王后驻守回廊尽头，一座城堡沿走廊巡逻。回廊中藏有一个宝箱。",
     tip: "习得新技能[汲血|技能]，每消除 1 颗红心恢复 1 颗。王后蓄力后，使用[防御]抵挡重击。",
     skill: "drain",
     goal: "reach",

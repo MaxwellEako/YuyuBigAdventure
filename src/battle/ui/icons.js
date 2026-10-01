@@ -171,6 +171,20 @@ export const SPRITE = `
       <path d="M12 2.6 20.4 12 12 21.4 3.6 12z" fill="var(--accent, #002fa7)" stroke="#ffffff" stroke-width="2.2" stroke-linejoin="miter"/>
       <path d="M12 7 8.8 12H12z" fill="#ffffff" opacity="0.55"/>
     </symbol>
+    <!-- 移动说明用：鼠标（左键涂实，表示“单击”）、手指点按、方向键。 -->
+    <symbol id="i-mouse" viewBox="0 0 24 24">
+      <path d="M12 3.5c-3.6 0-6 2.4-6 6v5c0 3.6 2.4 6 6 6s6-2.4 6-6v-5c0-3.6-2.4-6-6-6z" fill="none" stroke="currentColor" stroke-width="1.8"/>
+      <path d="M12 3.5c-3.6 0-6 2.4-6 6V11h6z" fill="currentColor"/>
+      <path d="M12 3.5V11" fill="none" stroke="currentColor" stroke-width="1.8"/>
+    </symbol>
+    <symbol id="i-tap" viewBox="0 0 24 24">
+      <circle cx="10" cy="7" r="3.6" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M10 7v8.5l-2-1.6c-.9-.7-2.2.3-1.6 1.3L9.5 21h8l1.5-6.5c.2-1-.4-1.8-1.4-2L12 11.6V7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-keys" viewBox="0 0 24 24">
+      <path d="M9 3h6v6H9zM3 10h6v6H3zM9 10h6v6H9zM15 10h6v6h-6z" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M12 4.8 10.4 7h3.2z" fill="currentColor"/>
+    </symbol>
     <symbol id="i-wait" viewBox="0 0 24 24">
       <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/>
     </symbol>

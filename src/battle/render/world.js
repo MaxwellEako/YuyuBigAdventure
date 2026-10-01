@@ -66,6 +66,8 @@ export class BoardWorld {
   constructor(container) {
     this.container = container;
     this.tweens = [];
+    /** 每画一帧之后调用的回调（例如让页面上的指引标记跟着镜头走），见 onFrame。 */
+    this.frameHooks = new Set();
     this.handlers = { click: () => {}, hover: () => {} };
     this.monsters = new Map();
     this.items = new Map();
@@ -837,6 +839,23 @@ export class BoardWorld {
     if (!this.reducedMotion) this.idle(time);
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
+    for (const hook of this.frameHooks) hook();
+  }
+
+  /** 每帧画完后调用 hook；返回取消函数。 */
+  onFrame(hook) {
+    this.frameHooks.add(hook);
+    return () => this.frameHooks.delete(hook);
+  }
+
+  /** 怪物头顶血量铭牌在页面上的位置（px）；怪物不存在、被迷雾藏起或在镜头背后时返回 null。 */
+  monsterScreenPoint(uid) {
+    const entry = this.monsters.get(uid);
+    if (!entry || !entry.group.visible) return null;
+    const p = entry.label.sprite.getWorldPosition(new THREE.Vector3()).project(this.camera);
+    if (p.z > 1) return null;
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    return { x: rect.left + ((p.x + 1) / 2) * rect.width, y: rect.top + ((1 - p.y) / 2) * rect.height };
   }
 
   idle(time) {

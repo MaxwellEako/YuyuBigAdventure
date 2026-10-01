@@ -103,7 +103,7 @@ function hairline(radius, y, tube = 0.006, material = PIECE.porcelain) {
 
 const rounded = (w, h, d, r, material) => mesh(new RoundedBoxGeometry(w, h, d, 4, r), material);
 
-/** 主角屿屿：IKB 釉面小兵，白色围巾与一把短剑。 */
+/** 主角：IKB 釉面小兵，白色围巾与一把短剑。 */
 export function makeHero() {
   const group = new THREE.Group();
   const body = new THREE.Group();

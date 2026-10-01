@@ -96,7 +96,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     <div class="battle-card ${def.boss ? "boss" : ""}">
       <header class="battle-head">
         <div class="head-left">
-          <div class="energy" data-energy title="充能 · 连击 ×2 起，每次连击获得 1 点"></div>
+          <div class="energy" data-energy title="充能 · 连击 ×2 以上，每次连击获得 1 点"></div>
           <div class="combo-badge" data-combo title="连击">${icon("combo", "combo-icon")}<b data-combo-count></b></div>
           <div class="chase-meter" data-chase title="每连上 ${CHASE_EVERY} 下触发一次追击"></div>
         </div>

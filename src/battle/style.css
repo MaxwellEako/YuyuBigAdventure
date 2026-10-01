@@ -5485,3 +5485,197 @@ body.dev-mode .dev-badge {
   background: var(--paper);
 }
 
+
+/*
+ * ——— 棋盘指引标记（ui/boardPin.js）———
+ * 钉在怪物头顶：一句提示 + 一个向下的三角箭头，整体上下轻轻跳动。
+ * 外层由脚本每帧平移到怪物血量铭牌的位置，内层负责“立在那一点上方”和跳动动画。
+ */
+.board-pin {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.board-pin[hidden] {
+  display: none;
+}
+
+.board-pin-text {
+  position: absolute;
+  bottom: 30px;
+  left: 0;
+  padding: 5px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+  color: var(--accent-on);
+  background: var(--accent);
+  transform: translateX(-50%);
+  animation: board-pin-bob 1.2s ease-in-out infinite;
+}
+
+.board-pin-arrow {
+  position: absolute;
+  bottom: 21px;
+  left: -7px;
+  width: 0;
+  height: 0;
+  border: 7px solid transparent;
+  border-top: 9px solid var(--accent);
+  border-bottom: 0;
+  animation: board-pin-bob 1.2s ease-in-out infinite;
+}
+
+@keyframes board-pin-bob {
+  50% {
+    translate: 0 -5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-pin-text,
+  .board-pin-arrow {
+    animation: none;
+  }
+}
+
+/*
+ * ——— 铁砧窗口随屏幕高度收紧（电脑 / 平板，三张卡片并排时）———
+ * 窗口矮的时候（浏览器没有最大化、笔记本小屏），标题、内边距、形状预览和说明文字一起按可见高度缩小，
+ * 尽量让三张卡片连同“重抽”“暂不强化”一屏放下；每一项都有下限（clamp 的第一个值），
+ * 缩到下限还放不下，就由弹窗自己滚动（.screen .panel 的 overflow-y: auto）。
+ * 高度足够时取上限，和原来的样子一样。
+ */
+@media (min-width: 601px) {
+  .screen .panel.forge {
+    --pad-y: clamp(16px, 4.5vh, 40px);
+    /* 标题栏和卡片之间的空白 */
+    --head-gap: clamp(8px, 2.4vh, 24px);
+  }
+
+  /* 卡片和“暂不强化”之间的空白 */
+  .panel.forge .panel-actions {
+    margin-top: clamp(8px, 4vh, 40px);
+  }
+
+  .panel.forge .panel-head h2 {
+    font-size: min(clamp(34px, 4vw, 52px), max(26px, 6vh));
+  }
+
+  .panel.forge .forge-grid {
+    margin-top: 0;
+  }
+
+  .panel.forge .forge-card {
+    gap: clamp(4px, 1vh, 8px);
+    min-height: 0;
+    padding: clamp(10px, 2.4vh, 16px) 16px;
+  }
+
+  .panel.forge .forge-card > b {
+    height: clamp(26px, 4.4vh, 34px);
+  }
+
+  /* 形状预览：外框高度跟着屏幕缩，里面的形状图按比例缩小，宽度自动跟着变。 */
+  .panel.forge .forge-shapes {
+    height: clamp(30px, 7.5vh, 65px);
+    padding: clamp(2px, 1.4vh, 12px) 0;
+  }
+
+  .panel.forge .forge-shapes .shape-svg {
+    width: auto;
+    height: auto;
+    max-height: 100%;
+  }
+
+  .panel.forge .forge-shapes > span {
+    display: flex;
+    height: 100%;
+    align-items: center;
+  }
+
+  /* 说明文字：至少留两行（目前最长的说明在这个宽度下是两行），高度够时留三行。 */
+  .panel.forge .forge-card small {
+    height: clamp(3em, 8vh, 4.5em);
+  }
+
+  .panel.forge .reroll {
+    min-height: clamp(30px, 5vh, 36px);
+  }
+}
+
+/*
+ * ——— 棋子走法图例（ui/moveLegend.js，“棋子的走法”说明卡）———
+ * 四张 5×5 小棋盘排成一行（手机上也是一行，字号略小）：棋子居中为墨黑方块，下一步可到达的格子为蓝色。
+ */
+.move-legend {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-4);
+  margin: var(--sp-4) 0;
+}
+
+@media (max-width: 520px) {
+  .move-legend {
+    gap: var(--sp-3);
+  }
+
+  .move-board i.piece {
+    font-size: 11px;
+  }
+
+  .move-figure figcaption {
+    font-size: 11px;
+  }
+}
+
+.move-figure {
+  margin: 0;
+}
+
+.move-board {
+  display: grid;
+  aspect-ratio: 1;
+  border: 1px solid var(--ink);
+}
+
+.move-board i {
+  display: grid;
+  place-items: center;
+  font-style: normal;
+  background: var(--paper);
+}
+
+.move-board i.dark {
+  background: var(--grey-1);
+}
+
+.move-board i.reach {
+  background: var(--accent);
+}
+
+.move-board i.piece {
+  font-family: "Apple Symbols", "Segoe UI Symbol", "DejaVu Sans", serif;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.move-figure figcaption {
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.move-figure figcaption b {
+  font-weight: 500;
+}
+
+.move-figure figcaption span {
+  color: var(--text-secondary);
+}
