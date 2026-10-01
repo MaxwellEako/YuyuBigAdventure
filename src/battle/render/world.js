@@ -30,7 +30,28 @@ const ease = {
   inOut: (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2),
 };
 
-export const tileCenter = (r, c) => new THREE.Vector3(c - (SIZE - 1) / 2, SURFACE, r - (SIZE - 1) / 2);
+/**
+ * 默认镜头（开局、重置视角时回到这里），按横屏 / 竖屏各一套：
+ *   polar        俯仰角：镜头与竖直方向的夹角（度）。0 是正上方往下看，越大越“平视”。
+ *   azimuth      方位角：镜头绕棋盘中心往左偏多少度（从 A 列那一侧斜着看），
+ *                棋盘不再横平竖直，立体感更强。
+ *   minDistance  镜头离棋盘中心的最近距离。
+ *   fitHalfWidth 画面左右至少要装下的半宽（含边框），屏幕越窄镜头退得越远。
+ * 竖屏俯仰角比横屏小（更俯视）：手机画面窄而高，太平的话远处一排会被压扁。
+ */
+const HOME_VIEW = {
+  landscape: { polar: 42, azimuth: 8, minDistance: 15.4, fitHalfWidth: 5.6 },
+  portrait: { polar: 33, azimuth: 8, minDistance: 16.4, fitHalfWidth: 5.1 },
+};
+
+/** 把一套默认镜头参数换算成“从棋盘中心指向镜头”的单位向量（镜头在棋盘的 +z 一侧，往 −x 偏）。 */
+function homeDirection({ polar, azimuth }) {
+  const p = THREE.MathUtils.degToRad(polar);
+  const a = THREE.MathUtils.degToRad(azimuth);
+  return new THREE.Vector3(-Math.sin(a) * Math.sin(p), Math.cos(p), Math.cos(a) * Math.sin(p));
+}
+
+export const tileCenter =(r, c) => new THREE.Vector3(c - (SIZE - 1) / 2, SURFACE, r - (SIZE - 1) / 2);
 
 function seeded(seed) {
   let s = seed % 2147483647 || 1;
@@ -775,8 +796,9 @@ export class BoardWorld {
     // 按水平视角算出能装下整张棋盘（含边框）的距离；竖屏时更俯视一些。
     const halfFov = THREE.MathUtils.degToRad(this.camera.fov / 2);
     const hHalf = Math.atan(Math.tan(halfFov) * aspect);
-    const dir = portrait ? new THREE.Vector3(0, 15, 6.5) : new THREE.Vector3(0, 11.4, 10.3);
-    const dist = Math.max(dir.length(), (portrait ? 5.1 : 5.6) / Math.tan(hHalf));
+    const view = portrait ? HOME_VIEW.portrait : HOME_VIEW.landscape;
+    const dir = homeDirection(view);
+    const dist = Math.max(view.minDistance, view.fitHalfWidth / Math.tan(hHalf));
     // 竖屏（手机）时镜头对准棋盘正中心，棋盘落在屏幕中央；上方信息栏和下方方向键各占一边，不会压住棋盘。
     const target = new THREE.Vector3(0, 0, portrait ? 0 : 0.3);
     this.homeView = { pos: target.clone().addScaledVector(dir.normalize(), dist), target };
