@@ -51,6 +51,7 @@ import {
   armorHero,
 } from "../src/battle/logic/board.js";
 import { solveChain, grindTurns } from "./helpers/chainSolver.js";
+import { shapeProblem, isMirrorSymmetric, isPointSymmetric, matrixGoal } from "./helpers/matrixShape.js";
 import { featuresAt } from "../src/battle/data/features.js";
 import { WEAPONS, STARTING_WEAPONS } from "../src/battle/data/weapons.js";
 import { MONSTERS, heartsAt, variantsAt } from "../src/battle/data/monsters.js";
@@ -907,15 +908,14 @@ test("怪物心阵按章节分档成长：前期够连上几下，后期越来�
   assert.ok(variantsAt(MONSTERS.rook, 2).map(key).includes(key(rook.matrix)), "棋盘按本章的档位、从这一档的变体里取一套");
 });
 
-test("心阵变体：普通怪物每一档至少 3 套，全部中心对称，同一档轮廓大小一致；遭遇时随机取一套", () => {
-  const pointSymmetric = (m) => m.every((row, r) => row.every((v, c) => (v > VOID) === (m[m.length - 1 - r][row.length - 1 - c] > VOID)));
+test("心阵变体：普通怪物每一档至少 3 套，左右对称或中心对称，同一档大小相近；遭遇时随机取一套", () => {
   for (const def of Object.values(MONSTERS)) {
     // 墨渍怪是序章的教学怪物，暗王是首领：特殊怪物只有一套、可以不对称。
     if (def.id === "ink" || def.boss) continue;
     for (const rank of Object.keys(def.ranks)) {
       const list = variantsAt(def, Number(rank));
       assert.ok(list.length >= 3, `${def.name} 第 ${rank} 档只有 ${list.length} 套`);
-      for (const m of list) assert.ok(pointSymmetric(m), `${def.name} 第 ${rank} 档有一套不是中心对称`);
+      list.forEach((m, v) => assert.ok(isMirrorSymmetric(m) || isPointSymmetric(m), `${def.name} 第 ${rank} 档第 ${v + 1} 套既不左右对称也不中心对称`));
       const hearts = list.map((m) => countHearts(m).hearts);
       assert.ok(Math.max(...hearts) - Math.min(...hearts) <= 3, `${def.name} 第 ${rank} 档各套红心数相差太大：${hearts}`);
     }
@@ -926,6 +926,18 @@ test("心阵变体：普通怪物每一档至少 3 套，全部中心对称，�
     seen.add(JSON.stringify(board.monsters.find((m) => m.def.id === "bishop").matrix));
   }
   assert.ok(seen.size >= 3, "多次进入同一章，主教的心阵会换着来");
+});
+
+test("心阵的主体由上下左右相邻的心连成：不断开、没有孤立的心、细枝不超过三分之一", () => {
+  // “每一击都要挨着上一击”只认上下左右相邻，所以心阵本身也得是上下左右连成的一整片，斜向只做轮廓的边。
+  for (const def of Object.values(MONSTERS)) {
+    for (const rank of Object.keys(def.ranks)) {
+      variantsAt(def, Number(rank)).forEach((m, v) => {
+        const problem = shapeProblem(m);
+        assert.equal(problem, null, `${def.name} 第 ${rank} 档第 ${v + 1} 套：${problem}`);
+      });
+    }
+  }
 });
 
 test("名字长度按显示宽度计：中文最多 9 个字，英文最多 18 个字母", () => {
@@ -983,7 +995,8 @@ test("主角名会出现在战斗日志与技能、章节文案里；不合格�
 
 /**
  * 前期、中期（rank 0、1）的怪物要求能用一条不断的连击整片拼完；
- * 后期（rank 2）心阵大、招式多，整片搜索太慢也太吃内存，只要求能连出一次追击。
+ * 后期（rank 2）心阵大、招式多，整片搜索太慢也太吃内存，只要求能连出一次追击；
+ * 手里只有两件武器的早期章节同样只要求连出第一次追击（标准见 helpers/matrixShape.js 的 matrixGoal）。
  */
 test("怪物心阵是给武器拼的：首次登场时，用当时的武器能一条连击拼完（后期至少能打出追击），且比短剑硬磨快", () => {
   const checked = new Set();
@@ -997,10 +1010,10 @@ test("怪物心阵是给武器拼的：首次登场时，用当时的武器能�
         // 序章只有短剑、还没学连击：这一档留到有两件武器的章节再验证。
         if (checked.has(id) || owned.length < 2) return;
         checked.add(id);
-        const late = level.rank >= 2;
-        const best = solveChain({ def, matrix, weapons: owned, slots: level.slots, maxTurns: late ? 4 : 6, until: late ? "chase" : "won" });
+        const goal = matrixGoal(level.rank, owned);
+        const best = solveChain({ def, matrix, weapons: owned, slots: level.slots, maxTurns: goal.maxTurns, until: goal.until });
         assert.ok(best, `${level.name}的${def.name}（第 ${v + 1} 套）找不到连击路线`);
-        if (!late) {
+        if (goal.beatGrind) {
           const grind = grindTurns({ def, matrix, weapon: "dagger" });
           assert.ok(best.turns < grind, `${level.name}的${def.name}（第 ${v + 1} 套）：连击 ${best.turns} 回合，短剑硬磨 ${grind} 回合`);
         }

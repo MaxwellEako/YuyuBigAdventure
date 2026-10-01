@@ -1,81 +1,111 @@
 /**
  * 心阵变体生成器（开发工具，不进游戏包）。
  *
- * 做法：先给每种怪物定一个中心对称的“轮廓”（它的符号），再成对地挖掉少量格子，
- * 得到大体相似、细节不同的几套心阵；每一套都用单元测试里的同一套标准筛一遍：
- *   - 前期、中期（rank 0、1）：用这一档首次登场时拥有的武器，一条不断的连击就能整片拼完，且比短剑硬磨快；
- *   - 后期（rank 2）：4 个回合内至少能连出一次追击。
+ * 做法：先给每种怪物手画一个“符号模板”（兵像棋子、城堡有城垛、王后戴王冠……），
+ * 模板里每一格写一个字符：
+ *   #  必有的心        A  必有的护甲心
+ *   ?  可有可无的心    .  空
+ * 生成器按模板自身的对称（左右、上下、中心）把 '?' 分组，每组要么整组留下、要么整组挖掉，
+ * 这样挖出来的每一套都和模板一样对称。然后穷举所有组合，逐套筛选：
+ *   1. 形状：上下左右连成一片、没有孤立的心、只挨着一颗心的细枝不超过三分之一（见 tests/helpers/matrixShape.js）；
+ *   2. 打法：用这一档首次登场时拥有的武器和槽位，达到单元测试的同一套标准（见 matrixGoal）。
  * 通过的心阵打印出来，人工挑选后写进 src/battle/data/monsters.js 的 ranks。
  *
- * 用法：node tools/gen-matrices.mjs <怪物 id> <rank> <轮廓 JSON> <最少红心> <最多红心> <护甲对数> [数量] [秒数] [种子]
- * 例：node tools/gen-matrices.mjs bishop 1 '["##....","###...",".####.","...###","....##"]' 13 16 0 4 60 1
+ * 用法：node tools/gen-matrices.mjs <怪物 id> <rank> <模板 JSON> [最少红心] [最多红心]
+ * 例：node tools/gen-matrices.mjs pawn 2 '["?###?","##?##","#?#?#","##?##","?###?"]' 18 22
  */
 import { MONSTERS } from "../src/battle/data/monsters.js";
 import { LEVELS, weaponsForLevel } from "../src/battle/data/levels.js";
 import { STARTING_WEAPONS } from "../src/battle/data/weapons.js";
 import { parseMatrix } from "../src/battle/logic/shapes.js";
-import { createRng } from "../src/battle/logic/combat.js";
 import { solveChain, grindTurns } from "../tests/helpers/chainSolver.js";
+import { measureShape, shapeProblem, matrixGoal } from "../tests/helpers/matrixShape.js";
 
-const [id, rankArg, templateArg, minArg, maxArg, armorArg, wantArg = "4", secondsArg = "60", seedArg = "1"] = process.argv.slice(2);
+const [id, rankArg, templateArg, minArg = "1", maxArg = "99"] = process.argv.slice(2);
 const def = MONSTERS[id];
+if (!def) throw new Error(`没有叫 ${id} 的怪物`);
 const rank = Number(rankArg);
 const template = JSON.parse(templateArg);
 const rows = template.length;
 const cols = template[0].length;
-const rng = createRng(Number(seedArg));
 
-/** 中心对称的配对格：绕中心旋转 180°。 */
-const mate = ([r, c]) => [rows - 1 - r, cols - 1 - c];
-const isPointSymmetric = (art) => art.every((row, r) => [...row].every((ch, c) => art[rows - 1 - r][cols - 1 - c] === ch));
-if (!isPointSymmetric(template)) throw new Error("轮廓必须中心对称");
+/** 三种可能的对称变换：左右翻转、上下翻转、旋转 180°。 */
+const TRANSFORMS = [
+  (r, c) => [r, cols - 1 - c],
+  (r, c) => [rows - 1 - r, c],
+  (r, c) => [rows - 1 - r, cols - 1 - c],
+];
+
+/** 模板在某个变换下是否不变（只看“有没有格子”，不区分 # ? A）。 */
+const keeps = (f) =>
+  template.every((line, r) =>
+    [...line].every((ch, c) => {
+      const [r2, c2] = f(r, c);
+      return (template[r2][c2] === ".") === (ch === ".");
+    }),
+  );
+const symmetries = TRANSFORMS.filter(keeps);
+if (!symmetries.length) throw new Error("模板既不左右对称、也不上下对称或中心对称");
+
+/**
+ * 把 '?' 按对称分组：同一组的格子在任一对称变换下互相映射，必须一起留下或一起挖掉。
+ * 做法是从一个 '?' 出发，反复套用所有对称变换，直到组不再变大。
+ */
+function optionalGroups() {
+  const groups = [];
+  const assigned = new Set();
+  template.forEach((line, r) =>
+    [...line].forEach((ch, c) => {
+      if (ch !== "?" || assigned.has(`${r},${c}`)) return;
+      const group = new Map([[`${r},${c}`, [r, c]]]);
+      let grew = true;
+      while (grew) {
+        grew = false;
+        for (const [a, b] of [...group.values()]) {
+          for (const f of symmetries) {
+            const [x, y] = f(a, b);
+            if (!group.has(`${x},${y}`)) {
+              group.set(`${x},${y}`, [x, y]);
+              grew = true;
+            }
+          }
+        }
+      }
+      for (const key of group.keys()) assigned.add(key);
+      groups.push([...group.values()]);
+    }),
+  );
+  return groups;
+}
 
 // 这一档首次登场的章节：决定用哪些武器、几个槽位来验证。
 const first = LEVELS.findIndex((level) => (level.rank ?? 0) === rank && level.monsters.some((m) => m.type === id));
 if (first < 0) throw new Error(`${def.name}没有在 rank ${rank} 的章节出场`);
 const owned = weaponsForLevel(first, STARTING_WEAPONS);
 const slots = LEVELS[first].slots;
-const late = rank >= 2;
+const goal = matrixGoal(rank, owned);
 
-/** 和单元测试同一套标准。 */
-function passes(art) {
-  const matrix = parseMatrix(art);
-  const best = solveChain({ def, matrix, weapons: owned, slots, maxTurns: late ? 4 : 6, until: late ? "chase" : "won" });
+/** 用和单元测试同一套标准检查打法；通过时返回用掉的回合数，否则返回 null。 */
+function playable(matrix) {
+  const best = solveChain({ def, matrix, weapons: owned, slots, maxTurns: goal.maxTurns, until: goal.until });
   if (!best) return null;
-  if (!late && best.turns >= grindTurns({ def, matrix, weapon: "dagger" })) return null;
+  if (goal.beatGrind && best.turns >= grindTurns({ def, matrix, weapon: "dagger" })) return null;
   return best.turns;
 }
 
-const cells = [];
-template.forEach((row, r) => [...row].forEach((ch, c) => ch !== "." && cells.push([r, c])));
-const seen = new Set();
+const groups = optionalGroups();
 const found = [];
-const deadline = Date.now() + Number(secondsArg) * 1000;
-while (Date.now() < deadline && found.length < Number(wantArg)) {
-  const grid = template.map((row) => [...row]);
-  // 成对挖掉 5%～25% 的格子，保持轮廓大体不变。
-  const rate = 0.05 + rng() * 0.2;
-  for (const cell of cells) {
-    if (rng() >= rate / 2) continue;
-    const [r2, c2] = mate(cell);
-    grid[cell[0]][cell[1]] = ".";
-    grid[r2][c2] = ".";
-  }
-  // 护甲心也成对放置。
-  const hearts = [];
-  grid.forEach((row, r) => row.forEach((ch, c) => ch === "#" && hearts.push([r, c])));
-  for (let k = 0; k < Number(armorArg) && hearts.length; k += 1) {
-    const [r, c] = hearts.splice(Math.floor(rng() * hearts.length), 1)[0];
-    const [r2, c2] = mate([r, c]);
-    grid[r][c] = "A";
-    grid[r2][c2] = "A";
-  }
-  const art = grid.map((row) => row.join(""));
-  const key = art.join("/");
-  const count = key.replace(/[^#A]/g, "").length;
-  if (seen.has(key) || count < Number(minArg) || count > Number(maxArg)) continue;
-  seen.add(key);
-  const turns = passes(art);
-  if (turns) found.push({ art, hearts: count, turns });
+// 每个二进制位代表一组 '?'：1 表示挖掉这一组。
+for (let mask = 0; mask < 1 << groups.length; mask += 1) {
+  const grid = template.map((line) => [...line].map((ch) => (ch === "?" ? "#" : ch)));
+  groups.forEach((group, i) => {
+    if (mask & (1 << i)) for (const [r, c] of group) grid[r][c] = ".";
+  });
+  const art = grid.map((line) => line.join(""));
+  const matrix = parseMatrix(art);
+  const { hearts } = measureShape(matrix);
+  if (hearts < Number(minArg) || hearts > Number(maxArg) || shapeProblem(matrix)) continue;
+  const turns = playable(matrix);
+  if (turns) found.push({ art, hearts, turns });
 }
-console.log(JSON.stringify({ id, rank, chapter: first, owned, slots, tried: seen.size, found }));
+console.log(JSON.stringify({ id, rank, chapter: first, owned, slots, goal: goal.until, groups: groups.length, found }, null, 1));
