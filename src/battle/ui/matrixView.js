@@ -78,6 +78,8 @@ export class MatrixView {
     if (!sameShape) this.build(rows, cols);
     for (let r = 0; r < rows; r += 1)
       for (let c = 0; c < cols; c += 1) this.paint(r, c, matrix[r][c]);
+    // 格子可能刚被重建（换尺寸、重排），被抹去的 × 要重新画上。
+    this.markDoomed(this.doomed);
   }
 
   /** 铺满模式下，红心加上武器够得到的圈数能完整放下时的最大格子边长。 */
@@ -229,6 +231,14 @@ export class MatrixView {
       this.el.appendChild(wave);
       setTimeout(() => wave.remove(), 650);
     }
+  }
+
+  /** 标出被死灭抹去的格子：格子中间一个黑色的 ×，表示这里曾经有过心。 */
+  markDoomed(cells) {
+    // 记住这份名单：之后重建格子时由 set() 重新标上。
+    this.doomed = cells ?? [];
+    for (const cell of this.el.querySelectorAll(".cell.doomed")) cell.classList.remove("doomed");
+    for (const [r, c] of cells ?? []) this.cells.get(`${r},${c}`)?.classList.add("doomed");
   }
 
   /** 标出怪物下一招要补回的格子（回血）。 */

@@ -41,6 +41,19 @@
   content: none;
 }
 
+/*
+ * 被死灭抹去的格子：心阵上已经没有这一格，但在原位置画一个黑色的 ×（两道斜线），
+ * 让玩家记得这里曾经有过心。
+ */
+.battle-card .cell.void.doomed::before {
+  content: "";
+  width: 46%;
+  height: 46%;
+  background:
+    linear-gradient(45deg, transparent 43%, var(--ink) 43%, var(--ink) 57%, transparent 57%),
+    linear-gradient(-45deg, transparent 43%, var(--ink) 43%, var(--ink) 57%, transparent 57%);
+}
+
 /* ——— 红心数：同一行 ——— */
 
 .battle-card .hp {

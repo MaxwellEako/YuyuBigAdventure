@@ -402,6 +402,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     const aimShape = combat.intent?.kind === "attack" ? combat.intent.shape : null;
     heroView.markAim(aimShape, combat.aim, parriedCell(combat));
     enemyView.markHeal(combat.phase === "hero" ? combat.healPlan : null);
+    enemyView.markDoomed(combat.doomed);
     const note = $("[data-aim-note]");
     if (combat.intent?.kind === "attack" && combat.aim) {
       const hits = previewAim();

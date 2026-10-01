@@ -91,6 +91,8 @@ export function createCombat({
     shieldUp: false,
     // 招架：本回合用带招架的武器接上过连击，怪物下一招少打 1 颗心（每回合最多一次）。
     parried: false,
+    // 被死灭抹去的格子 [[r, c], ...]：心阵上已经没有这一格，界面在原位置画一个 ×。
+    doomed: [],
     step: monster.step ?? 0,
     round: 1,
     intent: null,
@@ -345,7 +347,11 @@ export function heroAttack(state, weaponId, r, c) {
   // 死灭：用它接上连击的这一击，消除的格子直接从心阵上抹去（变成空位），怪物再也不能在这里回血。
   // 起手的第一击、断了连击的一击都不生效。
   const doomed = slot.kind === "weapon" && outcome === "link" && state.upgrades[slot.id]?.doom ? hits.filter((h) => h.after === EMPTY) : [];
-  if (doomed.length) state.monsterMatrix = applyChanges(state.monsterMatrix, doomed.map((h) => ({ ...h, after: VOID })));
+  if (doomed.length) {
+    state.monsterMatrix = applyChanges(state.monsterMatrix, doomed.map((h) => ({ ...h, after: VOID })));
+    // 记下被抹去的格子：界面上画一个黑色的 ×，让玩家知道这里曾经有过心。
+    state.doomed = [...state.doomed, ...doomed.map(({ r: hr, c: hc }) => [hr, hc])];
+  }
   const wasBonus = state.bonus;
   state.bonus = false;
   state.bonusReason = null;

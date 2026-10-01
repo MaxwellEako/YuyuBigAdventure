@@ -636,6 +636,7 @@ test("进阶强化：死灭抹去格子、贯通沿直线延伸、巨化再大�
   doom.phase = "hero";
   const result = heroAttack(doom, "dagger", 0, 0);
   assert.equal(doom.monsterMatrix[0][0], VOID, "接上连击时消除的格子被抹去");
+  assert.deepEqual(doom.doomed, [[0, 0], [0, 1]], "记下被抹去的格子，界面在原位置画 ×");
   assert.ok(result.events.some((e) => e.type === "doom"));
   assert.equal(countHearts(doom.monsterMatrix).slots, 10, "心阵少了两格");
 
