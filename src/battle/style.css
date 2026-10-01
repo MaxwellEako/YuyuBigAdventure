@@ -5446,7 +5446,15 @@ body.dev-mode .dev-badge {
  */
 .screen .panel {
   --pad-y: var(--sp-8);
+}
+
+/* 有标题栏的弹窗：上内边距由标题栏自己带；没有标题栏的（章节开场、结算）保持面板原来的内边距。 */
+.screen .panel:has(> .panel-head) {
   padding-top: 0;
+}
+
+/* 有吸底按钮栏的弹窗：下内边距由按钮栏自己带。 */
+.screen .panel:has(> .panel-actions:last-child) {
   padding-bottom: 0;
 }
 
@@ -5477,7 +5485,3 @@ body.dev-mode .dev-badge {
   background: var(--paper);
 }
 
-/* 没有吸底按钮栏的弹窗：底部的内边距留给面板自己。 */
-.screen .panel:not(:has(> .panel-actions:last-child)) {
-  padding-bottom: var(--pad-y);
-}

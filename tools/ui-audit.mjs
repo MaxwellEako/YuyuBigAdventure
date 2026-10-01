@@ -22,6 +22,7 @@ async function open(page, cmd, prep) {
     const g = window.__heartGambit;
     if (prep === "level") { g.startLevel(5, { intro: false }); await new Promise((r) => setTimeout(r, 700)); }
     if (prep === "intro") { g.startLevel(5, { intro: true }); await new Promise((r) => setTimeout(r, 700)); return; }
+    if (prep === "prologue") { g.startLevel(0, { intro: true }); await new Promise((r) => setTimeout(r, 700)); return; }
     if (!cmd) return;
     const b = document.createElement("button");
     b.dataset.cmd = cmd;
@@ -56,6 +57,19 @@ function check() {
     if (!visible(el) || fullPage(el)) continue;
     const r = el.getBoundingClientRect();
     if (r.bottom > vh + 1 || r.top < -1) out.push(`超出可见区域：${name(el)} top ${Math.round(r.top)} bottom ${Math.round(r.bottom)} / ${vh}`);
+  }
+  // 面板的第一个、最后一个子元素不应贴着面板的上下边框（内边距丢了）。
+  for (const el of document.querySelectorAll(".screen .panel")) {
+    if (!visible(el) || fullPage(el)) continue;
+    const box = el.getBoundingClientRect();
+    const kids = [...el.children].filter(visible);
+    if (!kids.length) continue;
+    const top = kids[0].getBoundingClientRect().top - box.top;
+    const bottom = box.bottom - kids[kids.length - 1].getBoundingClientRect().bottom;
+    // 吸顶标题栏、吸底按钮栏自带内边距，看的是它们里面的内容。
+    const innerTop = kids[0].matches(".panel-head") ? kids[0].firstElementChild.getBoundingClientRect().top - box.top : top;
+    if (innerTop < 12) out.push(`内容贴着面板上边框（${Math.round(innerTop)}px）：${name(el)}`);
+    if (el.scrollHeight <= el.clientHeight + 1 && bottom < 12 && !kids.at(-1).matches(".panel-actions")) out.push(`内容贴着面板下边框（${Math.round(bottom)}px）：${name(el)}`);
   }
   // 可滚动的弹窗：滚到底以后标题栏还在不在
   const panel = [...document.querySelectorAll(".screen .panel")].find(visible);
@@ -92,6 +106,7 @@ const SCREENS = [
   ["起名", "rename", null],
   ["重置确认", "reset", null],
   ["章节开场", null, "intro"],
+  ["序章开场", null, "prologue"],
   ["棋盘", null, "level"],
   ["菜单", "menu", "level"],
   ["构筑", "armory", "level"],
