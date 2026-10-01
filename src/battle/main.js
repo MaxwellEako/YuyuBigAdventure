@@ -17,6 +17,8 @@ import {
   upgradePreview,
   createForgeOptions,
   rerollForgeOption,
+  planAdvancedForges,
+  hasAdvancedOption,
   toggleEquip,
   toggleSkill,
   swapEquip,
@@ -76,6 +78,7 @@ const AI_TEXT = { static: "原地驻守", patrol: "往返巡逻", chase: "发现
  * profile：跨章节的构筑存档（拥有的武器与技能、强化、出战配置、已解锁的武器槽）。
  * 每通过一章更新一次；重玩旧章节时照样使用它，不会因为回到前面而变弱。
  * forged：{ 章节 key: 用过的铁砧坐标 "r,c" 列表 }，重玩时这些铁砧不能再用。
+ * advancedPlan：这一局里第几次使用铁砧会出现进阶强化（见 planAdvancedForges）；第一次打开铁砧时排好。
  */
 const PROGRESS_VERSION = 4;
 const EMPTY_PROGRESS = { v: PROGRESS_VERSION, unlocked: 1, stars: {}, profile: null, forged: {}, seen: [], hints: true, name: "" };
@@ -520,6 +523,42 @@ const FIRST_CHARGE_LEVEL = firstLevelWith((def) => def.pattern.some((p) => p.kin
 const FIRST_HEAL_LEVEL = firstLevelWith((def) => def.pattern.some((p) => p.kind === "heal"));
 const forgeRules = () => ({ pierce: levelIndex >= FIRST_ARMOR_LEVEL, stagger: levelIndex >= FIRST_CHARGE_LEVEL, heal: levelIndex >= FIRST_HEAL_LEVEL });
 
+/** 整个游戏的铁砧总数：每章地图上 U 的个数相加。 */
+const TOTAL_FORGES = LEVELS.reduce((sum, level) => sum + forgeKeys(level).length, 0);
+/** 排进阶强化时只算终章之前的铁砧：终章才拿到的进阶强化几乎没有机会用上。 */
+const PLANNED_FORGES = TOTAL_FORGES - forgeKeys(LEVELS[LEVELS.length - 1]).length;
+
+/**
+ * 这一次使用铁砧是整局里的第几次（从 0 起）：已通过章节里用过的铁砧，加上本章（含这一次尝试）用过的。
+ * 只有选了强化才算用过，所以中途退出、重开章节时序号不变。
+ */
+function forgeUseIndex() {
+  const key = LEVELS[levelIndex].key;
+  const elsewhere = Object.entries(progress.forged ?? {}).reduce((sum, [k, used]) => sum + (k === key ? 0 : used.length), 0);
+  const here = new Set([...(progress.forged?.[key] ?? []), ...(board.forgesUsed ?? [])]);
+  return elsewhere + here.size;
+}
+
+/** 这一座铁砧有没有排到进阶强化。旧存档第一次用到时补排，已经拿到的进阶强化计入总数。 */
+function forgeHasAdvanced() {
+  if (!Array.isArray(progress.advancedPlan)) {
+    const owned = Object.values(board.hero.upgrades ?? {}).reduce((n, up) => n + Object.keys(up).filter((k) => up[k] && isAdvanced(k)).length, 0);
+    progress.advancedPlan = planAdvancedForges({ total: PLANNED_FORGES, used: forgeUseIndex(), owned });
+    saveProgress();
+  }
+  const index = forgeUseIndex();
+  if (!progress.advancedPlan.includes(index)) return false;
+  // 排到了，但手上的武器已经没有能拿的进阶强化：顺延到下一次使用铁砧，这一局的总数不变。
+  if (!hasAdvancedOption(board.hero, forgeRules())) {
+    let next = index + 1;
+    while (progress.advancedPlan.includes(next)) next += 1;
+    progress.advancedPlan = progress.advancedPlan.map((i) => (i === index ? next : i)).filter((i) => i < TOTAL_FORGES).sort((a, b) => a - b);
+    saveProgress();
+    return false;
+  }
+  return true;
+}
+
 /** 铁砧卡片上的说明：延长、巨化写明多几格，其余用强化本身的说明。 */
 function forgeDesc(opt) {
   const w = WEAPONS[opt.weapon];
@@ -530,7 +569,7 @@ function forgeDesc(opt) {
 
 /** 铁砧：随机给出三项强化，玩家选一项；也可以暂不强化，稍后再来。 */
 function showForge(item) {
-  item.options ??= createForgeOptions(board.hero, Math.random, forgeRules());
+  item.options ??= createForgeOptions(board.hero, Math.random, forgeRules(), { advanced: forgeHasAdvanced() });
   if (!item.options.length) {
     toast("所有武器均已强化完毕");
     return;

@@ -142,8 +142,48 @@ export function sanitizeUpgrades(upgrades = {}) {
 /** 各类基础强化出现的相对概率。精准对连击的收益大，出得少一些；延长可以切换、只有好处，也略微压低。 */
 const UPGRADE_WEIGHT = { rotate: 1, mirror: 1, extend: 0.8, precise: 0.5, parry: 1, pierce: 1, stagger: 1 };
 
-/** 每个候选项刷成进阶强化的概率；一组候选里最多出现一个进阶强化。 */
-export const ADVANCED_CHANCE = 0.1;
+/**
+ * 进阶强化的稀有度按“整局”来控制，而不是每座铁砧各掷一次骰子：
+ * 从开始到通关，一共会有 1～3 座铁砧给出进阶强化（概率 1/4、1/2、1/4，期望 2 座）。
+ * 开新档时就排好“第几次使用铁砧”会出现进阶强化，存进进度里；中途退出、重开章节都不会改变。
+ */
+export const ADVANCED_COUNT_ODDS = [
+  [1, 0.25],
+  [2, 0.5],
+  [3, 0.25],
+];
+
+/** 按 ADVANCED_COUNT_ODDS 抽这一局一共出现几次进阶强化。 */
+function drawAdvancedCount(rng) {
+  let roll = rng();
+  for (const [count, p] of ADVANCED_COUNT_ODDS) {
+    if (roll < p) return count;
+    roll -= p;
+  }
+  return ADVANCED_COUNT_ODDS.at(-1)[0];
+}
+
+/**
+ * 排出这一局里出现进阶强化的铁砧（按使用顺序编号，从 0 开始）。
+ * 分层抽样：把还没用过的铁砧均分成 n 段，每段里随机挑一座，进阶强化不会扎堆，也不会全挤在最后。
+ * @param {object} p
+ * @param {number} p.total 整个游戏的铁砧总数
+ * @param {number} [p.used] 已经用过的铁砧数（旧存档中途接入时用）
+ * @param {number} [p.owned] 已经拥有的进阶强化数（旧存档里按旧规则拿到的，计入这一局的总数）
+ * @param {() => number} rng
+ * @returns {number[]} 升序的使用序号
+ */
+export function planAdvancedForges({ total, used = 0, owned = 0 }, rng = Math.random) {
+  const remaining = Math.max(0, total - used);
+  const count = Math.min(Math.max(0, drawAdvancedCount(rng) - owned), remaining);
+  const plan = [];
+  for (let i = 0; i < count; i += 1) {
+    const from = used + Math.floor((remaining * i) / count);
+    const to = used + Math.floor((remaining * (i + 1)) / count);
+    plan.push(from + Math.floor(rng() * (to - from)));
+  }
+  return plan;
+}
 
 /** 按权重不放回地抽一个。 */
 function drawWeighted(pool, rng) {
@@ -154,26 +194,37 @@ function drawWeighted(pool, rng) {
   return { weapon, kind };
 }
 
-/**
- * 武器强化格随机给出的候选项：只从已经拿到的武器里出，已拥有的强化不再出现。
- * 每一项先以 ADVANCED_CHANCE 的概率尝试刷进阶强化（整组最多一个），否则从基础强化里按权重抽。
- */
-export function upgradeOptions(hero, rng = Math.random, count = 3, opts = {}) {
+/** 主角现在还能拿到的强化，分成基础（basic）与进阶（rare）两堆，每项带抽取权重 w。 */
+function candidatePools(hero, opts = {}) {
   const basic = [];
-  const advanced = [];
+  const rare = [];
   for (const id of hero.weapons) {
     const up = hero.upgrades?.[id] ?? {};
     for (const kind of Object.keys(UPGRADE_TEXT)) {
       if (up[kind] || !upgradeAllowed(id, kind, opts, hero.upgrades)) continue;
-      (isAdvanced(kind) ? advanced : basic).push({ weapon: id, kind, w: UPGRADE_WEIGHT[kind] ?? 1 });
+      (isAdvanced(kind) ? rare : basic).push({ weapon: id, kind, w: UPGRADE_WEIGHT[kind] ?? 1 });
     }
   }
+  return { basic, rare };
+}
+
+/** 主角现在还有没有能拿的进阶强化（排到进阶强化的铁砧若一项都给不出，就把这一次顺延到下一座）。 */
+export const hasAdvancedOption = (hero, opts = {}) => candidatePools(hero, opts).rare.length > 0;
+
+/**
+ * 武器强化格随机给出的候选项：只从已经拿到的武器里出，已拥有的强化不再出现。
+ * advanced 为 true（这一座铁砧排到了进阶强化）时，其中随机一项换成进阶强化（整组只有一个）；
+ * 否则全部是基础强化。基础强化按权重抽取。
+ */
+export function upgradeOptions(hero, rng = Math.random, count = 3, opts = {}, { advanced = false } = {}) {
+  const { basic, rare } = candidatePools(hero, opts);
   const picked = [];
-  let hasAdvanced = false;
-  while (picked.length < count && (basic.length || (!hasAdvanced && advanced.length))) {
-    const tryAdvanced = !hasAdvanced && advanced.length > 0 && (!basic.length || rng() < ADVANCED_CHANCE);
-    if (tryAdvanced) hasAdvanced = true;
-    picked.push(drawWeighted(tryAdvanced ? advanced : basic, rng));
+  while (picked.length < count && basic.length) picked.push(drawWeighted(basic, rng));
+  if (advanced && rare.length) {
+    // 进阶强化放在随机一格上：组里还没满就补一格，满了就替换掉一项基础强化。
+    const option = drawWeighted(rare, rng);
+    if (picked.length < count) picked.splice(Math.floor(rng() * (picked.length + 1)), 0, option);
+    else picked[Math.floor(rng() * count)] = option;
   }
   return picked;
 }
@@ -196,17 +247,23 @@ const sameOption = (a, b) => a.weapon === b.weapon && a.kind === b.kind;
 /**
  * 铁砧的三项强化在第一次打开时生成并保存，之后反复打开看到的都是同一组；
  * 每一项可以单独刷新一次，所以一座铁砧最多只会出现 6 个不同的选项。
+ * advanced：这一座铁砧是否排到了进阶强化（见 planAdvancedForges）。
  */
-export function createForgeOptions(hero, rng = Math.random, opts = {}) {
-  return upgradeOptions(hero, rng, 3, opts).map((option) => ({ ...option, rerolled: false }));
+export function createForgeOptions(hero, rng = Math.random, opts = {}, { advanced = false } = {}) {
+  return upgradeOptions(hero, rng, 3, opts, { advanced }).map((option) => ({ ...option, rerolled: false }));
 }
 
+/**
+ * 刷新一项：基础强化只会刷成另一项基础强化，进阶强化只会刷成另一项进阶强化，
+ * 所以刷新不会多出、也不会弄丢这一局排好的进阶强化。
+ */
 export function rerollForgeOption(hero, options, index, rng = Math.random, opts = {}) {
   const current = options[index];
   if (!current || current.rerolled) return { ok: false, reason: "每项强化仅可重抽一次" };
-  const pool = upgradeOptions(hero, rng, 99, opts).filter((o) => !options.some((x) => sameOption(x, o)));
+  const pools = candidatePools(hero, opts);
+  const pool = (isAdvanced(current.kind) ? pools.rare : pools.basic).filter((o) => !options.some((x) => sameOption(x, o)));
   if (!pool.length) return { ok: false, reason: "没有其他可选的强化" };
-  options[index] = { ...pool[0], rerolled: true };
+  options[index] = { ...drawWeighted(pool, rng), rerolled: true };
   return { ok: true };
 }
 

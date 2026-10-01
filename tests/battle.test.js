@@ -80,7 +80,8 @@ import {
   SKILL_SLOTS,
   sanitizeUpgrades,
   isAdvanced,
-  ADVANCED_CHANCE,
+  planAdvancedForges,
+  upgradeAllowed,
   moveLoadout,
 } from "../src/battle/logic/arsenal.js";
 import { transformShape, shapeKey } from "../src/battle/logic/shapes.js";
@@ -419,9 +420,10 @@ test("强化：延长可切换为加长形状；候选项不会重复已有的�
     ],
     "基础强化补短板：轻武器精准、招架；中型延长、破甲；重武器延长、震慑、破甲（旋转、镜像看武器本身）",
   );
-  const advanced = all.filter((k) => isAdvanced(k.split(":")[1]));
-  assert.ok(advanced.length <= 1, "一组候选里最多一个进阶强化");
-  for (const k of advanced) assert.ok(["dagger:chain", "dagger:doom", "hammer:quake"].includes(k), k);
+  assert.equal(all.filter((k) => isAdvanced(k.split(":")[1])).length, 0, "没排到进阶强化的铁砧只出基础强化");
+  const rare = upgradeOptions(hero, createRng(1), 20, {}, { advanced: true }).filter((o) => isAdvanced(o.kind));
+  assert.equal(rare.length, 1, "排到进阶强化的铁砧：整组恰好一个");
+  assert.ok(["dagger:chain", "dagger:doom", "hammer:quake"].includes(`${rare[0].weapon}:${rare[0].kind}`));
   applyUpgrade(hero, { weapon: "dagger", kind: "rotate" });
   assert.equal(upgradeOptions(hero, createRng(1), 10).some((o) => o.weapon === "dagger" && o.kind === "rotate"), false);
   const combat = createCombat({
@@ -644,11 +646,11 @@ test("进阶强化：死灭抹去格子、贯通沿直线延伸、巨化再大�
   assert.equal(previewAttack(line, "spear", 1, 0).length, 5, "从两端延伸，整列五格");
   assert.equal(previewCombo(line, "spear", 1, 0), "start", "延伸出来的格子都是红心，不算落空");
   assert.equal(previewAttack(line, "spear", 4, 0).length, 2, "有一格落在空位上：照常判定，不延伸");
-  assert.ok(!upgradeOptions({ weapons: ["hook"], upgrades: {} }, () => 0, 99).some((o) => o.kind === "line"), "钩镰不是直线，拿不到贯通");
+  assert.ok(!upgradeAllowed("hook", "line"), "钩镰不是直线，拿不到贯通");
 
   // 巨化：先有延长才会刷出；延长按钮在 原形状 → 延长 → 巨化 之间循环。
-  assert.ok(!upgradeOptions({ weapons: ["hammer"], upgrades: {} }, () => 0, 99).some((o) => o.kind === "giant"), "没有延长时不出巨化");
-  assert.ok(upgradeOptions({ weapons: ["hammer"], upgrades: { hammer: { extend: true } } }, () => 0, 99).some((o) => o.kind === "giant"));
+  assert.ok(!upgradeAllowed("hammer", "giant", {}, {}), "没有延长时不出巨化");
+  assert.ok(upgradeAllowed("hammer", "giant", {}, { hammer: { extend: true } }));
   const giant = createCombat({
     hero: { matrix: filledMatrix(5, 5), weapons: ["hammer"], potions: 0, upgrades: { hammer: { extend: true, giant: true } } },
     monster: { def: MONSTERS.pawn, matrix: filledMatrix(4, 5) },
@@ -675,20 +677,39 @@ test("进阶强化：死灭抹去格子、贯通沿直线延伸、巨化再大�
   assert.equal(quake.stunned, true, "打断之后再晕眩一回合");
 });
 
-test("进阶强化稀有：大多数铁砧只出基础强化，出现时一组最多一个", () => {
-  const hero = { weapons: ["dagger", "hook", "hammer"], upgrades: { hammer: { extend: true } } };
+test("进阶强化稀有：从开始到通关一共出现 1～3 次，期望 2 次，分散在终章之前的铁砧里", () => {
+  // 和 main.js 的 PLANNED_FORGES 一致：终章的铁砧不排进阶强化。
+  const anvils = (level) => level.map.join("").split("U").length - 1;
+  const total = LEVELS.reduce((n, level) => n + anvils(level), 0) - anvils(LEVELS.at(-1));
   const rng = createRng(11);
-  let groups = 0;
-  let withAdvanced = 0;
-  for (let i = 0; i < 400; i += 1) {
-    const options = upgradeOptions(hero, rng, 3);
-    const n = options.filter((o) => isAdvanced(o.kind)).length;
-    assert.ok(n <= 1);
-    groups += 1;
-    if (n) withAdvanced += 1;
+  const runs = 4000;
+  let sum = 0;
+  const firstHalf = [0, 0];
+  for (let i = 0; i < runs; i += 1) {
+    const plan = planAdvancedForges({ total }, rng);
+    assert.ok(plan.length >= 1 && plan.length <= 3, `一局出现 ${plan.length} 次`);
+    assert.equal(new Set(plan).size, plan.length, "不会两次排在同一座铁砧上");
+    assert.ok(plan.every((k, j) => k >= 0 && k < total && (j === 0 || k > plan[j - 1])), "按使用顺序升序、都在整局范围内");
+    sum += plan.length;
+    firstHalf[plan[0] < total / 2 ? 0 : 1] += 1;
   }
-  const rate = withAdvanced / groups;
-  assert.ok(rate > 0.15 && rate < 0.45, `约三成的铁砧会出现一个进阶强化（每项 ${ADVANCED_CHANCE * 100}%），实际 ${rate}`);
+  const mean = sum / runs;
+  assert.ok(Math.abs(mean - 2) < 0.05, `期望 2 次，实际平均 ${mean}`);
+  assert.ok(firstHalf[0] > firstHalf[1], "第一次进阶强化多半出现在前半程");
+  // 旧存档中途接入：已经拿到的进阶强化计入总数，排在还没用过的铁砧上。
+  for (let i = 0; i < 200; i += 1) {
+    const plan = planAdvancedForges({ total, used: 6, owned: 1 }, rng);
+    assert.ok(plan.length <= 2 && plan.every((k) => k >= 6));
+  }
+  // 刷新不会多出或弄丢进阶强化：进阶只刷成进阶，基础只刷成基础。
+  const hero = { weapons: ["dagger", "hook", "hammer"], upgrades: { hammer: { extend: true } } };
+  const options = createForgeOptions(hero, createRng(3), {}, { advanced: true });
+  const at = options.findIndex((o) => isAdvanced(o.kind));
+  assert.ok(at >= 0);
+  rerollForgeOption(hero, options, at, createRng(4));
+  rerollForgeOption(hero, options, (at + 1) % 3, createRng(5));
+  assert.equal(options.filter((o) => isAdvanced(o.kind)).length, 1);
+  assert.ok(isAdvanced(options[at].kind));
 });
 
 test("连击：换武器且紧挨上一击才连上；连用同一件或离得远都从头起手；护甲不算落空", () => {
