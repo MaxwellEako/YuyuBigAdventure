@@ -190,6 +190,9 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   const enemyView = new MatrixView($("[data-enemy-matrix]"), { margin: enemyMargin, maxSize, side: "enemy", box: enemyBox, minCell: compact ? 12 : 22 });
   // 主角心阵只需容纳药水的十字（每边 1 格）。
   const heroView = new MatrixView($("[data-hero-matrix]"), { margin: compact ? 0 : 1, maxSize, side: "hero", box: heroBox, minCell: compact ? 12 : 22 });
+  // 竖屏手机：按外框的新尺寸立刻重排两块心阵（在下方 stacked 分支里赋值）。
+  // 喝药浮窗弹出 / 收起时同步调用，第一帧就是新尺寸的格子，动画中途不会再重建一次而“抽一下”。
+  let refitNow = () => {};
   // 竖屏手机（B6-A）：主角区左右分布——左边主角心阵，右边名字、红心数和“当前招式”。
   // 旋转 / 镜像 / 延长 / 巨化按钮跟着当前招式放在主角区右下角，不再浮在怪物区里，免得被当成“转动怪物”。
   if (stacked) {
@@ -662,15 +665,35 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
       sfx.play("invalid");
       return toast(result.reason);
     }
+    // 恢复动画在浮窗里播完，再收起浮窗，然后才轮到怪物。
     busy = true;
-    mode = "attack";
     hover = null;
     sfx.play("heal");
     render();
     floatText("hero", `+${result.events[0].changes.length}`, "heal");
     await heroView.animate(result.events[0].changes, "heal", combat.heroMatrix);
-    await delay(250);
+    await delay(200);
+    await leaveHealMode();
+    await delay(150);
     await enemyPhase();
+  }
+
+  /** 收起浮窗用的时长，与 phone.css 里 heal-close 动画一致。 */
+  const HEAL_CLOSE_MS = 170;
+
+  /**
+   * 退出喝药状态。竖屏手机上先播放浮窗收起的动画，再切回普通布局并立刻按原尺寸重排心阵；
+   * 其余布局没有浮窗，直接切回。
+   */
+  async function leaveHealMode() {
+    if (stacked && mode === "heal") {
+      modal.classList.add("heal-closing");
+      await delay(HEAL_CLOSE_MS);
+      modal.classList.remove("heal-closing");
+    }
+    mode = "attack";
+    render();
+    refitNow();
   }
 
   /**
@@ -856,12 +879,14 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   }
 
   /** 取消喝药：回到攻击状态，药水不消耗；点过一次的预览也一并清掉。 */
-  function cancelHeal() {
-    if (mode !== "heal") return;
-    mode = "attack";
+  async function cancelHeal() {
+    if (mode !== "heal" || busy) return;
     hover = null;
     heroView.disarm();
     sfx.play("click");
+    busy = true;
+    await leaveHealMode();
+    busy = false;
     render();
     refreshPreview();
   }
@@ -880,6 +905,8 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     heroView.disarm();
     sfx.play("click");
     render();
+    // 竖屏：浮窗的外框已经变大，立刻按新尺寸重排，弹出动画的第一帧就是放大后的格子。
+    refitNow();
     refreshPreview();
   }
 
@@ -957,6 +984,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
       refreshPreview();
     };
     refit();
+    refitNow = refit;
     const observer = new ResizeObserver(() => {
       if (!pending) pending = requestAnimationFrame(refit);
     });
