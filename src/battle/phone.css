@@ -462,14 +462,15 @@ html {
     font-size: 14px;
   }
 
-  /* 主角区的“构筑 · ?”一行：手机上按钮加高到 40px，手指好点。 */
-  .hero-hud .hud-tools .build-chip,
-  .hero-hud .hud-tools .help-chip {
+  /* 主角区的“构筑 · ?”一行：手机上构筑按钮加高到 40px；问号保持小方框，可点区域靠 ::after 外扩。 */
+  .hero-hud .hud-tools .build-chip {
     height: 40px;
     font-size: 15px;
   }
   .hero-hud .hud-tools .help-chip {
-    width: 40px;
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
   }
 }
 

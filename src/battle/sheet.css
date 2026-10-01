@@ -141,16 +141,29 @@
   font-size: 13px;
 }
 
+/* 紧跟在这一行后面的“出战”小标题：黑线贴近按钮，构筑一行和下面的武器清单连成一组。 */
+#hero-hud .hud-tools + .kicker {
+  margin-top: 10px;
+}
+
+/* 问号：小一号的方框，可点区域用 ::after 向外扩，手指也好点。 */
 #hero-hud .help-chip {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   padding: 0;
-  font: 600 14px var(--mono);
+  font: 600 12px var(--mono);
   color: var(--ink);
   background: var(--paper);
   border: 1px solid var(--ink);
+}
+
+#hero-hud .help-chip::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
 }
 
 @media (hover: hover) {
