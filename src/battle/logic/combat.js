@@ -16,7 +16,7 @@ import { WEAPONS, SHIELD, POTION } from "../data/weapons.js";
 import { SKILLS } from "../data/skills.js";
 import { getHeroName } from "../data/heroName.js";
 import { ALL_FEATURES } from "../data/features.js";
-import { weaponShape, nextRotation, nextExtend, weaponCooldown, isLineShape } from "./arsenal.js";
+import { weaponShape, nextRotation, toggleExtent, weaponCooldown, isLineShape } from "./arsenal.js";
 
 /**
  * 充能：中型、重型武器每用一次要消耗充能，充能靠连击攒。
@@ -89,6 +89,8 @@ export function createCombat({
     potions: hero.potions,
     shieldCd: 0,
     shieldUp: false,
+    // 招架：本回合用带招架的武器接上过连击，怪物下一招少打 1 颗心（每回合最多一次）。
+    parried: false,
     step: monster.step ?? 0,
     round: 1,
     intent: null,
@@ -256,7 +258,10 @@ export function heroTransform(state, weaponId, kind) {
   if (!state.upgrades[weaponId]?.[kind]) return { ok: false, reason: `${WEAPONS[weaponId].name}没有这项强化` };
   if (kind === "rotate") slot.orient = { ...slot.orient, rot: nextRotation(weaponId, state.upgrades, slot.orient) };
   else if (kind === "mirror") slot.orient = { ...slot.orient, flip: !slot.orient.flip };
-  else if (kind === "extend") slot.orient = { ...slot.orient, ext: nextExtend(weaponId, state.upgrades, slot.orient) };
+  else if (kind === "extend" || kind === "giant") {
+    if (kind === "giant" && !WEAPONS[weaponId].giantShape) return { ok: false, reason: "无法巨化" };
+    slot.orient = { ...slot.orient, ext: toggleExtent(kind, slot.orient) };
+  }
   else return { ok: false, reason: "无法变形" };
   return { ok: true };
 }
@@ -307,9 +312,12 @@ function settleCombo(state, slot, outcome, wasBonus, events) {
   let earn = 0;
   if (outcome === "link" && links >= 2) earn += 1;
   if (outcome === "link" && up.precise) earn += 1;
-  // 垫步：用这件武器接上连击时，其余武器的冷却各减 1 回合。
-  if (outcome === "link" && up.relay)
-    for (const other of state.weapons) if (other !== slot && other.kind === "weapon" && other.cd > 0) other.cd -= 1;
+  // 招架：用这件武器接上连击时，怪物下一招少打 1 颗心；一回合里接上几次都只算一次。
+  if (outcome === "link" && up.parry && !state.parried) {
+    state.parried = true;
+    state.log.push("招架：怪物下一招少打 1 颗心。");
+    events.push({ type: "parry" });
+  }
   const before = state.energy;
   state.energy = Math.min(ENERGY_MAX, state.energy + earn);
   const gained = state.energy - before;
@@ -335,7 +343,9 @@ export function heroAttack(state, weaponId, r, c) {
   state.lastWeaponId = weaponId;
   state.monsterMatrix = applyChanges(state.monsterMatrix, hits);
   // 死灭：这一击消除的格子直接从心阵上抹去（变成空位），怪物再也不能在这里回血。
-  const doomed = slot.kind === "weapon" && state.upgrades[slot.id]?.doom ? hits.filter((h) => h.after === EMPTY) : [];
+  // 死灭只在追击的那一击生效：先连上三下拿到追击，再用带死灭的武器收尾。
+  const chaseHit = state.bonus && state.bonusReason === "chase";
+  const doomed = slot.kind === "weapon" && chaseHit && state.upgrades[slot.id]?.doom ? hits.filter((h) => h.after === EMPTY) : [];
   if (doomed.length) state.monsterMatrix = applyChanges(state.monsterMatrix, doomed.map((h) => ({ ...h, after: VOID })));
   const wasBonus = state.bonus;
   state.bonus = false;
@@ -579,9 +589,8 @@ export function monsterTurn(state) {
       state.log.push(`防御挡下了「${intent.name}」。`);
       events.push({ type: "monster-attack", intent, hits: [], blocked: true });
     } else {
-      const hits = state.aim
-        ? resolveHits(state.heroMatrix, intent.shape, state.aim.r, state.aim.c)
-        : [];
+      const hits = monsterHits(state);
+      if (state.parried && state.aim) state.log.push("招架卸掉了 1 颗心的伤害。");
       state.heroMatrix = applyChanges(state.heroMatrix, hits);
       state.stats.taken += hits.length;
       state.log.push(
@@ -621,6 +630,8 @@ export function monsterTurn(state) {
     }
   }
   state.step += 1;
+  // 招架只管怪物的下一招：无论这一招是不是攻击，用过就清掉。
+  state.parried = false;
 
   if (isDead(state.heroMatrix)) {
     state.phase = "lost";
@@ -634,6 +645,28 @@ export function monsterTurn(state) {
     startHeroTurn(state);
   }
   return { ok: true, events };
+}
+
+/**
+ * 怪物这一招（攻击）实际会打掉主角的哪些心：瞄准范围里的心，招架过就少打最后一颗。
+ * 战斗界面的伤害预告也用它，预告与结算保持一致。
+ */
+export function monsterHits(state) {
+  const hits = aimedHits(state);
+  return state.parried ? hits.slice(0, -1) : hits;
+}
+
+/** 招架保住的那颗心（界面上画成蓝色描边）；没有招架或打不到心时为 null。 */
+export function parriedCell(state) {
+  if (!state.parried) return null;
+  const last = aimedHits(state).at(-1);
+  return last ? [last.r, last.c] : null;
+}
+
+/** 怪物攻击瞄准范围内的全部红心（还没算招架）。 */
+function aimedHits(state) {
+  if (state.intent?.kind !== "attack" || !state.aim) return [];
+  return resolveHits(state.heroMatrix, state.intent.shape, state.aim.r, state.aim.c);
 }
 
 function startHeroTurn(state) {

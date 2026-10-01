@@ -524,7 +524,7 @@ const forgeRules = () => ({ pierce: levelIndex >= FIRST_ARMOR_LEVEL, stagger: le
 function forgeDesc(opt) {
   const w = WEAPONS[opt.weapon];
   if (opt.kind === "extend") return `战斗中可切换为加长形状（多 ${w.plusShape.size - w.shape.size} 格），不占用回合。`;
-  if (opt.kind === "giant") return `延长按钮多一档：可切换为 ${w.giantShape.size} 格的巨化形状，不占用回合。`;
+  if (opt.kind === "giant") return `多一枚巨化按钮：可切换为 ${w.giantShape.size} 格的巨化形状，与延长各自开关，不占用回合。`;
   return UPGRADE_TEXT[opt.kind].desc;
 }
 
@@ -841,7 +841,7 @@ function battleTopics(monster, features) {
   if (skills.length) topics.push("skills", ...skills.map((id) => ({ id: `skill-${id}`, topic: skillTopic(id) })));
   if (monster.matrix.some((row) => row.some((v) => v >= 2))) topics.push("armor");
   if (monster.def.pattern.some((p) => p.kind === "charge")) topics.push("charge");
-  if (monster.def.pattern.some((p) => p.kind === "heal")) topics.push("heal");
+  // 回血不在开战时讲：等怪物第一次真的准备回血（心阵上出现虚线框）时再讲怎么打断，见 onHealPlan。
   return topics;
 }
 
@@ -873,6 +873,8 @@ async function battle(monster, heroFirst) {
     features,
     coach: () => explain(topics, ctx, { context: "battle" }),
     afterPerfectHit: features.has("combo") ? () => explain(["combo-energy"]) : null,
+    // 怪物第一次准备回血时，讲怎么打断（带着死灭时顺带提一句）。
+    onHealPlan: () => explain(["heal-break"], { doom: board.hero.equipped.some((id) => board.hero.upgrades[id]?.doom) }, { context: "battle" }),
   });
   document.body.classList.remove("in-battle");
   sfx.music.play(combat.phase === "lost" ? null : boardTrack());
@@ -1290,7 +1292,7 @@ function controlsHelp() {
     return `<h3><span class="t-meta">06</span>操作</h3>
           <p class="keys"><span>方向键 移动</span><span>点格子 自动寻路</span><span>单指拖动 转动视角</span><span>双指 缩放</span><span>攻击：点击格子预览范围，再次点击同一格确认</span><span>信息栏按钮 武器 / 目标 / 药水 / 护甲片</span></p>`;
   return `<h3><span class="t-meta">06</span>按键</h3>
-          <p class="keys"><span><kbd>WASD</kbd>移动</span><span><kbd>C</kbd>转动视角</span><span><kbd>B</kbd>构筑</span><span><kbd>G</kbd>护甲片</span><span><kbd>P</kbd>喝药水</span><span><kbd>1</kbd>~<kbd>7</kbd>选武器</span><span><kbd>R</kbd>旋转</span><span><kbd>F</kbd>镜像</span><span><kbd>X</kbd>延长</span><span><kbd>Q</kbd>防御</span><span><kbd>E</kbd>药水</span><span><kbd>Z</kbd>等待</span></p>`;
+          <p class="keys"><span><kbd>WASD</kbd>移动</span><span><kbd>C</kbd>转动视角</span><span><kbd>B</kbd>构筑</span><span><kbd>G</kbd>护甲片</span><span><kbd>P</kbd>喝药水</span><span><kbd>1</kbd>~<kbd>7</kbd>选武器</span><span><kbd>R</kbd>旋转</span><span><kbd>F</kbd>镜像</span><span><kbd>X</kbd>延长</span><span><kbd>G</kbd>巨化（战斗中）</span><span><kbd>Q</kbd>防御</span><span><kbd>E</kbd>药水</span><span><kbd>Z</kbd>等待</span></p>`;
 }
 
 function showHelp() {

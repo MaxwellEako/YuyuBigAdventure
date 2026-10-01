@@ -754,3 +754,89 @@
   margin: 0;
   color: var(--grey-3);
 }
+
+/* 伤害预告里的招架标记：表示已经少算了 1 颗。 */
+.battle-card .intent-parry {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  color: var(--paper);
+  background: var(--accent);
+}
+
+.battle-card .intent-parry .icon {
+  width: 11px;
+  height: 11px;
+}
+
+/*
+ * ——— 喝药水 ———
+ * 主角心阵上方一条提示：药水图标 · “选择恢复位置” · 操作说明 · 右侧关闭按钮（取消喝药，不消耗药水）。
+ * 电脑上浮在主角心阵的下沿（那里是一圈界外虚线格），不挤动布局，也不挡住名字和红心数；
+ * 竖屏手机上主角心阵会放大（见 phone.css）。
+ */
+.battle-card .side.hero {
+  position: relative;
+}
+
+.battle-card .heal-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  min-width: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 0 0 12px;
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.battle-card .heal-bar[hidden] {
+  display: none;
+}
+
+.battle-card .heal-bar > .icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.battle-card .heal-bar b {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.battle-card .heal-bar small {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: #bdbdba;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.battle-card .heal-cancel {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-left: auto;
+  padding: 0;
+  color: var(--paper);
+  background: transparent;
+  border: 0;
+  border-left: 1px solid #404040;
+}
+
+.battle-card .heal-cancel .icon {
+  width: 18px;
+  height: 18px;
+}

@@ -188,13 +188,18 @@ export class MatrixView {
     for (const [r, c] of cells ?? []) this.cells.get(`${r},${c}`)?.classList.add("last-hit");
   }
 
-  markAim(shape, aim) {
-    for (const cell of this.cells.values()) cell.classList.remove("aim", "aim-off");
+  /**
+   * 标出怪物下一招的瞄准范围。spared 为招架保住的那一格 [r, c]：
+   * 它不画成黑色的“会被打掉”，而是画成蓝色描边的“保住了”。
+   */
+  markAim(shape, aim, spared = null) {
+    for (const cell of this.cells.values()) cell.classList.remove("aim", "aim-off", "aim-parried");
     if (!shape || !aim) return;
     for (const [r, c] of footprint(shape, aim.r, aim.c)) {
       const cell = this.cells.get(`${r},${c}`);
       if (!cell) continue;
-      cell.classList.add(cell.classList.contains("outside") ? "aim-off" : "aim");
+      const saved = spared && spared[0] === r && spared[1] === c;
+      cell.classList.add(cell.classList.contains("outside") ? "aim-off" : saved ? "aim-parried" : "aim");
     }
   }
 

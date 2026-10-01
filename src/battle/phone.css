@@ -753,28 +753,111 @@ html {
   display: none;
 }
 
-/* 主角区：心阵居中，名字行在下方；受击预告已经写进黑色横条和红心数里，不再单独占一行。 */
+/*
+ * 主角区（B6-A）：左右分布。
+ *   左：主角心阵（占整块高度）
+ *   右上：HERO · 名字，下面是大号红心数和 −N 预告
+ *   右下：当前招式——缩略形状、名字，以及它的旋转 / 镜像 / 延长 / 巨化按钮
+ * 名字行不再单独占一行，省下的高度留给怪物心阵。
+ */
 .battle-modal.portrait .side.hero {
   flex: none;
-  display: flex;
-  flex-direction: column;
-  padding: 8px 0 6px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "matrix head"
+    "matrix tool";
+  column-gap: 14px;
+  align-items: start;
+  padding: 10px 0 8px;
   border: 0;
 }
 
 .battle-modal.portrait .side.hero .matrix-box {
-  order: 0;
-  height: 132px;
+  grid-area: matrix;
+  height: 136px;
   background: transparent;
 }
 
 .battle-modal.portrait .side.hero .side-head {
-  order: 1;
-  margin-top: 4px;
+  grid-area: head;
+  display: grid;
+  grid-template-columns: 1fr;
+  row-gap: 2px;
+  margin: 0;
+}
+
+.battle-modal.portrait .side.hero .avatar {
+  display: none;
+}
+
+/* 红心数换成大号数字，−N 跟在后面。 */
+.battle-modal.portrait .side.hero .hp {
+  margin-left: 0;
+}
+
+.battle-modal.portrait .side.hero .hp .num {
+  font-size: 28px;
+}
+
+.battle-modal.portrait .side.hero .hp .of {
+  font-size: 14px;
+}
+
+.battle-modal.portrait .side.hero .hp .hp-loss {
+  font-size: 16px;
 }
 
 .battle-modal.portrait .side.hero .aim-note {
   display: none;
+}
+
+/* 当前招式：一条细线隔开，缩略形状 · 名字 ……… 变形按钮。整行固定 44px 高，切换招式时不抽动。 */
+.battle-modal.portrait .hero-tool {
+  grid-area: tool;
+  align-self: end;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  min-width: 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--grey-2);
+}
+
+.battle-modal.portrait .hero-tool .tool-shape {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  background: var(--grey-1);
+}
+
+.battle-modal.portrait .hero-tool .tool-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* “方向固定”：选中的招式没有变形强化时显示在按钮的位置上。 */
+.battle-modal.portrait .hero-tool .tool-fixed {
+  display: none;
+  position: absolute;
+  right: 0;
+  bottom: 12px;
+  font-size: 12px;
+  color: var(--grey-3);
+}
+
+.battle-modal.portrait .hero-tool.fixed .tool-fixed {
+  display: block;
 }
 
 /* 界外格：只有武器够得到的那一圈显示为虚线格。 */
@@ -886,21 +969,19 @@ html {
   height: 16px;
 }
 
-/* 旋转 / 镜像：悬浮在怪物区右下角、黑色横条上方的两枚方形图标按钮。 */
-.battle-modal.portrait .side.enemy .transform-bar {
-  position: absolute;
-  right: 12px;
-  bottom: 46px;
-  z-index: 2;
+/* 变形按钮：当前招式那一行右侧的方形图标按钮，按下（延长、巨化开启）时变蓝。 */
+.battle-modal.portrait .hero-tool .transform-bar {
+  flex: none;
   display: flex;
-  gap: 6px;
+  gap: 4px;
   width: auto;
   height: auto;
+  margin: 0;
 }
 
-.battle-modal.portrait .side.enemy .transform-bar .action {
-  width: 44px;
-  height: 44px;
+.battle-modal.portrait .hero-tool .transform-bar .action {
+  width: 38px;
+  height: 38px;
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -909,13 +990,19 @@ html {
   border: 1px solid var(--ink);
 }
 
-.battle-modal.portrait .side.enemy .transform-bar .action.on {
+.battle-modal.portrait .hero-tool .transform-bar .action.on {
   color: var(--accent-on);
   background: var(--accent);
   border-color: var(--accent);
 }
 
-.battle-modal.portrait .side.enemy .transform-bar .action span {
+.battle-modal.portrait .hero-tool .transform-bar .action span,
+.battle-modal.portrait .hero-tool .transform-bar .action small {
+  display: none;
+}
+
+/* 选中的招式用不了的按钮：完全收起，让出位置给“方向固定”或名字。 */
+.battle-modal.portrait .hero-tool .transform-bar .action.idle {
   display: none;
 }
 
@@ -992,7 +1079,7 @@ html {
 /* 矮屏手机（如 iPhone SE）：主角心阵和招式卡再压矮，把高度让给怪物心阵。 */
 @media (max-height: 740px) {
   .battle-modal.portrait .side.hero .matrix-box {
-    height: 96px;
+    height: 104px;
   }
   .battle-modal.portrait .weapon {
     height: 58px;
@@ -1208,4 +1295,48 @@ html {
   .panel.result .panel-actions {
     margin-top: 16px;
   }
+}
+
+/*
+ * 竖屏喝药水：主角区改成上下排——顶部是提示条（带关闭按钮），下面是放大的主角心阵，
+ * 方便手指点准恢复的位置。喝药时用不了武器和技能，招式栏先收起，把高度让给放大的心阵；
+ * 名字行和当前招式也先收起。怪物区和“下一招”横条照常显示。
+ */
+.battle-modal.portrait.heal-mode .side.hero {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "bar"
+    "matrix";
+  row-gap: 8px;
+  padding-top: 8px;
+}
+
+.battle-modal.portrait.heal-mode .side.hero .heal-bar {
+  grid-area: bar;
+  position: static;
+}
+
+.battle-modal.portrait.heal-mode .side.hero .side-head,
+.battle-modal.portrait.heal-mode .side.hero .hero-tool,
+.battle-modal.portrait.heal-mode .weapon-bar {
+  display: none;
+}
+
+.battle-modal.portrait.heal-mode .side.hero .matrix-box {
+  height: min(38vh, 320px);
+  height: min(38dvh, 320px);
+}
+
+@media (max-height: 740px) {
+  .battle-modal.portrait.heal-mode .side.hero .matrix-box {
+    height: 32vh;
+    height: 32dvh;
+  }
+}
+
+/* 喝药状态下的药水按钮：蓝底白字，文字不能淡成蓝底上的灰蓝色。 */
+.battle-modal.portrait .action-bar .action.active,
+.battle-modal.portrait .action-bar .action.active .icon {
+  color: var(--accent-on);
 }

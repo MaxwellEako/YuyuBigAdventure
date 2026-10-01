@@ -5243,3 +5243,9 @@ body:not(.in-level) .hint-bar {
 .enemy-list li.enemy-intel .tip-foot {
   font-size: 11px;
 }
+
+/* 招架保住的那一格：和防御一样画成蓝色描边，表示“这一颗不会被打掉”。 */
+.cell.aim-parried {
+  background: var(--accent-tint);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}

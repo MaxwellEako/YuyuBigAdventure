@@ -14,13 +14,13 @@ export const UPGRADE_TEXT = {
   mirror: { name: "镜像", icon: "mirror", tier: "basic", toggle: true, desc: "战斗中可将攻击形状左右翻转。" },
   extend: { name: "延长", icon: "extend", tier: "basic", toggle: true, desc: "战斗中可在原形状与加长形状之间切换，不占用回合。" },
   precise: { name: "精准", icon: "energy", tier: "basic", desc: "用该武器构成连击时，额外获得 1 点充能。" },
-  relay: { name: "垫步", icon: "relay", tier: "basic", desc: "用该武器构成连击时，其余武器的冷却减少 1 回合。" },
+  parry: { name: "招架", icon: "parry", tier: "basic", desc: "用该武器构成连击时，怪物下一招少打 1 颗心（每回合最多一次）。" },
   pierce: { name: "破甲", icon: "pierce", tier: "basic", desc: "一击消除护甲心。" },
   stagger: { name: "震慑", icon: "stagger", tier: "basic", desc: "单次消除不少于 2 颗红心即可打断重击。" },
   chain: { name: "连锁", icon: "combo", tier: "advanced", desc: "用该武器构成连击时，连击数额外 +1。" },
-  doom: { name: "死灭", icon: "doom", tier: "advanced", desc: "被该武器消除的格子从心阵上抹去，怪物无法在此恢复红心。" },
+  doom: { name: "死灭", icon: "doom", tier: "advanced", desc: "追击时，被该武器消除的格子从心阵上抹去，怪物无法在此恢复红心。" },
   line: { name: "贯通", icon: "line", tier: "advanced", desc: "直线形的攻击沿自身方向继续延伸，直到遇到空位为止。" },
-  giant: { name: "巨化", icon: "giant", tier: "advanced", toggle: true, desc: "延长之后可再切换为更大的形状。需先获得延长。" },
+  giant: { name: "巨化", icon: "giant", tier: "advanced", toggle: true, desc: "战斗中可切换为更大的巨化形状，与延长各用一个按钮，不占用回合。需先获得延长。" },
   quake: { name: "震地", icon: "quake", tier: "advanced", desc: "该武器打断重击时，怪物额外晕眩 1 回合。" },
 };
 
@@ -45,7 +45,7 @@ export function isLineShape(shape) {
 
 /**
  * 武器当前的攻击形状：先看切换到了哪一档长度，再按战斗中的朝向变形。
- * orient.ext：0 原形状，1 延长后的形状，2 巨化后的形状；界面上默认展示原形状。
+ * orient.ext：0 原形状，1 延长后的形状，2 巨化后的形状（延长、巨化各有一个开关按钮）；界面上默认展示原形状。
  */
 export function weaponShape(id, upgrades = {}, orient = {}) {
   const weapon = WEAPONS[id];
@@ -75,10 +75,13 @@ export function distinctRotations(id, upgrades = {}, orient = {}) {
   return rots;
 }
 
-/** 延长按钮：原形状 → 加长 →（有巨化时）巨化 → 原形状，循环往复。 */
-export function nextExtend(id, upgrades = {}, orient = {}) {
-  const levels = upgrades[id]?.giant && WEAPONS[id].giantShape ? 3 : 2;
-  return (Number(orient.ext ?? 0) + 1) % levels;
+/** 延长、巨化各是一个开关：按下切到这一档范围，再按一次回到原形状。level：1 延长，2 巨化。 */
+export const EXTENT_LEVEL = { extend: 1, giant: 2 };
+
+/** 按下延长或巨化按钮之后，武器切到哪一档范围（0 原形状）。 */
+export function toggleExtent(kind, orient = {}) {
+  const level = EXTENT_LEVEL[kind];
+  return Number(orient.ext ?? 0) === level ? 0 : level;
 }
 
 /** 旋转到下一个不同的朝向，循环往复。 */
@@ -93,12 +96,12 @@ export function nextRotation(id, upgrades = {}, orient = {}) {
  *
  * 设计依据是怪物的心阵与两条核心规则（紧挨上一击、每格都落在红心上）：
  * 基础强化补短板，让缺点没那么明显；进阶强化放大长处，稀有，在铁砧上偶然刷出。
- *  - 轻武器：定位是“垫刀”，永远两格。基础：精准、垫步；进阶：连锁、死灭。
+ *  - 轻武器：定位是“垫刀”，永远两格。基础：精准、招架；进阶：连锁、死灭（只在追击时生效）。
  *  - 中型：形状特化。基础：延长（可切换）、破甲；进阶：贯通（仅直线形）。
  *  - 重武器：范围大、耗能高。基础：延长（可切换）、震慑、破甲；进阶：巨化（需先有延长）、震地。
  */
 const ROLE_UPGRADES = {
-  light: { basic: ["precise", "relay"], advanced: ["chain", "doom"] },
+  light: { basic: ["precise", "parry"], advanced: ["chain", "doom"] },
   medium: { basic: ["extend", "pierce"], advanced: ["line"] },
   heavy: { basic: ["extend", "stagger", "pierce"], advanced: ["giant", "quake"] },
 };
@@ -122,18 +125,22 @@ export function upgradeAllowed(id, kind, opts = {}, upgrades = {}) {
   return true;
 }
 
-/** 去掉规则调整后不再允许的强化（旧存档里可能有）。 */
+/** 改名或被替换掉的强化：旧存档里的“垫步”换成取代它的“招架”，玩家不会白白失去一项强化。 */
+const RENAMED_UPGRADES = { relay: "parry" };
+
+/** 去掉规则调整后不再允许的强化（旧存档里可能有）；改名的强化换成新名字。 */
 export function sanitizeUpgrades(upgrades = {}) {
   const clean = {};
   for (const [id, up] of Object.entries(upgrades)) {
-    const kept = Object.fromEntries(Object.entries(up).filter(([kind, on]) => on && upgradeAllowed(id, kind, {}, upgrades)));
+    const renamed = Object.fromEntries(Object.entries(up).map(([kind, on]) => [RENAMED_UPGRADES[kind] ?? kind, on]));
+    const kept = Object.fromEntries(Object.entries(renamed).filter(([kind, on]) => on && upgradeAllowed(id, kind, {}, upgrades)));
     if (Object.keys(kept).length) clean[id] = kept;
   }
   return clean;
 }
 
 /** 各类基础强化出现的相对概率。精准对连击的收益大，出得少一些；延长可以切换、只有好处，也略微压低。 */
-const UPGRADE_WEIGHT = { rotate: 1, mirror: 1, extend: 0.8, precise: 0.5, relay: 1, pierce: 1, stagger: 1 };
+const UPGRADE_WEIGHT = { rotate: 1, mirror: 1, extend: 0.8, precise: 0.5, parry: 1, pierce: 1, stagger: 1 };
 
 /** 每个候选项刷成进阶强化的概率；一组候选里最多出现一个进阶强化。 */
 export const ADVANCED_CHANCE = 0.1;

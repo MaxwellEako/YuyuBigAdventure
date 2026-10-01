@@ -110,10 +110,11 @@ export const SPRITE = `
       <path d="M12 2v20" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2.5 2"/>
       <path d="M9 6 3 12l6 6zM15 6l6 6-6 6z" fill="currentColor"/>
     </symbol>
-    <!-- 垫步：沙漏上划一道，表示“其余武器的冷却少一回合”。 -->
-    <symbol id="i-relay" viewBox="0 0 24 24">
-      <path d="M5.5 3h11M5.5 21h11M7 3l8 18M15 3 7 21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/>
-      <path d="M17 12h6" stroke="currentColor" stroke-width="2.6" stroke-linecap="square"/>
+    <!-- 招架：一把斜着的刃挡在一颗心前面，表示“替红心挡下一点伤害”。 -->
+    <symbol id="i-parry" viewBox="0 0 24 24">
+      <path d="M3 21 15 9" stroke="currentColor" stroke-width="2.6" stroke-linecap="square"/>
+      <path d="m15 9 3-6 3 3-6 3" fill="currentColor"/>
+      <path d="m5 13 6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="square"/>
     </symbol>
     <!-- 死灭：方格里一个叉，格子被抹去。 -->
     <symbol id="i-doom" viewBox="0 0 24 24">

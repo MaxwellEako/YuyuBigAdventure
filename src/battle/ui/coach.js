@@ -153,12 +153,19 @@ export const TOPICS = {
     target: "[data-side=enemy] .intent",
     body: `怪物蓄力后，下一招为[重击]。可使用[防御]抵挡。`,
   },
-  heal: {
-    title: "恢复红心",
+  // 怪物第一次准备回血、心阵上出现红色虚线框时弹出：讲怎么把这次回血打断。
+  "heal-break": {
+    title: "打断回血",
     target: "[data-side=enemy] .matrix-box",
-    body: `部分怪物会恢复红心。恢复的位置以红色虚线框提前标出，且必须与现有红心相连。${legend([
-      ['<span class="swatch heal-plan"></span>', "在怪物行动前消除与虚线框相邻的红心，可减少或阻止这次恢复。"],
-    ])}`,
+    body: (ctx) =>
+      `怪物下一招要恢复红心。${legend(
+        [
+          ['<span class="swatch heal-plan"></span>', "红色虚线框是它要恢复的位置。"],
+          [heartSvg("heart"), "恢复只能从还在的红心旁边长出来：虚线框必须挨着一颗红心。"],
+          [icon("combo"), "这一回合把挨着虚线框的红心打掉，伤口就接不上，这次恢复会变少，甚至完全落空。"],
+          ctx.doom ? [icon("doom"), "带[死灭]的武器在[追击]时消除的格子会被抹去，怪物再也不能在那里恢复。"] : null,
+        ].filter(Boolean),
+      )}`,
   },
   // 第一次拿到战锤这样的重武器时弹出。
   plate: {

@@ -7,7 +7,7 @@ import { INTENT_TEXT } from "../data/monsters.js";
 import { patternListHtml } from "./monsterIntel.js";
 import { getHeroName } from "../data/heroName.js";
 import { ALL_FEATURES } from "../data/features.js";
-import { battleLayout } from "./device.js";
+import { battleLayout, isTouch } from "./device.js";
 import { countHearts, reach } from "../logic/shapes.js";
 import {
   heroAttack,
@@ -32,6 +32,8 @@ import {
   attackShape,
   slotBlocked,
   heroTransform,
+  monsterHits,
+  parriedCell,
 } from "../logic/combat.js";
 import { weaponShape, UPGRADE_TEXT } from "../logic/arsenal.js";
 
@@ -40,8 +42,8 @@ const MOVE_TEXT = { orth: "直行一格", diag: "斜行一格", king: "八方一
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** 不消耗回合的变形及其快捷键：旋转 R、镜像 F、切换加长形状 X。 */
-const TRANSFORM_KEYS = { rotate: "R", mirror: "F", extend: "X" };
+/** 不消耗回合的变形及其快捷键：旋转 R、镜像 F、延长 X、巨化 G。 */
+const TRANSFORM_KEYS = { rotate: "R", mirror: "F", extend: "X", giant: "G" };
 
 const INTENT_ICON = { charge: "", heal: heartSvg("heart"), armor: heartSvg("armor"), curse: icon("cd") };
 
@@ -87,7 +89,7 @@ export const traitChips = (def) =>
 const ARM_HINT_TIMES = 3;
 let armHints = 0;
 
-export function runBattle({ root, combat, monster, world, sfx, heroFirst, features = ALL_FEATURES, coach = null, afterPerfectHit = null }) {
+export function runBattle({ root, combat, monster, world, sfx, heroFirst, features = ALL_FEATURES, coach = null, afterPerfectHit = null, onHealPlan = null }) {
   const def = combat.def;
   root.innerHTML = `
   <div class="battle-modal" role="dialog" aria-modal="true" aria-label="战斗">
@@ -121,6 +123,10 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
           </div>
           <div class="aim-note" data-aim-note></div>
           <div class="matrix-box"><div data-hero-matrix></div><div class="float-layer" data-hero-float></div></div>
+          <div class="heal-bar" data-heal-bar hidden>
+            ${icon("potion")}<b>选择恢复位置</b><small>${isTouch() ? "点一下预览，再点一次确认" : "悬停预览，点击确认"}</small>
+            <button class="heal-cancel" data-heal-cancel title="取消喝药（Esc）" aria-label="取消喝药">${icon("close")}</button>
+          </div>
         </section>
       </div>
       <footer class="battle-foot">
@@ -184,8 +190,16 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   const enemyView = new MatrixView($("[data-enemy-matrix]"), { margin: enemyMargin, maxSize, side: "enemy", box: enemyBox, minCell: compact ? 12 : 22 });
   // 主角心阵只需容纳药水的十字（每边 1 格）。
   const heroView = new MatrixView($("[data-hero-matrix]"), { margin: compact ? 0 : 1, maxSize, side: "hero", box: heroBox, minCell: compact ? 12 : 22 });
-  // 竖屏手机：旋转 / 镜像按钮挪进怪物卡，悬浮在右下角，不占招式栏的高度。
-  if (stacked) $(".side.enemy").appendChild($("[data-transform]"));
+  // 竖屏手机（B6-A）：主角区左右分布——左边主角心阵，右边名字、红心数和“当前招式”。
+  // 旋转 / 镜像 / 延长 / 巨化按钮跟着当前招式放在主角区右下角，不再浮在怪物区里，免得被当成“转动怪物”。
+  if (stacked) {
+    const tool = document.createElement("div");
+    tool.className = "hero-tool";
+    tool.dataset.heroTool = "";
+    tool.innerHTML = '<span class="tool-shape" data-tool-shape></span><span class="tool-name" data-tool-name></span><span class="tool-fixed">方向固定</span>';
+    tool.appendChild($("[data-transform]"));
+    $(".side.hero").appendChild(tool);
+  }
   // 左右并排时两块心阵共用同一个格子边长，红心一样大；上下排布时各自按自己的外框取最大。
   const syncSize = () => {
     const enemySize = enemyView.fitSize(combat.monsterMatrix.length, combat.monsterMatrix[0].length);
@@ -329,17 +343,33 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     const slot = slotOf(combat, selected);
     const up = slot?.kind === "weapon" ? combat.upgrades[slot.id] ?? {} : {};
     const owned = (k) => combat.weapons.some((w) => w.kind === "weapon" && combat.upgrades[w.id]?.[k]);
-    // 延长是开关：切到加长形状时按钮保持按下的样子。
-    const on = (k) => k === "extend" && slot?.orient?.ext > 0;
-    // 延长按钮切到第三档（巨化）时，图标与名称换成巨化。
-    const face = (k) => (k === "extend" && slot?.orient?.ext === 2 ? "giant" : k);
+    // 延长、巨化各是一个开关：切到对应范围时，那一枚按钮保持按下的样子。
+    const level = { extend: 1, giant: 2 };
+    const isToggle = (k) => k in level;
+    const on = (k) => isToggle(k) && slot?.orient?.ext === level[k];
     $("[data-transform]").innerHTML = Object.keys(TRANSFORM_KEYS)
       .filter(owned)
       .map((k) => {
-        const f = UPGRADE_TEXT[face(k)];
-        return `<button class="action transform ${up[k] ? "" : "idle"} ${on(k) ? "on" : ""}" data-transform-kind="${k}" title="${f.name}（${TRANSFORM_KEYS[k]}）" ${up[k] ? "" : 'disabled aria-hidden="true" tabindex="-1"'} ${k === "extend" ? `aria-pressed="${on(k)}"` : ""}>${icon(f.icon)}<span>${f.name}</span><small class="key-hint">${TRANSFORM_KEYS[k]}</small></button>`;
+        const f = UPGRADE_TEXT[k];
+        return `<button class="action transform ${up[k] ? "" : "idle"} ${on(k) ? "on" : ""}" data-transform-kind="${k}" title="${f.name}（${TRANSFORM_KEYS[k]}）" ${up[k] ? "" : 'disabled aria-hidden="true" tabindex="-1"'} ${isToggle(k) ? `aria-pressed="${on(k)}"` : ""}>${icon(f.icon)}<span>${f.name}</span><small class="key-hint">${TRANSFORM_KEYS[k]}</small></button>`;
       })
       .join("");
+    if (stacked) renderHeroTool(slot, up);
+  }
+
+  /**
+   * 竖屏主角区右下角的“当前招式”：缩略形状（跟着旋转、镜像、延长实时变化）+ 名字。
+   * 选中的招式没有任何变形强化时，按钮位置写“方向固定”；按钮只是隐藏，这一行的高度不变。
+   */
+  function renderHeroTool(slot, up) {
+    const tool = $("[data-hero-tool]");
+    if (!slot) return;
+    const shape = slotShape(combat, slot);
+    const n = Math.max(shape.rows, shape.cols);
+    const cell = Math.min(8, Math.floor((32 - (n - 1) * 2) / n));
+    $("[data-tool-shape]").innerHTML = shapeSvg(shape, { cell, gap: 2, tone: slot.kind === "weapon" ? "attack" : "skill" });
+    $("[data-tool-name]").textContent = slotDef(slot).name;
+    tool.classList.toggle("fixed", !Object.keys(TRANSFORM_KEYS).some((k) => up[k]));
   }
 
   function renderActions() {
@@ -370,7 +400,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
           .map((p, i) => `<i class="${i === combat.step % len ? "now" : ""} ${p.kind}" title="${p.name}"></i>`)
           .join("");
     const aimShape = combat.intent?.kind === "attack" ? combat.intent.shape : null;
-    heroView.markAim(aimShape, combat.aim);
+    heroView.markAim(aimShape, combat.aim, parriedCell(combat));
     enemyView.markHeal(combat.phase === "hero" ? combat.healPlan : null);
     const note = $("[data-aim-note]");
     if (combat.intent?.kind === "attack" && combat.aim) {
@@ -391,21 +421,16 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   function outcomeHtml() {
     if (combat.intent?.kind !== "attack" || !combat.aim) return "";
     if (combat.shieldUp) return `<span class="intent-dmg safe">${icon("shield")}格挡</span>`;
-    return `<span class="intent-dmg">−${previewAim()}${heartSvg("heart")}</span>`;
+    // 招架过：伤害预告旁边挂一枚招架标记，表示已经少算了 1 颗。
+    const parry = combat.parried ? `<i class="intent-parry" title="招架：少打 1 颗心">${icon("parry")}</i>` : "";
+    return `<span class="intent-dmg">−${previewAim()}${heartSvg("heart")}${parry}</span>`;
   }
 
   /** 本回合主角预计失去的红心数（防御中为 0）。 */
   const aimLoss = () => (combat.intent?.kind === "attack" && combat.aim && !combat.shieldUp ? previewAim() : 0);
 
-  function previewAim() {
-    let n = 0;
-    for (const [dr, dc] of combat.intent.shape.offsets) {
-      const r = combat.aim.r + dr;
-      const c = combat.aim.c + dc;
-      if (combat.heroMatrix[r]?.[c] > 0) n += 1;
-    }
-    return n;
-  }
+  /** 这一招会打掉主角几颗心（已扣除招架），与结算用同一个函数。 */
+  const previewAim = () => monsterHits(combat).length;
 
   /**
    * 追击进度：CHASE_EVERY 格进度 + 追击图标。每连上一下亮一格，亮满时追击图标点亮；
@@ -443,6 +468,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     banner.textContent = heroTurn ? (mode === "heal" ? "选择治疗位置" : combat.bonus ? (combat.bonusReason === "chase" ? "追击" : "追加攻击") : "己方回合") : "敌方回合";
     banner.classList.toggle("enemy-turn", !heroTurn);
     modal.classList.toggle("heal-mode", mode === "heal");
+    $("[data-heal-bar]").hidden = mode !== "heal";
     modal.classList.toggle("locked", !heroTurn);
     renderWeapons();
     renderActions();
@@ -499,8 +525,14 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     refreshPreview();
   };
   // 触屏第一次点下只预览：前几次提醒玩家再点同一格才会出手。
-  enemyView.onArm = heroView.onArm = () => {
+  enemyView.onArm = () => {
     if (armHints >= ARM_HINT_TIMES) return;
+    armHints += 1;
+    toast("再次点击同一格以确认攻击");
+  };
+  // 喝药水时顶部的提示条已经写明“再点一次确认”，这里不再弹提示。
+  heroView.onArm = () => {
+    if (mode === "heal" || armHints >= ARM_HINT_TIMES) return;
     armHints += 1;
     toast("再次点击同一格以确认攻击");
   };
@@ -589,6 +621,9 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
         sfx.play("chase");
         floatText("enemy", "追击！", "chase");
       }, 300);
+    }
+    if (result.events.some((e) => e.type === "parry")) {
+      setTimeout(() => floatText("hero", "招架", "chase"), 360);
     }
     if (result.events.some((e) => e.type === "interrupt")) {
       sfx.play("stun");
@@ -747,6 +782,21 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     heroView.set(combat.heroMatrix);
     if (combat.phase !== "hero") return finish();
     if (slotBlocked(combat, slotOf(combat, selected))) selected = firstReady() ?? selected;
+    await beginHeroTurn();
+  }
+
+  /**
+   * 轮到主角出手。怪物第一次准备回血（心阵上出现红色虚线框）时，先停下来讲怎么打断这次回血：
+   * 这时候虚线框就摆在眼前，比开战前讲更容易看懂。只讲一次。
+   */
+  async function beginHeroTurn() {
+    if (onHealPlan && combat.intent?.kind === "heal" && combat.healPlan?.length) {
+      const explainHeal = onHealPlan;
+      onHealPlan = null;
+      busy = true;
+      render();
+      await explainHeal();
+    }
     busy = false;
     render();
   }
@@ -797,13 +847,22 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     else if (e.key === "r" || e.key === "R") transform("rotate");
     else if (e.key === "f" || e.key === "F") transform("mirror");
     else if (e.key === "x" || e.key === "X") transform("extend");
+    else if (e.key === "g" || e.key === "G") transform("giant");
     else if (e.key === "q" || e.key === "Q") shield();
     else if (e.key === "z" || e.key === "Z") wait();
     else if (e.key === "e" || e.key === "E") togglePotion();
-    else if (e.key === "Escape" && mode === "heal") {
-      mode = "attack";
-      render();
-    }
+    else if (e.key === "Escape" && mode === "heal") cancelHeal();
+  }
+
+  /** 取消喝药：回到攻击状态，药水不消耗；点过一次的预览也一并清掉。 */
+  function cancelHeal() {
+    if (mode !== "heal") return;
+    mode = "attack";
+    hover = null;
+    heroView.disarm();
+    sfx.play("click");
+    render();
+    refreshPreview();
   }
 
   function togglePotion() {
@@ -812,9 +871,15 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
       sfx.play("invalid");
       return toast("药水已用尽");
     }
-    mode = mode === "heal" ? "attack" : "heal";
+    if (mode === "heal") return cancelHeal();
+    // 进入喝药状态：两块心阵上点过一次的格子都作废，主角心阵（竖屏上会放大）要重新点两下。
+    mode = "heal";
+    hover = null;
+    enemyView.disarm();
+    heroView.disarm();
     sfx.play("click");
     render();
+    refreshPreview();
   }
 
   function transform(kind) {
@@ -861,6 +926,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   });
   $("[data-act=shield]").addEventListener("click", shield);
   $("[data-act=potion]").addEventListener("click", togglePotion);
+  $("[data-heal-cancel]").addEventListener("click", cancelHeal);
   $("[data-act=retreat]").addEventListener("click", retreat);
   $("[data-act=wait]").addEventListener("click", wait);
   modal.addEventListener("contextmenu", (e) => {
@@ -913,10 +979,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
       await coach();
     }
     if (!heroFirst) enemyPhase();
-    else {
-      busy = false;
-      render();
-    }
+    else await beginHeroTurn();
   })();
 
   return new Promise((resolve) => {

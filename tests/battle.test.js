@@ -10,6 +10,7 @@ import {
   rankPlacements,
   countHearts,
   VOID,
+  EMPTY,
 } from "../src/battle/logic/shapes.js";
 import {
   createCombat,
@@ -30,6 +31,8 @@ import {
   comboLinks,
   previewCombo,
   reachesChase,
+  monsterHits,
+  parriedCell,
 } from "../src/battle/logic/combat.js";
 import {
   createBoard,
@@ -403,8 +406,8 @@ test("强化：延长可切换为加长形状；候选项不会重复已有的�
   assert.deepEqual(
     basic,
     [
+      "dagger:parry",
       "dagger:precise",
-      "dagger:relay",
       "dagger:rotate",
       "hammer:extend",
       "hammer:pierce",
@@ -414,7 +417,7 @@ test("强化：延长可切换为加长形状；候选项不会重复已有的�
       "hook:pierce",
       "hook:rotate",
     ],
-    "基础强化补短板：轻武器精准、垫步；中型延长、破甲；重武器延长、震慑、破甲（旋转、镜像看武器本身）",
+    "基础强化补短板：轻武器精准、招架；中型延长、破甲；重武器延长、震慑、破甲（旋转、镜像看武器本身）",
   );
   const advanced = all.filter((k) => isAdvanced(k.split(":")[1]));
   assert.ok(advanced.length <= 1, "一组候选里最多一个进阶强化");
@@ -563,7 +566,7 @@ test("追击：连击 ×3、×6 时怪物行动前再出一招；追击中不会
   assert.ok(reachesChase(5, 6) && reachesChase(2, 4) && !reachesChase(3, 5));
 });
 
-test("轻武器强化：连锁让连击多涨一次；垫步接上连击时其余武器冷却 −1；不再有不必紧挨上一击的强化", () => {
+test("轻武器强化：连锁让连击多涨一次；招架接上连击时怪物下一招少打 1 颗心；不再有不必紧挨上一击的强化", () => {
   const make = (upgrades) =>
     createCombat({
       hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "slash"], potions: 0, upgrades },
@@ -582,29 +585,53 @@ test("轻武器强化：连锁让连击多涨一次；垫步接上连击时其�
   assert.equal(previewCombo(plain, "slash", 2, 4), "start", "离得远：重新起手");
   assert.deepEqual(sanitizeUpgrades({ dagger: { nimble: true, rotate: true } }), { dagger: { rotate: true } }, "旧存档里的灵巧被去掉");
 
-  // 垫步：钩镰用完进入冷却，下一击用带垫步的短剑接上，钩镰的冷却立刻少一回合。
-  const relay = createCombat({
-    hero: { matrix: filledMatrix(5, 5), weapons: ["hook", "dagger"], potions: 0, upgrades: { dagger: { relay: true } } },
-    monster: { def: MONSTERS.pawn, matrix: parseMatrix(["######", "######", "######", "######"]) },
-    rng: createRng(5),
-  });
-  heroAttack(relay, "hook", 0, 0);
-  const cooling = slotOf(relay, "hook").cd;
-  relay.phase = "hero";
-  heroAttack(relay, "dagger", 0, 2);
-  assert.equal(previewCombo(relay, "dagger", 0, 4), "repeat");
-  assert.equal(slotOf(relay, "hook").cd, cooling - 1, "垫步：钩镰冷却 −1");
+  // 旧存档里的垫步换成取代它的招架。
+  assert.deepEqual(sanitizeUpgrades({ dagger: { relay: true } }), { dagger: { parry: true } }, "垫步迁移为招架");
+
+  // 招架：短剑起手、带招架的斜刃接上连击，怪物这一招少打 1 颗心；一回合接上几次也只少 1 颗。
+  const makeParry = (upgrades) => {
+    const state = createCombat({
+      hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "slash"], potions: 0, upgrades },
+      monster: { def: MONSTERS.pawn, matrix: parseMatrix(["######", "######", "######", "######"]) },
+      rng: createRng(5),
+    });
+    heroAttack(state, "dagger", 0, 0);
+    state.phase = "hero";
+    heroAttack(state, "slash", 1, 0);
+    return state;
+  };
+  const guarded = makeParry({ slash: { parry: true } });
+  const bare = makeParry({});
+  assert.equal(guarded.parried, true, "接上连击后进入招架");
+  for (const state of [guarded, bare]) {
+    state.intent = { kind: "attack", name: "测试", shape: parseShape(["##", "##"]) };
+    state.aim = { r: 0, c: 0 };
+  }
+  assert.equal(monsterHits(guarded).length, monsterHits(bare).length - 1, "招架：少打 1 颗心");
+  assert.ok(parriedCell(guarded), "能指出保住的是哪一格");
+  guarded.phase = "monster";
+  monsterTurn(guarded);
+  assert.equal(countHearts(guarded.heroMatrix).hearts, 25 - 3, "实际只失去 3 颗");
+  assert.equal(guarded.parried, false, "招架只管下一招");
 });
 
 test("进阶强化：死灭抹去格子、贯通沿直线延伸、巨化再大一档、震地打断后晕眩", () => {
-  // 死灭：被短剑消除的两格变成空位，怪物回血只能落在别处。
-  const doom = createCombat({
-    hero: { matrix: filledMatrix(5, 5), weapons: ["dagger"], potions: 0, upgrades: { dagger: { doom: true } } },
-    monster: { def: MONSTERS.bishop, matrix: parseMatrix(["####", "####"]) },
-    rng: createRng(2),
-  });
+  // 死灭：只在追击的那一击生效。平常出手和普通一样，追击时被短剑消除的两格变成空位，怪物回血只能落在别处。
+  const makeDoom = () =>
+    createCombat({
+      hero: { matrix: filledMatrix(5, 5), weapons: ["dagger"], potions: 0, upgrades: { dagger: { doom: true } } },
+      monster: { def: MONSTERS.bishop, matrix: parseMatrix(["####", "####"]) },
+      rng: createRng(2),
+    });
+  const calm = makeDoom();
+  const quiet = heroAttack(calm, "dagger", 0, 0);
+  assert.equal(calm.monsterMatrix[0][0], EMPTY, "不是追击：只是普通地打掉");
+  assert.ok(!quiet.events.some((e) => e.type === "doom"));
+  const doom = makeDoom();
+  doom.bonus = true;
+  doom.bonusReason = "chase";
   const result = heroAttack(doom, "dagger", 0, 0);
-  assert.equal(doom.monsterMatrix[0][0], VOID, "消除的格子被抹去");
+  assert.equal(doom.monsterMatrix[0][0], VOID, "追击时消除的格子被抹去");
   assert.ok(result.events.some((e) => e.type === "doom"));
   assert.equal(countHearts(doom.monsterMatrix).slots, 6, "心阵少了两格");
 
@@ -627,12 +654,14 @@ test("进阶强化：死灭抹去格子、贯通沿直线延伸、巨化再大�
     monster: { def: MONSTERS.pawn, matrix: filledMatrix(4, 5) },
     rng: createRng(2),
   });
-  const sizes = [0, 1, 2, 3].map(() => {
-    const size = previewAttack(giant, "hammer", 0, 0).length;
-    heroTransform(giant, "hammer", "extend");
-    return size;
-  });
-  assert.deepEqual(sizes, [4, 6, 12, 4], "2×2 → 2×3 → 3×4 → 回到 2×2");
+  // 延长、巨化各是一个开关：按下切到那一档，再按一次回到原形状；两枚按钮可以直接互相切换。
+  const size = () => previewAttack(giant, "hammer", 0, 0).length;
+  const sizes = [size()];
+  for (const kind of ["extend", "giant", "extend", "extend", "giant", "giant"]) {
+    heroTransform(giant, "hammer", kind);
+    sizes.push(size());
+  }
+  assert.deepEqual(sizes, [4, 6, 12, 6, 4, 12, 4], "原 2×2 → 延长 2×3 → 巨化 3×4 → 延长 → 关掉 → 巨化 → 关掉");
 
   // 震地：打断重击时怪物额外晕眩一回合。
   const step = MONSTERS.knight.pattern.findIndex((p) => p.kind === "charge") + 1;

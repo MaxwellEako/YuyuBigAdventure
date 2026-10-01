@@ -32,7 +32,7 @@ const GLOSSARY = {
   延长: { icon: "extend" },
   精准: { icon: "perfect" },
   破甲: { icon: "pierce" },
-  垫步: { icon: "relay" },
+  招架: { icon: "parry" },
   死灭: { icon: "doom" },
   贯通: { icon: "line" },
   巨化: { icon: "giant" },
