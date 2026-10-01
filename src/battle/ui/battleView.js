@@ -971,17 +971,23 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   // 竖屏手机：招式栏、变形按钮排好之后怪物心阵的外框才定下来；外框大小变了（例如出现旋转按钮）就按新尺寸重排。
   if (stacked) {
     let pending = 0;
-    // 上一次排版时的格子边长与外框尺寸：都没变就不重建，避免无谓的闪动。
-    let applied = "";
+    // 上一次排版时每块心阵的“格子边长 + 外框尺寸”。两块分开记：谁变了只重建谁，
+    // 例如喝药时只有主角心阵变成放大的浮窗，怪物心阵一格都不动，不会跟着闪一下。
+    const applied = new Map();
+    const fitKey = (view, box) => [view.fixedSize, box.clientWidth, box.clientHeight].join(",");
     const refit = () => {
       pending = 0;
       syncSize();
-      const now = [enemyView.fixedSize, heroView.fixedSize, enemyBox.clientWidth, enemyBox.clientHeight, heroBox.clientWidth, heroBox.clientHeight].join(",");
-      if (now === applied) return;
-      applied = now;
-      enemyView.relayout();
-      heroView.relayout();
-      refreshPreview();
+      let changed = false;
+      for (const [view, box] of [[enemyView, enemyBox], [heroView, heroBox]]) {
+        const now = fitKey(view, box);
+        if (applied.get(view) === now) continue;
+        applied.set(view, now);
+        view.relayout();
+        changed = true;
+      }
+      // 有心阵重建过，瞄准预览要按新的格子重新画。
+      if (changed) refreshPreview();
     };
     refit();
     refitNow = refit;

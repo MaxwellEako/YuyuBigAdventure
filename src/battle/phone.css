@@ -737,7 +737,8 @@ html {
   flex: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
+  /* 第二行用 minmax(0, 1fr)：只分剩下的高度，不会被跨两行的心阵外框撑高。 */
+  grid-template-rows: auto minmax(0, 1fr);
   grid-template-areas:
     "matrix head"
     "matrix tool";
@@ -1272,10 +1273,12 @@ html {
 /*
  * 竖屏喝药水：主角心阵从原位置弹出一个放大的浮窗（和拖动换装时浮起的那一行同一种样子：
  * 略微倾斜 + 投影），方便手指点准恢复的位置；右上角一个白色小方框里放 ×，点它取消喝药。
- * 浮窗盖在原位置之上往上展开，原位置的高度保持不变，其余界面不跟着跳动。
+ * 浮窗盖在原位置之上往上展开。主角区的高度写死为“心阵外框 + 上下内边距”（10 + 8），
+ * 心阵在不在文档流里它都一样高，怪物区也就不会被挤得重排、抽动。
+ * 右侧“名字 + 红心数”（56px）加“当前招式”（44px）共 100px，矮屏的 104px 外框也放得下。
  */
 .battle-modal.portrait .side.hero {
-  min-height: calc(var(--hero-box) + 18px);
+  height: calc(var(--hero-box) + 18px);
 }
 
 .battle-modal.portrait {
