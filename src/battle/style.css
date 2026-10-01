@@ -2428,7 +2428,7 @@ body:not(.in-level) .hint-bar {
   transition: background 0.11s var(--ease-prod), color 0.11s var(--ease-prod);
 }
 
-.forge-card b {
+.forge-card > b {
   font-size: 26px;
   font-weight: 300;
 }
@@ -2480,14 +2480,14 @@ body:not(.in-level) .hint-bar {
   background: var(--accent);
 }
 
-.forge-card b .up-icon {
+.forge-card > b .up-icon {
   width: 24px;
   height: 24px;
   margin: 0 8px 0 0;
   vertical-align: -3px;
 }
 
-.forge-card b .up-icon .icon {
+.forge-card > b .up-icon .icon {
   width: 17px;
   height: 17px;
   color: inherit;
@@ -3910,13 +3910,13 @@ body:not(.in-level) .hint-bar {
 
 /* 铁砧 */
 
-.forge-card b {
+.forge-card > b {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.forge-card b .icon {
+.forge-card > b .icon {
   width: 22px;
   height: 22px;
   color: var(--accent);
@@ -4051,7 +4051,7 @@ body:not(.in-level) .hint-bar {
   height: 16px;
 }
 
-.forge-card b {
+.forge-card > b {
   height: 34px;
 }
 

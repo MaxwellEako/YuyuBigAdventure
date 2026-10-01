@@ -1188,7 +1188,7 @@ html {
     grid-area: weapon;
     height: auto;
   }
-  .forge-card b {
+  .forge-card > b {
     grid-area: name;
     height: auto;
     font-size: 22px;
