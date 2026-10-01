@@ -776,7 +776,7 @@ html {
 
 .battle-modal.portrait .side.hero .matrix-box {
   grid-area: matrix;
-  height: 136px;
+  height: var(--hero-box);
   background: transparent;
 }
 
@@ -1078,9 +1078,6 @@ html {
 
 /* 矮屏手机（如 iPhone SE）：主角心阵和招式卡再压矮，把高度让给怪物心阵。 */
 @media (max-height: 740px) {
-  .battle-modal.portrait .side.hero .matrix-box {
-    height: 104px;
-  }
   .battle-modal.portrait .weapon {
     height: 58px;
   }
@@ -1298,40 +1295,88 @@ html {
 }
 
 /*
- * 竖屏喝药水：主角区改成上下排——顶部是提示条（带关闭按钮），下面是放大的主角心阵，
- * 方便手指点准恢复的位置。喝药时用不了武器和技能，招式栏先收起，把高度让给放大的心阵；
- * 名字行和当前招式也先收起。怪物区和“下一招”横条照常显示。
+ * 竖屏喝药水：主角心阵从原位置弹出一个放大的浮窗（和拖动换装时浮起的那一行同一种样子：
+ * 略微倾斜 + 投影），方便手指点准恢复的位置；右上角一个白色小方框里放 ×，点它取消喝药。
+ * 浮窗盖在原位置之上往上展开，原位置的高度保持不变，其余界面不跟着跳动。
  */
-.battle-modal.portrait.heal-mode .side.hero {
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  grid-template-areas:
-    "bar"
-    "matrix";
-  row-gap: 8px;
-  padding-top: 8px;
+.battle-modal.portrait .side.hero {
+  min-height: calc(var(--hero-box) + 18px);
 }
 
-.battle-modal.portrait.heal-mode .side.hero .heal-bar {
-  grid-area: bar;
-  position: static;
+.battle-modal.portrait {
+  --hero-box: 136px;
 }
 
-.battle-modal.portrait.heal-mode .side.hero .side-head,
-.battle-modal.portrait.heal-mode .side.hero .hero-tool,
-.battle-modal.portrait.heal-mode .weapon-bar {
+.battle-modal.portrait .heal-bar,
+.battle-card .heal-close {
   display: none;
 }
 
 .battle-modal.portrait.heal-mode .side.hero .matrix-box {
-  height: min(38vh, 320px);
-  height: min(38dvh, 320px);
+  /* 绝对定位的网格子项默认以自己的网格区域为参照，改回 auto 才能横跨整个主角区。 */
+  grid-area: auto;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 8px;
+  z-index: 20;
+  height: min(48vh, 400px);
+  height: min(48dvh, 400px);
+  background: var(--paper);
+  /* 用边框当内边距：MatrixView 按 clientWidth / clientHeight 排格子，边框不计入，格子不会贴边。 */
+  border: 14px solid var(--paper);
+  outline: 1px solid var(--ink);
+  box-shadow: 0 14px 32px rgba(10, 10, 10, 0.24);
+  transform: rotate(-1deg);
+  transform-origin: 20% 100%;
+  animation: heal-pop 0.22s var(--ease-prod, ease-out);
+}
+
+@keyframes heal-pop {
+  from {
+    transform: scale(0.5) rotate(0deg);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(-1deg);
+    opacity: 1;
+  }
+}
+
+/* 关闭：右上角的白色小方框，框里一个 ×；可点区域向外扩到 44px。 */
+.battle-modal.portrait.heal-mode .heal-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--ink);
+}
+
+.battle-modal.portrait.heal-mode .heal-close::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+}
+
+.battle-modal.portrait.heal-mode .heal-close .icon {
+  width: 14px;
+  height: 14px;
 }
 
 @media (max-height: 740px) {
+  .battle-modal.portrait {
+    --hero-box: 104px;
+  }
   .battle-modal.portrait.heal-mode .side.hero .matrix-box {
-    height: 32vh;
-    height: 32dvh;
+    height: 44vh;
+    height: 44dvh;
   }
 }
 

@@ -342,10 +342,9 @@ export function heroAttack(state, weaponId, r, c) {
   state.lastFootprint = footprint(shape, r, c);
   state.lastWeaponId = weaponId;
   state.monsterMatrix = applyChanges(state.monsterMatrix, hits);
-  // 死灭：这一击消除的格子直接从心阵上抹去（变成空位），怪物再也不能在这里回血。
-  // 死灭只在追击的那一击生效：先连上三下拿到追击，再用带死灭的武器收尾。
-  const chaseHit = state.bonus && state.bonusReason === "chase";
-  const doomed = slot.kind === "weapon" && chaseHit && state.upgrades[slot.id]?.doom ? hits.filter((h) => h.after === EMPTY) : [];
+  // 死灭：用它接上连击的这一击，消除的格子直接从心阵上抹去（变成空位），怪物再也不能在这里回血。
+  // 起手的第一击、断了连击的一击都不生效。
+  const doomed = slot.kind === "weapon" && outcome === "link" && state.upgrades[slot.id]?.doom ? hits.filter((h) => h.after === EMPTY) : [];
   if (doomed.length) state.monsterMatrix = applyChanges(state.monsterMatrix, doomed.map((h) => ({ ...h, after: VOID })));
   const wasBonus = state.bonus;
   state.bonus = false;

@@ -912,8 +912,8 @@ async function battle(monster, heroFirst) {
     features,
     coach: () => explain(topics, ctx, { context: "battle" }),
     afterPerfectHit: features.has("combo") ? () => explain(["combo-energy"]) : null,
-    // 怪物第一次准备回血时，讲怎么打断（带着死灭时顺带提一句）。
-    onHealPlan: () => explain(["heal-break"], { doom: board.hero.equipped.some((id) => board.hero.upgrades[id]?.doom) }, { context: "battle" }),
+    // 怪物第一次准备回血时，讲怎么打断。
+    onHealPlan: () => explain(["heal-break"], ctx, { context: "battle" }),
   });
   document.body.classList.remove("in-battle");
   sfx.music.play(combat.phase === "lost" ? null : boardTrack());

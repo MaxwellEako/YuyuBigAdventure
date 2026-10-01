@@ -136,36 +136,26 @@ export const TOPICS = {
     title: "铁砧",
     body: "站在[铁砧]相邻的格子上点击铁砧，可从三项强化中选择一项。每项可重抽一次，每座铁砧仅可使用一次。",
   },
-  // 护甲只讲玩家手里已经有的破甲手段。
+  // 机制说明只讲一般情况，不提具体的武器、技能或强化。
   armor: {
     title: "护甲心",
     target: "[data-side=enemy] .matrix-box",
-    body: (ctx) =>
-      `带黑框的[护甲心]须命中两次才会消除。命中护甲心同样计入[完美命中]。${legend(
-        [
-          ctx.weapons?.includes("awl") ? [icon("pierce"), "破甲锥可一击消除护甲心。"] : null,
-          ctx.skills?.includes("crush") ? [icon("pierce"), "技能碎甲可一击消除护甲心。"] : null,
-        ].filter(Boolean),
-      )}`,
+    body: `带黑框的[护甲心]须命中两次才会消除。命中护甲心同样计入[完美命中]。`,
   },
   charge: {
     title: "蓄力",
     target: "[data-side=enemy] .intent",
     body: `怪物蓄力后，下一招为[重击]。可使用[防御]抵挡。`,
   },
-  // 怪物第一次准备回血、心阵上出现红色虚线框时弹出：讲怎么把这次回血打断。
+  // 怪物第一次准备回血、心阵上出现红色虚线框时弹出：讲怎么把这次回血打断（只讲一般情况）。
   "heal-break": {
     title: "打断回血",
     target: "[data-side=enemy] .matrix-box",
-    body: (ctx) =>
-      `怪物下一招要恢复红心。${legend(
-        [
-          ['<span class="swatch heal-plan"></span>', "红色虚线框是它要恢复的位置。"],
-          [heartSvg("heart"), "恢复只能从还在的红心旁边长出来：虚线框必须挨着一颗红心。"],
-          [icon("combo"), "这一回合把挨着虚线框的红心打掉，伤口就接不上，这次恢复会变少，甚至完全落空。"],
-          ctx.doom ? [icon("doom"), "带[死灭]的武器在[追击]时消除的格子会被抹去，怪物再也不能在那里恢复。"] : null,
-        ].filter(Boolean),
-      )}`,
+    body: `怪物下一招要恢复红心。${legend([
+      ['<span class="swatch heal-plan"></span>', "红色虚线框是它要恢复的位置。"],
+      [heartSvg("heart"), "恢复只能从还在的红心旁边长出来：虚线框必须挨着一颗红心。"],
+      [icon("combo"), "这一回合把挨着虚线框的红心打掉，伤口就接不上，这次恢复会变少，甚至完全落空。"],
+    ])}`,
   },
   // 第一次拿到战锤这样的重武器时弹出。
   plate: {

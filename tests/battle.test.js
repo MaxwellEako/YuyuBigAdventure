@@ -618,24 +618,26 @@ test("轻武器强化：连锁让连击多涨一次；招架接上连击时怪�
 });
 
 test("进阶强化：死灭抹去格子、贯通沿直线延伸、巨化再大一档、震地打断后晕眩", () => {
-  // 死灭：只在追击的那一击生效。平常出手和普通一样，追击时被短剑消除的两格变成空位，怪物回血只能落在别处。
-  const makeDoom = () =>
-    createCombat({
-      hero: { matrix: filledMatrix(5, 5), weapons: ["dagger"], potions: 0, upgrades: { dagger: { doom: true } } },
-      monster: { def: MONSTERS.bishop, matrix: parseMatrix(["####", "####"]) },
-      rng: createRng(2),
-    });
-  const calm = makeDoom();
-  const quiet = heroAttack(calm, "dagger", 0, 0);
-  assert.equal(calm.monsterMatrix[0][0], EMPTY, "不是追击：只是普通地打掉");
+  // 死灭：只在接上连击的那一击生效。起手的第一击照常打掉；换一件武器挨着它再打，接上连击时被短剑消除的两格变成空位。
+  const doom = createCombat({
+    hero: { matrix: filledMatrix(5, 5), weapons: ["hook", "dagger"], potions: 0, upgrades: { dagger: { doom: true } } },
+    monster: { def: MONSTERS.bishop, matrix: parseMatrix(["####", "####", "####"]) },
+    rng: createRng(2),
+  });
+  const opener = createCombat({
+    hero: { matrix: filledMatrix(5, 5), weapons: ["dagger"], potions: 0, upgrades: { dagger: { doom: true } } },
+    monster: { def: MONSTERS.bishop, matrix: parseMatrix(["####", "####"]) },
+    rng: createRng(2),
+  });
+  const quiet = heroAttack(opener, "dagger", 0, 0);
+  assert.equal(opener.monsterMatrix[0][0], EMPTY, "起手的第一击：只是普通地打掉");
   assert.ok(!quiet.events.some((e) => e.type === "doom"));
-  const doom = makeDoom();
-  doom.bonus = true;
-  doom.bonusReason = "chase";
+  heroAttack(doom, "hook", 1, 0);
+  doom.phase = "hero";
   const result = heroAttack(doom, "dagger", 0, 0);
-  assert.equal(doom.monsterMatrix[0][0], VOID, "追击时消除的格子被抹去");
+  assert.equal(doom.monsterMatrix[0][0], VOID, "接上连击时消除的格子被抹去");
   assert.ok(result.events.some((e) => e.type === "doom"));
-  assert.equal(countHearts(doom.monsterMatrix).slots, 6, "心阵少了两格");
+  assert.equal(countHearts(doom.monsterMatrix).slots, 10, "心阵少了两格");
 
   // 贯通：长枪（纵向三格）落在一整列红心上，一直打到空位为止；落空时不延伸。
   const line = createCombat({

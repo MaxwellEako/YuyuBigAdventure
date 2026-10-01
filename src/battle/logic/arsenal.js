@@ -18,7 +18,7 @@ export const UPGRADE_TEXT = {
   pierce: { name: "破甲", icon: "pierce", tier: "basic", desc: "一击消除护甲心。" },
   stagger: { name: "震慑", icon: "stagger", tier: "basic", desc: "单次消除不少于 2 颗红心即可打断重击。" },
   chain: { name: "连锁", icon: "combo", tier: "advanced", desc: "用该武器构成连击时，连击数额外 +1。" },
-  doom: { name: "死灭", icon: "doom", tier: "advanced", desc: "追击时，被该武器消除的格子从心阵上抹去，怪物无法在此恢复红心。" },
+  doom: { name: "死灭", icon: "doom", tier: "advanced", desc: "用该武器构成连击时，被它消除的格子从心阵上抹去，怪物无法在此恢复红心。" },
   line: { name: "贯通", icon: "line", tier: "advanced", desc: "直线形的攻击沿自身方向继续延伸，直到遇到空位为止。" },
   giant: { name: "巨化", icon: "giant", tier: "advanced", toggle: true, desc: "战斗中可切换为更大的巨化形状，与延长各用一个按钮，不占用回合。需先获得延长。" },
   quake: { name: "震地", icon: "quake", tier: "advanced", desc: "该武器打断重击时，怪物额外晕眩 1 回合。" },
@@ -96,7 +96,7 @@ export function nextRotation(id, upgrades = {}, orient = {}) {
  *
  * 设计依据是怪物的心阵与两条核心规则（紧挨上一击、每格都落在红心上）：
  * 基础强化补短板，让缺点没那么明显；进阶强化放大长处，稀有，在铁砧上偶然刷出。
- *  - 轻武器：定位是“垫刀”，永远两格。基础：精准、招架；进阶：连锁、死灭（只在追击时生效）。
+ *  - 轻武器：定位是“垫刀”，永远两格。基础：精准、招架；进阶：连锁、死灭（构成连击时生效）。
  *  - 中型：形状特化。基础：延长（可切换）、破甲；进阶：贯通（仅直线形）。
  *  - 重武器：范围大、耗能高。基础：延长（可切换）、震慑、破甲；进阶：巨化（需先有延长）、震地。
  */

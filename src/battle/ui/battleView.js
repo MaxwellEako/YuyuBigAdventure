@@ -122,7 +122,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
             <div class="hp" data-hero-hp></div>
           </div>
           <div class="aim-note" data-aim-note></div>
-          <div class="matrix-box"><div data-hero-matrix></div><div class="float-layer" data-hero-float></div></div>
+          <div class="matrix-box"><div data-hero-matrix></div><div class="float-layer" data-hero-float></div><button class="heal-close" data-heal-close aria-label="取消喝药">${icon("close")}</button></div>
           <div class="heal-bar" data-heal-bar hidden>
             ${icon("potion")}<b>选择恢复位置</b><small>${isTouch() ? "点一下预览，再点一次确认" : "悬停预览，点击确认"}</small>
             <button class="heal-cancel" data-heal-cancel title="取消喝药（Esc）" aria-label="取消喝药">${icon("close")}</button>
@@ -927,6 +927,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
   $("[data-act=shield]").addEventListener("click", shield);
   $("[data-act=potion]").addEventListener("click", togglePotion);
   $("[data-heal-cancel]").addEventListener("click", cancelHeal);
+  $("[data-heal-close]").addEventListener("click", cancelHeal);
   $("[data-act=retreat]").addEventListener("click", retreat);
   $("[data-act=wait]").addEventListener("click", wait);
   modal.addEventListener("contextmenu", (e) => {
@@ -959,6 +960,8 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
       if (!pending) pending = requestAnimationFrame(refit);
     });
     observer.observe(enemyBox);
+    // 喝药水时主角心阵变成放大的浮窗，外框尺寸变了也要按新尺寸重排。
+    observer.observe(heroBox);
     onDispose.push(() => observer.disconnect());
   }
   // 招式很多时底部会折成两行：若整张卡片超出屏幕，就把两块心阵的外框压矮，再按新尺寸重建。
