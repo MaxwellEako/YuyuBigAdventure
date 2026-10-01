@@ -64,6 +64,7 @@ import { MatrixView } from "./ui/matrixView.js";
 import { SPRITE, icon, shapeSvg, matrixSvg, heartSvg } from "./ui/icons.js";
 import { heroSheetHtml } from "./ui/heroSheet.js";
 import { bindLoadoutDrag } from "./ui/dragLoadout.js";
+import { intelBodyHtml } from "./ui/monsterIntel.js";
 import { upgradeKeys, upLogo, costMarks, weaponCost } from "./ui/marks.js";
 
 // v3：新增序章；每章开始时的构筑（强化、装备的武器与技能）一起保存；记录看过的新机制说明。
@@ -211,6 +212,8 @@ let screenName = null;
 let screenBack = null;
 let currentCombat = null;
 let slotsBefore = 0;
+/** “目标”面板里展开情报的那只怪物（uid，如 "pawn-0"），null 表示都收起。 */
+let intelUid = null;
 
 // ——— 通用提示 ———
 
@@ -276,7 +279,10 @@ function renderHud() {
         const { hearts: h, slots: sl } = countHearts(m.matrix);
         if (!m.seen) return `<li class="unseen"><span class="avatar-sm unknown">?</span><span class="wn"><b>未发现</b><small>位于迷雾中</small></span><em>?</em></li>`;
         const hp = m.def.boss ? "?" : `${h}/${sl}`;
-        return `<li class="${m.alive ? "" : "dead"} ${m.aggro && m.alive ? "alert" : ""}" data-uid="${m.uid}"><span class="avatar-sm ${m.def.model}">${GLYPH[m.def.model]}</span><span class="wn"><b>${m.def.name}${m.alive && !m.def.boss ? `<span class="traits mini">${traitChips(m.def)}</span>` : ""}</b><small>${m.alive ? `${m.def.boss ? "情报不明" : AI_TEXT[m.ai]}${m.stun ? " · 晕眩" : ""}` : "已击败"}</small></span><em>${m.alive ? hp : "0"}</em></li>`;
+        // 活着的怪物点一下展开情报（招式循环与心阵），再点一下收起：手机上没有悬停，靠这里查看。
+        const open = m.alive && intelUid === m.uid;
+        const row = `<li class="${m.alive ? "" : "dead"} ${m.aggro && m.alive ? "alert" : ""} ${open ? "open" : ""}" data-uid="${m.uid}" ${m.alive ? `data-intel="${m.uid}" title="查看情报"` : ""}><span class="avatar-sm ${m.def.model}">${GLYPH[m.def.model]}</span><span class="wn"><b>${m.def.name}${m.alive && !m.def.boss ? `<span class="traits mini">${traitChips(m.def)}</span>` : ""}</b><small>${m.alive ? `${m.def.boss ? "情报不明" : AI_TEXT[m.ai]}${m.stun ? " · 晕眩" : ""}` : "已击败"}</small></span><em>${m.alive ? hp : "0"}</em></li>`;
+        return open ? `${row}<li class="enemy-intel">${intelBodyHtml(m, { cell: 11 })}<p class="tip-foot t-meta">${monsterFoot(m)}</p></li>` : row;
       })
       .join("")}</ul>
     <p class="hud-foot"><span class="sq ${board.exitOpen ? "on" : ""}"></span>${board.exitOpen ? "出口已开启" : "出口已被封印"}</p>`,
@@ -381,6 +387,10 @@ function showItemTip(item, event) {
   tip.style.transform = `translate(${x}px, ${y}px)`;
 }
 
+/** 情报卡底部一行：移动方式 · 巡逻方式 · 视野 · 是否晕眩。 */
+const monsterFoot = (monster) =>
+  `${MOVE_TEXT[monster.def.moves]} · ${AI_TEXT[monster.ai]}${monster.sight ? ` · 视野 ${monster.sight} 格` : ""}${monster.stun ? " · 晕眩中" : ""}`;
+
 function showTooltip(monster, event) {
   const tip = $("#tooltip");
   if (!monster || !event) {
@@ -388,7 +398,7 @@ function showTooltip(monster, event) {
     return;
   }
   const def = monster.def;
-  const { hearts, slots, armor } = countHearts(monster.matrix);
+  const { hearts, slots } = countHearts(monster.matrix);
   if (def.boss) {
     // Boss 的情报隐藏：只显示名字。
     tip.innerHTML = `<div class="tip-head"><span class="avatar-sm ${def.model}">${GLYPH[def.model]}</span><div><b>${def.name}</b><small>${def.title}</small></div><span class="tip-hp"><span class="num">?</span></span></div><p class="tip-foot t-meta">情报不明</p>`;
@@ -401,13 +411,8 @@ function showTooltip(monster, event) {
   tip.innerHTML = `
     <div class="tip-head"><span class="avatar-sm ${def.model}">${GLYPH[def.model]}</span><div><b>${def.name}</b><small>${def.title}</small></div><span class="tip-hp"><span class="num">${hearts}</span><span class="of">/${slots}</span></span></div>
     ${traitChips(def) ? `<p class="traits tip-traits">${traitChips(def)}</p>` : ""}
-    <div class="tip-body">
-      <div class="tip-matrix">${matrixSvg(monster.matrix, { cell: 13, gap: 2.5 })}<span class="t-meta">${armor ? `ARMOR ${armor}` : "HP MATRIX"}</span></div>
-      <ul>${def.pattern
-        .map((p) => `<li>${p.kind === "attack" ? shapeSvg(p.shape, { cell: 7, gap: 1.5, tone: "enemy", pivot: false }) : '<i class="dot"></i>'}<span><b>${p.name}</b> ${INTENT_TEXT[p.kind](p)}</span></li>`)
-        .join("")}</ul>
-    </div>
-    <p class="tip-foot t-meta">${MOVE_TEXT[def.moves]} · ${AI_TEXT[monster.ai]}${monster.sight ? ` · 视野 ${monster.sight} 格` : ""}${monster.stun ? " · 晕眩中" : ""}</p>`;
+    ${intelBodyHtml(monster)}
+    <p class="tip-foot t-meta">${monsterFoot(monster)}</p>`;
   tip.hidden = false;
   const x = Math.min(event.clientX + 18, innerWidth - tip.offsetWidth - 12);
   const y = Math.min(event.clientY + 18, innerHeight - tip.offsetHeight - 12);
@@ -898,6 +903,7 @@ function startLevel(index, { intro = true } = {}) {
   walkToken += 1;
   levelGen += 1;
   levelIndex = index;
+  intelUid = null;
   const level = LEVELS[index];
   const profile = progress.profile;
   // 拥有的武器只算真正从宝箱里拿到的（存在存档里）；跳过的宝箱，武器就还在宝箱里，回去还能拿。
@@ -1573,6 +1579,15 @@ document.addEventListener("click", (e) => {
     sfx.unlock();
     if (btn.closest(".screen") || btn.closest(".topbar") || btn.closest(".hud")) sfx.play("click");
     commands[btn.dataset.cmd]?.();
+    return;
+  }
+  // “目标”面板：点怪物那一行展开 / 收起它的情报。
+  const foe = e.target.closest("#goal-hud [data-intel]");
+  if (foe) {
+    sfx.play("click");
+    const uid = foe.dataset.intel;
+    intelUid = intelUid === uid ? null : uid;
+    renderHud();
     return;
   }
   const card = e.target.closest("[data-level]");

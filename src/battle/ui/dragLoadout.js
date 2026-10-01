@@ -5,12 +5,57 @@
  *  - 鼠标：按下后移动超过几个像素就开始拖。
  *  - 触屏：长按 LONG_PRESS 毫秒拿起，期间手指一动就当作滚动，不打扰翻页；拿起之后阻止页面滚动。
  *  - 不方便拖的时候也可以点选：点一下拿起（高亮），再点目标行或放置区放下，再点一下自己取消。
+ *  - 放下之后有一段落位动画：被拖的那一行从松手的位置滑进新位置并闪一下蓝色，其余行平滑让位，
+ *    让玩家确认“换上了 / 换下了”。
  * 面板内容每次刷新都会整块重建，所以监听挂在外层容器上，用事件委托处理。
  */
 
 const LONG_PRESS = 300;
 const MOUSE_SLOP = 5;
 const TOUCH_SLOP = 8;
+/** 落位动画的时长（毫秒）。 */
+const SETTLE_MS = 240;
+
+/** 一行的唯一标识：种类 + id（武器和技能分开）。 */
+const rowKey = (el) => `${el.dataset.dragKind}:${el.dataset.dragId}`;
+
+/** 玩家在系统里选了“减少动态效果”时不播动画。 */
+const reduceMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+/**
+ * FLIP 落位动画（First-Last-Invert-Play）：
+ *   First  换装前记下每一行在屏幕上的位置；
+ *   Last   面板按新的出战配置重建后，再量一次新位置；
+ *   Invert 先用 transform 把每一行“挪回”旧位置；
+ *   Play   再让它们滑到新位置。
+ * @param {HTMLElement} root 面板容器
+ * @param {() => void} change 真正执行换装（会同步重建面板）
+ * @param {{ key: string, from: DOMRect } | null} moved 被移动的那一行，以及它动画的起点（松手时浮起那一行的位置）
+ */
+function settle(root, change, moved) {
+  if (reduceMotion()) {
+    change();
+    return;
+  }
+  const first = new Map([...root.querySelectorAll("[data-drag-id]")].map((el) => [rowKey(el), el.getBoundingClientRect()]));
+  if (moved?.from) first.set(moved.key, moved.from);
+  change();
+  for (const el of root.querySelectorAll("[data-drag-id]")) {
+    const from = first.get(rowKey(el));
+    if (!from) continue;
+    const to = el.getBoundingClientRect();
+    const dx = from.left - to.left;
+    const dy = from.top - to.top;
+    const isMoved = moved && rowKey(el) === moved.key;
+    if (!dx && !dy && !isMoved) continue;
+    el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], {
+      duration: SETTLE_MS,
+      easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+    });
+    // 被移动的那一行落位后闪一下蓝色底，确认换装成功。
+    if (isMoved) el.animate([{ backgroundColor: "rgba(0, 47, 167, 0.16)" }, { backgroundColor: "transparent" }], { duration: 600, delay: SETTLE_MS * 0.6, easing: "ease-out" });
+  }
+}
 
 /**
  * @param {HTMLElement} root 面板容器（内容可以随时重建）
@@ -69,13 +114,15 @@ export function bindLoadoutDrag(root, onMove, enabled = () => true) {
   function finish(commit) {
     if (!drag) return;
     const { ghost, row, kind, id, target } = drag;
+    // 落位动画从松手时浮起那一行的位置出发。
+    const from = ghost.getBoundingClientRect();
     ghost.remove();
     row.classList.remove("dragging");
     root.classList.remove("drag-active");
     clearMarks();
     drag = null;
     suppressClick = true;
-    if (commit && target) onMove({ kind, id, ...target });
+    if (commit && target) settle(root, () => onMove({ kind, id, ...target }), { key: `${kind}:${id}`, from });
   }
 
   root.addEventListener("pointerdown", (e) => {
@@ -132,6 +179,7 @@ export function bindLoadoutDrag(root, onMove, enabled = () => true) {
     picked = null;
     root.querySelectorAll(".picked").forEach((el) => el.classList.remove("picked"));
     if (!list || list.dataset.dropKind !== move.kind || row?.dataset.dragId === move.id) return;
-    onMove({ ...move, toZone: list.dataset.dropZone, targetId: row?.dataset.dragId ?? null, before: true });
+    // 点选模式没有浮起的那一行：从它原来的位置滑过去。
+    settle(root, () => onMove({ ...move, toZone: list.dataset.dropZone, targetId: row?.dataset.dragId ?? null, before: true }), { key: `${move.kind}:${move.id}`, from: null });
   });
 }

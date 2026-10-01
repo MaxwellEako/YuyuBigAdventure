@@ -298,11 +298,12 @@
     font-size: 14px;
   }
 
-  /* 底部主按钮贴在卡片底边，列表滚动时一直点得到。 */
+  /* 底部主按钮固定在卡片底部、离底边留 14px，列表滚动时一直点得到；
+     下方的白色投影把滚过去的列表盖住，不会从按钮和底边之间露出来。 */
   #hero-hud .sheet-build {
     width: 100%;
     position: sticky;
-    bottom: 0;
+    bottom: 14px;
     z-index: 1;
     margin: 16px 0 0;
     box-shadow: 0 14px 0 var(--paper), 0 -10px 0 var(--paper);

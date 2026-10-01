@@ -5214,3 +5214,32 @@ body:not(.in-level) .hint-bar {
     outline-offset: -2px;
   }
 }
+
+/* “目标”面板：点怪物那一行展开情报。展开的情报行不画列表的格线和网格布局。 */
+.enemy-list li[data-intel] {
+  cursor: pointer;
+}
+
+.enemy-list li.open {
+  background: var(--grey-1);
+}
+
+.enemy-list li.enemy-intel {
+  display: block;
+  padding: 4px 0 12px;
+  border-top: 0;
+}
+
+.enemy-list li.enemy-intel .tip-body {
+  margin-top: 4px;
+}
+
+.enemy-list .intel-moves li {
+  display: flex;
+  padding: 0;
+  border: 0;
+}
+
+.enemy-list li.enemy-intel .tip-foot {
+  font-size: 11px;
+}

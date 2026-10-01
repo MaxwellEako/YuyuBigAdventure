@@ -821,7 +821,8 @@ html {
   width: auto;
   height: 68px;
   min-height: 0;
-  padding: 7px 6px 6px;
+  /* 名字和充能菱形离边框留出 8px 以上，不贴边。 */
+  padding: 8px 9px 8px 10px;
   row-gap: 2px;
 }
 
@@ -852,8 +853,8 @@ html {
 /* 窄屏（如 iPhone SE）上五列武器卡再收一点内边距，“战锤 ◆◆◆”也能完整排在一行。 */
 @media (max-width: 380px) {
   .battle-modal.portrait .weapon {
-    padding-right: 4px;
-    padding-left: 5px;
+    padding-right: 6px;
+    padding-left: 7px;
     column-gap: 3px;
   }
 }
@@ -867,7 +868,7 @@ html {
   align-items: center;
   column-gap: 6px;
   height: 40px;
-  padding: 0 7px;
+  padding: 0 10px;
 }
 
 .battle-modal.portrait .weapon.skill .weapon-name,

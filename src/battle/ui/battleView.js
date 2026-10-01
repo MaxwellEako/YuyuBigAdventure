@@ -4,6 +4,7 @@ import { WEAPONS, SHIELD, POTION } from "../data/weapons.js";
 import { SKILLS } from "../data/skills.js";
 import { upgradeKeys, upLogos, costMarks, cdMask, chargePips } from "./marks.js";
 import { INTENT_TEXT } from "../data/monsters.js";
+import { patternListHtml } from "./monsterIntel.js";
 import { getHeroName } from "../data/heroName.js";
 import { ALL_FEATURES } from "../data/features.js";
 import { battleLayout } from "./device.js";
@@ -104,11 +105,12 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
         <section class="side enemy" data-side="enemy">
           <div class="side-head">
             <div class="avatar enemy ${def.model}">${GLYPH[def.model]}</div>
-            <div class="who"><span class="t-meta">Enemy${def.boss ? " · Boss" : ""}</span><h3>${def.name}</h3><p class="traits">${def.boss ? def.title : traitChips(def) || def.title}</p></div>
+            <div class="who foe-toggle" data-foe-toggle role="button" tabindex="0" aria-expanded="false" title="查看招式循环"><span class="t-meta">Enemy${def.boss ? " · Boss" : ""}</span><h3>${def.name}${icon("help", "foe-info-icon")}</h3><p class="traits">${def.boss ? def.title : traitChips(def) || def.title}</p></div>
             <div class="hp" data-enemy-hp></div>
           </div>
           <div class="intent"><div class="intent-main" data-intent></div><div class="pattern" data-pattern></div></div>
           <div class="matrix-box"><div data-enemy-matrix></div><div class="float-layer" data-enemy-float></div></div>
+          <div class="foe-intel" data-foe-intel hidden></div>
         </section>
         <div class="vs" aria-hidden="true"><span class="t-meta">VS</span></div>
         <section class="side hero" data-side="hero">
@@ -825,6 +827,29 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
     sfx.play("click");
     render();
   }
+
+  /**
+   * 怪物情报小卡：点怪物名字弹出（手机上没有悬停，看不到招式循环），再点一次或点别处收起。
+   * 内容是整套招式循环，下一招标出 NEXT；首领的情报隐藏。
+   */
+  const foeIntel = $("[data-foe-intel]");
+  const foeToggle = $("[data-foe-toggle]");
+  function setFoeIntel(open) {
+    foeIntel.hidden = !open;
+    foeToggle.setAttribute("aria-expanded", String(open));
+    if (!open) return;
+    foeIntel.innerHTML = def.boss
+      ? '<p class="intel-unknown t-meta">情报不明</p>'
+      : `<p class="t-meta">招式循环 · PATTERN</p>${patternListHtml(def, combat.step % def.pattern.length)}`;
+  }
+  foeToggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    setFoeIntel(foeIntel.hidden);
+  });
+  // 点到情报卡以外的任何地方都收起（点卡片本身不收起，方便细看）。
+  modal.addEventListener("click", (e) => {
+    if (!foeIntel.hidden && !e.target.closest("[data-foe-intel]")) setFoeIntel(false);
+  });
 
   $("[data-transform]").addEventListener("click", (e) => {
     const btn = e.target.closest("[data-transform-kind]");
