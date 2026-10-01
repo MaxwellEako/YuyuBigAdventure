@@ -5434,3 +5434,50 @@ body.dev-mode .dev-badge {
   width: 10px;
   height: 10px;
 }
+
+/*
+ * ——— 弹窗的统一结构（设计范式：标题栏与操作按钮固定，只有正文滚动）———
+ * 参考 Material Design 的可滚动对话框、Apple HIG 的 Sheet、Vercel Web Interface Guidelines：
+ *   - 标题栏（.panel-head）吸顶：滚动正文时始终看得到标题和关闭按钮；
+ *   - 操作按钮（作为最后一个子元素的 .panel-actions）吸底：随时点得到“确定 / 取消”；
+ *   - 只有内容真的超出时才出现滚动（overflow: auto），滚到头不带动背后的页面（overscroll-behavior: contain）。
+ * 面板上下的内边距挪进标题栏与按钮栏里（--pad-y），吸住时它们和面板边缘之间依然留着同样的空白，
+ * 标题栏与正文之间的间距也改用内边距，正文滚到标题栏下面时被不透明的底色完整盖住。
+ */
+.screen .panel {
+  --pad-y: var(--sp-8);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.screen .panel.armory {
+  --pad-y: var(--sp-6);
+}
+
+.screen .panel > .panel-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin-bottom: 0;
+  padding-top: var(--pad-y);
+  padding-bottom: var(--head-gap, var(--sp-6));
+  background: var(--paper);
+}
+
+.screen .panel.armory > .panel-head {
+  --head-gap: var(--sp-4);
+}
+
+.screen .panel > .panel-actions:last-child {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  padding-top: var(--sp-4);
+  padding-bottom: var(--pad-y);
+  background: var(--paper);
+}
+
+/* 没有吸底按钮栏的弹窗：底部的内边距留给面板自己。 */
+.screen .panel:not(:has(> .panel-actions:last-child)) {
+  padding-bottom: var(--pad-y);
+}

@@ -135,6 +135,7 @@ npm run preview   # 本地预览生产构建
 
 ```bash
 npm test          # 逻辑测试（怪物心阵分档、符号形状与拼图求解、形状、越界、护甲与护甲片、冷却、关卡可达性、怪物追击、拾取、视线与迷雾、变形与轻/中/重强化、技能、连击与追击、充能、打断重击、重玩保留构筑、铁砧刷新、武器槽、等待、起名）
+node tools/ui-audit.mjs  # 界面审查：三种屏幕尺寸逐个打开所有界面，检查多余的滚动、弹窗超出屏幕、标题栏滚走、横向溢出、点按区域（规则见 docs/ui-guidelines.md）
 npm run test:e2e  # 真实键鼠通关序章（含说明弹窗）、越界预览、手机布局、重置进度
 ```
 
@@ -163,6 +164,7 @@ src/battle/
   ui/heroSheet.js     武器与构筑面板的内容
   ui/dragLoadout.js   武器面板里的拖动换装（手势与放置提示；换装规则在 logic/arsenal.js 的 moveLoadout）
 tools/gen-matrices.mjs  心阵变体生成器：符号模板 + 按对称成组增减，用形状检查与连击求解器筛选
+tools/ui-audit.mjs  界面审查工具（规则与参考来源见 docs/ui-guidelines.md）
 src/battle/logic/devMode.js  开发者模式：管理员名字、满配构筑
 tests/helpers/matrixShape.js  心阵形状检查（上下左右连通、孤立的心、细枝比例、对称）与首次登场的通关标准
 ```
