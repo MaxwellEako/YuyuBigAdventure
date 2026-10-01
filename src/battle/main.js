@@ -32,6 +32,7 @@ import {
 import { createCoach, skillTopic, TOPICS } from "./ui/coach.js";
 import { rich, kw } from "./ui/keywords.js";
 import { getHeroName, setHeroName, validateName } from "./data/heroName.js";
+import { isDevMode, devLoadout } from "./logic/devMode.js";
 import { featuresAt } from "./data/features.js";
 import { isTouch } from "./ui/device.js";
 import { nameEntryHtml, bindNameEntry } from "./ui/nameEntry.js";
@@ -152,7 +153,7 @@ const app = document.querySelector("#app");
 app.innerHTML = `${SPRITE}
   <div class="stage" id="stage" aria-label="3D 棋盘"></div>
   <header class="topbar">
-    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><div><strong>心阵棋局</strong><small>HEART GAMBIT</small></div></div>
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span><div><strong>心阵棋局</strong><small>HEART GAMBIT</small></div><em class="dev-tag dev-badge" title="开发者模式：全部章节、物品已开放，进度不写入存档">DEV</em></div>
     <div class="chapter" id="chapter"></div>
     <div class="top-actions">
       <span class="turns" id="turns" title="已行动回合"></span>
@@ -186,6 +187,7 @@ const progress = loadProgress();
 // 存档里的名字要重新校验（可能被手动改过）；没有合格的名字就留空，开局时让玩家起名。
 progress.name = validateName(progress.name).ok ? validateName(progress.name).name : "";
 setHeroName(progress.name);
+syncDevMode();
 // 音效与音乐开关各自记住。
 sfx.enabled = progress.audio?.sfx !== false;
 sfx.musicEnabled = progress.audio?.music !== false;
@@ -237,6 +239,14 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** 瑞士风小标题：等宽编号 + 中文 + 英文大写。 */
 const kicker = (nb, zh, en, extra = "") =>
   `<div class="kicker${extra.includes("build-chip") ? " with-chip" : ""}"><span class="kicker-nb">${nb}</span><span>${zh}</span><span class="kicker-en">${en}</span>${extra}</div>`;
+
+/** 开发者模式的小标签（章节选择标题旁）。 */
+const devTag = () => '<em class="dev-tag" title="开发者模式：全部章节、物品已开放，进度不写入存档">DEV</em>';
+
+/** 按当前名字切换开发者模式：页面加上 dev-mode 类，顶栏显示 DEV 标记。 */
+function syncDevMode() {
+  document.body.classList.toggle("dev-mode", isDevMode());
+}
 
 /** 手机抽屉顶部的标题栏：标题 + 大号关闭按钮（桌面上两块面板常驻，不显示）。 */
 const sheetHead = (title) =>
@@ -855,7 +865,8 @@ async function pickup(item) {
 }
 
 /** 当前已经解锁的战斗机制：看玩家走到的最远章节，回头重玩旧章节不会“忘掉”学过的东西。 */
-const unlockedFeatures = () => featuresAt(Math.max(levelIndex, progress.unlocked - 1));
+// 开发者模式下所有机制一开始就全部解锁。
+const unlockedFeatures = () => featuresAt(isDevMode() ? LEVELS.length - 1 : Math.max(levelIndex, progress.unlocked - 1));
 
 /**
  * 这场战斗要讲的说明：界面导览只讲已经解锁的部分（看过的会自动跳过，
@@ -946,7 +957,9 @@ function startLevel(index, { intro = true } = {}) {
   levelIndex = index;
   intelUid = null;
   const level = LEVELS[index];
-  const profile = progress.profile;
+  // 开发者模式：不读正式存档，直接用满配构筑（全部武器、技能与强化）。
+  const dev = isDevMode() ? devLoadout() : null;
+  const profile = dev ?? progress.profile;
   // 拥有的武器只算真正从宝箱里拿到的（存在存档里）；跳过的宝箱，武器就还在宝箱里，回去还能拿。
   // 技能按章节学会，次数每章开始时补满。
   const weapons = profile ? [...new Set([...STARTING_WEAPONS, ...profile.weapons])] : weaponsForLevel(index, STARTING_WEAPONS);
@@ -961,7 +974,7 @@ function startLevel(index, { intro = true } = {}) {
     equippedSkills: profile?.equippedSkills ?? null,
     knownSkills: profile?.skills ?? [],
     minSlots: profile?.slots ?? 0,
-    usedForges: progress.forged?.[level.key] ?? [],
+    usedForges: dev ? [] : progress.forged?.[level.key] ?? [],
   });
   world.loadLevel(board);
   sfx.music.play(boardTrack());
@@ -1090,6 +1103,7 @@ function resetProgress() {
   currentCombat = null;
   document.body.classList.remove("in-level", "in-battle");
   setHeroName("");
+  syncDevMode();
   enterGame();
   toast(`${icon("restart")} 进度已重置`);
 }
@@ -1161,6 +1175,7 @@ function showNameEntry({ cancelable = false } = {}) {
   );
   bindNameEntry($("#screen"), (name) => {
     progress.name = setHeroName(name);
+    syncDevMode();
     saveProgress();
     sfx.play("click");
     showTitle();
@@ -1174,9 +1189,10 @@ function showLevels() {
   showScreen(
     "levels",
     `<div class="panel">
-      <header class="panel-head"><div>${kicker("05", "章节", "CHAPTERS")}<h2>选择章节</h2></div><button class="icon-btn" data-cmd="back" aria-label="返回">${icon("close")}</button></header>
+      <header class="panel-head"><div>${kicker("05", "章节", "CHAPTERS", isDevMode() ? devTag() : "")}<h2>选择章节</h2></div><button class="icon-btn" data-cmd="back" aria-label="返回">${icon("close")}</button></header>
       <div class="level-grid">${LEVELS.map((level, i) => {
-        const locked = i >= progress.unlocked;
+        // 开发者模式：所有章节都可以直接选择。
+        const locked = !isDevMode() && i >= progress.unlocked;
         return `<button class="level-card ${locked ? "locked" : ""}" data-level="${i}" ${locked ? "disabled" : ""}>
           <span class="level-no">${pad(level.id)}</span>
           <b>${level.name}</b><em class="t-meta">${level.english}</em>
@@ -1224,8 +1240,7 @@ async function levelComplete() {
   const healthy = hearts / slots >= 0.5;
   const fast = board.turn <= level.par;
   const earned = 1 + (healthy ? 1 : 0) + (fast ? 1 : 0);
-  progress.stars[level.key] = Math.max(progress.stars[level.key] ?? 0, earned);
-  progress.unlocked = Math.max(progress.unlocked, Math.min(levelIndex + 2, LEVELS.length));
+  const last = levelIndex === LEVELS.length - 1;
   const hero = board.hero;
   // 通关奖励的武器（序章的钩镰）：直接放进构筑，有空槽就装上。
   const reward = level.reward && !hero.weapons.includes(level.reward) ? WEAPONS[level.reward] : null;
@@ -1233,6 +1248,18 @@ async function levelComplete() {
     hero.weapons.push(reward.id);
     if (hero.equipped.length < hero.slots) hero.equipped.push(reward.id);
   }
+  // 开发者模式不写正式存档：星级、解锁进度、构筑、铁砧记录都保持原样。
+  if (!isDevMode()) saveLevelResult(level, earned, last);
+  await world.wait(500);
+  if (last) return showEnding(earned);
+  showResult(level, { earned, healthy, fast, hearts, slots, reward });
+}
+
+/** 把通关结果写进正式存档：星级、解锁下一章、构筑、用过的铁砧。 */
+function saveLevelResult(level, earned, last) {
+  progress.stars[level.key] = Math.max(progress.stars[level.key] ?? 0, earned);
+  progress.unlocked = Math.max(progress.unlocked, Math.min(levelIndex + 2, LEVELS.length));
+  const hero = board.hero;
   progress.profile = JSON.parse(
     JSON.stringify({
       weapons: hero.weapons,
@@ -1245,11 +1272,12 @@ async function levelComplete() {
   );
   if (board.forgesUsed?.length)
     progress.forged = { ...(progress.forged ?? {}), [level.key]: [...new Set([...(progress.forged?.[level.key] ?? []), ...board.forgesUsed])] };
-  const last = levelIndex === LEVELS.length - 1;
   if (last) progress.cleared = true;
   saveProgress();
-  await world.wait(500);
-  if (last) return showEnding(earned);
+}
+
+/** 通关结算页。 */
+function showResult(level, { earned, healthy, fast, hearts, slots, reward }) {
   showScreen(
     "complete",
     `<div class="panel result">

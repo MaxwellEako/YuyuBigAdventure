@@ -5249,3 +5249,25 @@ body:not(.in-level) .hint-bar {
   background: var(--accent-tint);
   box-shadow: inset 0 0 0 2px var(--accent);
 }
+
+/* 开发者模式的 DEV 标记：黑底白字的小方块。顶栏上的那一枚只在开发者模式下出现。 */
+.dev-tag {
+  display: inline-grid;
+  place-items: center;
+  margin-left: 8px;
+  padding: 1px 5px;
+  font: 600 10px var(--mono);
+  font-style: normal;
+  letter-spacing: 0.12em;
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.dev-badge {
+  display: none;
+  align-self: center;
+}
+
+body.dev-mode .dev-badge {
+  display: inline-grid;
+}
