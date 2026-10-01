@@ -228,27 +228,6 @@ html {
   .coach-actions .ghost {
     min-height: 48px;
   }
-  /* 步骤图示：一行一步（图标 | 标题 + 说明），不再是一串大方框。 */
-  .coach-steps {
-    flex-direction: column;
-    gap: 4px;
-  }
-  .coach-step {
-    grid-template-columns: 24px 1fr;
-    align-items: center;
-    column-gap: 10px;
-    row-gap: 0;
-    padding: 7px 10px;
-  }
-  .coach-step .step-icon {
-    grid-row: span 2;
-  }
-  .coach-step b {
-    font-size: 14px;
-  }
-  .step-arrow {
-    display: none;
-  }
   .coach-body .demo-grid {
     width: 190px;
     padding: 8px;

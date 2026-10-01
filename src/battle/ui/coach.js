@@ -15,16 +15,19 @@ function demoGrid(hitCells = [], anchor = null, rows = 4, cols = 4, prevCells = 
       const on = hit.has(`${r},${c}`);
       const isAnchor = anchor && r === anchor[0] && c === anchor[1];
       const gone = prev.has(`${r},${c}`);
-      html += `<span class="demo-cell ${on ? "hit" : ""} ${gone ? "prev" : ""} ${isAnchor ? "anchor" : ""}">${gone ? "" : heartSvg("heart")}<small>a${r}${c}</small></span>`;
+      html += `<span class="demo-cell ${on ? "hit" : ""} ${gone ? "prev" : ""} ${isAnchor ? "anchor" : ""}">${gone ? "" : heartSvg("heart")}</span>`;
     }
   return `<div class="demo-grid" style="grid-template-columns:repeat(${cols}, 1fr)">${html}</div>`;
 }
 
-/** 图示条：一排带图标的小格子，用箭头连起来。 */
-const steps = (items) =>
-  `<div class="coach-steps">${items
-    .map((item) => `<div class="coach-step ${item.tone ?? ""}"><span class="step-icon">${item.glyph}</span><b>${item.title}</b>${item.note ? `<small>${item.note}</small>` : ""}</div>`)
-    .join('<i class="step-arrow" aria-hidden="true">→</i>')}</div>`;
+/**
+ * 步骤清单：一行一步——左边图标，右边“标题 + 一句说明”，每行等高，细线分隔。
+ * tone 为 accent 的那几步，图标涂成蓝色（和战斗界面的充能、追击同一个颜色）。
+ */
+const ladder = (items) =>
+  `<ol class="coach-ladder">${items
+    .map((item) => `<li class="${item.tone ?? ""}"><span class="ladder-icon">${item.glyph}</span><b>${item.title}</b><small>${item.note}</small></li>`)
+    .join("")}</ol>`;
 
 /** 图例：图标 + 一句话。 */
 const legend = (rows) =>
@@ -98,12 +101,20 @@ export const TOPICS = {
   "combo-energy": {
     title: "连击",
     target: "[data-side=enemy] .matrix-box",
-    body: `攻击范围内的每一格均为红心时，记为[完美命中]，命中位置以蓝色虚线框标记。更换武器，在紧邻虚线框的位置再次完美命中，即构成[连击]。${demoGrid([[1, 0], [1, 1], [2, 0]], [1, 0], 3, 4, [[0, 0], [0, 1]])}${steps([
-      { glyph: icon("perfect"), title: "完美命中", note: "标记虚线框" },
-      { glyph: icon("combo"), title: "连击", note: "更换武器，紧邻虚线框" },
-      { glyph: icon("energy"), title: "连击 ×2 起", note: "每次连击获得 1 点充能", tone: "accent" },
-      { glyph: icon("chase"), title: `连击 ×${CHASE_EVERY}`, note: "追击：怪物行动前再攻击一次", tone: "accent" },
-    ])}按怪物红心矩阵的形状交替使用不同武器，可更快消除全部红心。攻击落空、未紧邻虚线框或连续使用同一件武器时，连击中断。[追击]期间不会再次触发追击。`,
+    body: `每一格都打在红心上，就是一次[完美命中]，命中的位置留下蓝色虚线框。换一件武器，紧挨着虚线框再完美命中一次，就构成[连击]。
+      <div class="combo-explain">
+        <figure class="combo-demo">
+          ${demoGrid([[1, 0], [1, 1], [2, 0]], [1, 0], 3, 4, [[0, 0], [0, 1]])}
+          <figcaption><span class="demo-key prev"></span>上一击（短剑）留下的虚线框<br><span class="demo-key hit"></span>这一击换钩镰，紧挨虚线框</figcaption>
+        </figure>
+        ${ladder([
+          { glyph: icon("perfect"), title: "完美命中", note: "每一格都是红心，留下虚线框" },
+          { glyph: icon("combo"), title: "连击", note: "换武器，紧挨虚线框再完美命中" },
+          { glyph: icon("energy"), title: "连击 ×2 起", note: "每连上一次，得 1 点充能", tone: "accent" },
+          { glyph: icon("chase"), title: `连击 ×${CHASE_EVERY}`, note: "追击：怪物行动前再攻击一次", tone: "accent" },
+        ])}
+      </div>
+      <p class="combo-break"><b>连击中断</b>攻击落空 · 离虚线框太远 · 连用同一件武器。[追击]那一击不会再触发追击。</p>`,
   },
   chest: {
     title: "宝箱与药水",

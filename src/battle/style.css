@@ -3520,48 +3520,109 @@ body:not(.in-level) .hint-bar {
   height: 9px;
 }
 
-.coach-steps {
-  display: flex;
-  align-items: stretch;
-  gap: 6px;
+/*
+ * ——— 连击说明卡 ———
+ * 左边是小图示（虚线框 = 上一击，蓝底 = 这一击）和两行图注，右边是一列等高的步骤，
+ * 最下面一行写连击会在什么时候中断。手机上图示和步骤上下排。
+ */
+.combo-explain {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--sp-5);
+  align-items: start;
   margin: var(--sp-4) 0;
 }
 
-.coach-step {
-  flex: 1;
-  display: grid;
-  justify-items: start;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid var(--grey-2);
+.combo-demo {
+  margin: 0;
 }
 
-.coach-step.accent {
-  color: var(--accent-on);
-  background: var(--accent);
-  border-color: var(--accent);
+.combo-demo .demo-grid {
+  width: 176px;
+  margin: 0;
+  padding: 8px;
 }
 
-.coach-step .step-icon .icon {
-  width: 20px;
-  height: 20px;
-}
-
-.coach-step b {
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.coach-step small {
+.combo-demo figcaption {
+  margin-top: 8px;
   font-size: 12px;
-  line-height: 1.4;
-  opacity: 0.85;
+  line-height: 1.8;
+  color: var(--text-secondary);
 }
 
-.step-arrow {
+.demo-key {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+
+.demo-key.prev {
+  outline: 1.5px dashed var(--accent);
+  outline-offset: -1.5px;
+}
+
+.demo-key.hit {
+  background: var(--accent);
+}
+
+.coach-ladder {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--grey-2);
+}
+
+.coach-ladder li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 10px;
+  min-height: 52px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--grey-2);
+}
+
+.coach-ladder .ladder-icon {
+  grid-row: span 2;
   align-self: center;
-  font-style: normal;
-  color: var(--grey-3);
+  color: var(--ink);
+}
+
+.coach-ladder .ladder-icon .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.coach-ladder li.accent .ladder-icon {
+  color: var(--accent);
+}
+
+.coach-ladder b {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.coach-ladder small {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.combo-break {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.combo-break b {
+  margin-right: 8px;
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .slot-diagram {
@@ -3909,11 +3970,8 @@ body:not(.in-level) .hint-bar {
   .loadout-rule {
     display: none;
   }
-  .coach-steps {
-    flex-direction: column;
-  }
-  .step-arrow {
-    transform: rotate(90deg);
+  .combo-explain {
+    grid-template-columns: 1fr;
   }
 }
 

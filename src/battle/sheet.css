@@ -212,24 +212,37 @@
   opacity: 0.5;
 }
 
-/* ——— 强化图例：说明书式“标记 · 名称 · 作用” ——— */
+/*
+ * ——— 强化图例：说明书式“标记 · 名称 / 作用” ———
+ * 每一项两层：上面一行是标记和名称，下面是作用说明（占满整行宽度，最多两行）。
+ * grid-auto-rows: 1fr 让所有项等高，行与行之间用细线隔开，读起来节奏一致。
+ */
 #hero-hud .up-legend {
   display: grid;
-  gap: 6px;
+  grid-auto-rows: 1fr;
   margin: 14px 0 0;
-  padding: 10px 0 0;
+  padding: 0;
   list-style: none;
   border-top: 1px solid var(--ink);
 }
 
 #hero-hud .up-legend li {
   display: grid;
-  grid-template-columns: 16px auto minmax(0, 1fr);
+  grid-template-columns: 16px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
   align-items: center;
-  gap: 8px;
+  column-gap: 8px;
+  row-gap: 2px;
+  padding: 7px 0;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.5;
   color: var(--text-secondary);
+  border-bottom: 1px solid var(--grey-2);
+}
+
+#hero-hud .up-legend li > span {
+  grid-column: 1 / -1;
+  align-self: start;
 }
 
 #hero-hud .up-legend .up-icon {
