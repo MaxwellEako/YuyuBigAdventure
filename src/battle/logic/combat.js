@@ -30,6 +30,9 @@ export const ENERGY_COST = { light: 0, medium: 1, heavy: 3 };
 /** 每连上 CHASE_EVERY 次（连击 ×3、×6、×9……）获得一次追击：怪物行动前再出一招。 */
 export const CHASE_EVERY = 3;
 
+/** 吸血：打出追击时回复的红心数。 */
+export const LEECH_HEAL = 2;
+
 /** 招式要消耗几点充能：技能不消耗。 */
 export const energyCost = (slot) => (slot.kind === "weapon" ? ENERGY_COST[WEAPONS[slot.id].weight] ?? 0 : 0);
 
@@ -344,6 +347,8 @@ export function heroAttack(state, weaponId, r, c) {
   state.lastFootprint = footprint(shape, r, c);
   state.lastWeaponId = weaponId;
   state.monsterMatrix = applyChanges(state.monsterMatrix, hits);
+  // 这一击是不是追击（连击 ×3 之后多出的那一击）：吸血只在追击时生效。
+  const chaseHit = state.bonus && state.bonusReason === "chase";
   // 死灭：用它接上连击的这一击，消除的格子直接从心阵上抹去（变成空位），怪物再也不能在这里回血。
   // 起手的第一击、断了连击的一击都不生效。
   const doomed = slot.kind === "weapon" && outcome === "link" && state.upgrades[slot.id]?.doom ? hits.filter((h) => h.after === EMPTY) : [];
@@ -380,6 +385,14 @@ export function heroAttack(state, weaponId, r, c) {
   }
   if (doomed.length) events.push({ type: "doom", cells: doomed.map(({ r: hr, c: hc }) => [hr, hc]) });
 
+  // 吸血：用带吸血的武器打出追击，回复 2 颗红心（补在失去的心上，从上到下、从左到右）。
+  if (slot.kind === "weapon" && chaseHit && state.upgrades[slot.id]?.leech) {
+    const changes = drainHeal(state, LEECH_HEAL);
+    if (changes.length) {
+      state.log.push(`吸血为${getHeroName()}恢复了 ${changes.length} 颗红心。`);
+      events.push({ type: "heal", side: "hero", changes });
+    }
+  }
   if (slot.kind === "skill" && def.effect === "drain" && broken) {
     const changes = drainHeal(state, broken);
     if (changes.length) {

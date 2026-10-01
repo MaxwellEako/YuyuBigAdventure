@@ -126,8 +126,38 @@
   color: var(--accent);
 }
 
-#hero-hud .slot-count + .build-chip {
-  margin-left: 8px;
+/* 主角区底部一行：左边“构筑”按钮，右边问号（打开强化说明）。 */
+#hero-hud .hud-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+#hero-hud .hud-tools .build-chip {
+  height: 28px;
+  margin-left: 0;
+  padding: 0 10px 0 8px;
+  font-size: 13px;
+}
+
+#hero-hud .help-chip {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font: 600 14px var(--mono);
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--ink);
+}
+
+@media (hover: hover) {
+  #hero-hud .help-chip:hover {
+    color: var(--paper);
+    background: var(--ink);
+  }
 }
 
 /* ——— 出战武器与技能：一行一件 ——— */
@@ -213,11 +243,11 @@
 }
 
 /*
- * ——— 强化图例：说明书式“标记 · 名称 / 作用” ———
+ * ——— 强化图例（主角区问号打开的“强化说明”弹窗）：说明书式“标记 · 名称 / 作用” ———
  * 每一项两层：上面一行是标记和名称，下面是作用说明（占满整行宽度，最多两行）。
  * grid-auto-rows: 1fr 让所有项等高，行与行之间用细线隔开，读起来节奏一致。
  */
-#hero-hud .up-legend {
+.up-legend {
   display: grid;
   grid-auto-rows: 1fr;
   margin: 14px 0 0;
@@ -226,7 +256,7 @@
   border-top: 1px solid var(--ink);
 }
 
-#hero-hud .up-legend li {
+.up-legend li {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
   grid-template-rows: auto 1fr;
@@ -240,23 +270,23 @@
   border-bottom: 1px solid var(--grey-2);
 }
 
-#hero-hud .up-legend li > span {
+.up-legend li > span {
   grid-column: 1 / -1;
   align-self: start;
 }
 
-#hero-hud .up-legend .up-icon {
+.up-legend .up-icon {
   width: 16px;
   height: 16px;
   margin: 0;
 }
 
-#hero-hud .up-legend .up-icon .icon {
+.up-legend .up-icon .icon {
   width: 12px;
   height: 12px;
 }
 
-#hero-hud .up-legend b {
+.up-legend b {
   font-weight: 500;
   color: var(--ink);
 }
@@ -311,17 +341,7 @@
     font-size: 14px;
   }
 
-  /* 底部主按钮固定在卡片底部、离底边留 14px，列表滚动时一直点得到；
-     下方的白色投影把滚过去的列表盖住，不会从按钮和底边之间露出来。 */
-  #hero-hud .sheet-build {
-    width: 100%;
-    position: sticky;
-    bottom: 14px;
-    z-index: 1;
-    margin: 16px 0 0;
-    box-shadow: 0 14px 0 var(--paper), 0 -10px 0 var(--paper);
-  }
-
+  /* 卡片底部留一点空白，滚到底时最后一行不贴着边框。 */
   #hero-hud::after {
     content: "";
     display: block;

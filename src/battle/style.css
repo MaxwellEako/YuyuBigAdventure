@@ -1452,22 +1452,10 @@ body:not(.in-level) .hint-bar {
   height: 62%;
 }
 
-.demo-cell small {
-  position: absolute;
-  bottom: 2px;
-  right: 3px;
-  font: 500 8.5px var(--mono);
-  color: var(--grey-3);
-}
-
 .demo-cell.hit {
   --heart: var(--accent-on);
   background: var(--accent);
   box-shadow: none;
-}
-
-.demo-cell.hit small {
-  color: var(--accent-on);
 }
 
 .demo-cell.anchor::after {
@@ -4194,7 +4182,7 @@ body:not(.in-level) .hint-bar {
   gap: var(--sp-3);
 }
 
-/* 左侧面板：构筑按钮放在武器标题行里，一眼就能看到。 */
+/* 构筑按钮：左侧面板主角区底部的蓝框小按钮。 */
 .build-chip {
   display: inline-flex;
   align-items: center;
@@ -4315,8 +4303,7 @@ body:not(.in-level) .hint-bar {
 
 .hud-strip,
 .sheet-backdrop,
-.sheet-head,
-.sheet-build {
+.sheet-head {
   display: none;
 }
 
@@ -5338,4 +5325,26 @@ body.dev-mode .dev-badge {
   .hud > .sheet-head + .kicker {
     margin-top: 0;
   }
+}
+
+/*
+ * 所有弹窗（.screen 里的 .panel）：高度不超过可见区域，内容多时在弹窗自己里面滚动，
+ * 不再把整张弹窗撑出屏幕。可见区域 = 屏幕高度 − 顶栏 − 上下留白（与 .screen 的内边距一致）。
+ */
+.screen .panel {
+  max-height: calc(100vh - var(--topbar) - 2 * var(--sp-6));
+  max-height: calc(100dvh - var(--topbar) - 2 * var(--sp-6));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* 强化说明弹窗：宽屏上两列，每一项等高。 */
+.upgrade-help .up-legend {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  column-gap: var(--sp-6);
+}
+
+.up-legend-empty {
+  margin: 0;
+  color: var(--text-secondary);
 }

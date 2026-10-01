@@ -462,21 +462,14 @@ html {
     font-size: 14px;
   }
 
-  /* “构筑”：标题旁的小按钮收起，换成底部一整条主按钮。 */
-  .hero-hud .build-chip {
-    display: none;
+  /* 主角区的“构筑 · ?”一行：手机上按钮加高到 40px，手指好点。 */
+  .hero-hud .hud-tools .build-chip,
+  .hero-hud .hud-tools .help-chip {
+    height: 40px;
+    font-size: 15px;
   }
-  .sheet-build {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 54px;
-    margin-top: 20px;
-    font-size: 16px;
-  }
-  .sheet-build span:first-of-type {
-    flex: 1;
-    text-align: left;
+  .hero-hud .hud-tools .help-chip {
+    width: 40px;
   }
 }
 
@@ -1363,4 +1356,22 @@ html {
 .battle-modal.portrait .action-bar .action.active,
 .battle-modal.portrait .action-bar .action.active .icon {
   color: var(--accent-on);
+}
+
+/*
+ * 手机上的弹窗：可见区域按手机的 .screen 内边距计算（顶栏 + 16px，底部 16px + 底部横条）。
+ * 构筑、玩法说明、章节选择、铁砧本来就是整页（见上方“手机上的长页面”），不受高度上限限制，由整页滚动。
+ */
+@media (max-width: 600px) {
+  .screen .panel {
+    max-height: calc(100vh - var(--topbar) - 32px);
+    max-height: calc(100dvh - var(--topbar) - 32px - var(--safe-bottom));
+  }
+  .screen-armory .panel,
+  .screen-help .panel,
+  .screen-levels .panel,
+  .screen-forge .panel {
+    max-height: none;
+    overflow: visible;
+  }
 }

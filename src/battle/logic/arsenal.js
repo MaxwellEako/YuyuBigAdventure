@@ -5,6 +5,7 @@ import { transformShape, shapeKey } from "./shapes.js";
 /**
  * 强化种类的文字说明（界面与测试共用）。
  * tier：basic 基础强化（补短板）/ advanced 进阶强化（放大长处，稀有）。
+ * desc 里的 [连击]、[追击] 是关键词标记：界面上用 rich()（ui/keywords.js）渲染成带专属图标的强调色。
  * toggle：战斗中用按钮切换的变形类强化（招式卡上不画标记，选中武器后出现对应按钮）。
  *
  * 所有强化都不改变两条核心规则：每一击必须紧挨上一击、每一格都要落在红心上。
@@ -13,12 +14,13 @@ export const UPGRADE_TEXT = {
   rotate: { name: "旋转", icon: "rotate", tier: "basic", toggle: true, desc: "战斗中可将攻击形状旋转 90°。" },
   mirror: { name: "镜像", icon: "mirror", tier: "basic", toggle: true, desc: "战斗中可将攻击形状左右翻转。" },
   extend: { name: "延长", icon: "extend", tier: "basic", toggle: true, desc: "战斗中可在原形状与加长形状之间切换，不占用回合。" },
-  precise: { name: "精准", icon: "energy", tier: "basic", desc: "用该武器构成连击时，额外获得 1 点充能。" },
-  parry: { name: "招架", icon: "parry", tier: "basic", desc: "用该武器构成连击时，怪物下一招少打 1 颗心（每回合最多一次）。" },
+  precise: { name: "精准", icon: "energy", tier: "basic", desc: "用该武器构成[连击]时，额外获得 1 点充能。" },
+  parry: { name: "招架", icon: "parry", tier: "basic", desc: "用该武器构成[连击]时，怪物下一招少打 1 颗心（每回合最多一次）。" },
+  leech: { name: "吸血", icon: "leech", tier: "basic", desc: "用该武器打出[追击]时，回复 2 颗红心。" },
   pierce: { name: "破甲", icon: "pierce", tier: "basic", desc: "一击消除护甲心。" },
   stagger: { name: "震慑", icon: "stagger", tier: "basic", desc: "单次消除不少于 2 颗红心即可打断重击。" },
-  chain: { name: "连锁", icon: "combo", tier: "advanced", desc: "用该武器构成连击时，连击数额外 +1。" },
-  doom: { name: "死灭", icon: "doom", tier: "advanced", desc: "用该武器构成连击时，被它消除的格子从心阵上抹去，怪物无法在此恢复红心。" },
+  chain: { name: "连锁", icon: "combo", tier: "advanced", desc: "用该武器构成[连击]时，连击数额外 +1。" },
+  doom: { name: "死灭", icon: "doom", tier: "advanced", desc: "用该武器构成[连击]时，被它消除的格子从心阵上抹去，怪物无法在此恢复红心。" },
   line: { name: "贯通", icon: "line", tier: "advanced", desc: "直线形的攻击沿自身方向继续延伸，直到遇到空位为止。" },
   giant: { name: "巨化", icon: "giant", tier: "advanced", toggle: true, desc: "战斗中可切换为更大的巨化形状，与延长各用一个按钮，不占用回合。需先获得延长。" },
   quake: { name: "震地", icon: "quake", tier: "advanced", desc: "该武器打断重击时，怪物额外晕眩 1 回合。" },
@@ -96,12 +98,12 @@ export function nextRotation(id, upgrades = {}, orient = {}) {
  *
  * 设计依据是怪物的心阵与两条核心规则（紧挨上一击、每格都落在红心上）：
  * 基础强化补短板，让缺点没那么明显；进阶强化放大长处，稀有，在铁砧上偶然刷出。
- *  - 轻武器：定位是“垫刀”，永远两格。基础：精准、招架；进阶：连锁、死灭（构成连击时生效）。
+ *  - 轻武器：定位是“垫刀”，永远两格。基础：精准、招架、吸血（打出追击时回复红心）；进阶：连锁、死灭（构成连击时生效）。
  *  - 中型：形状特化。基础：延长（可切换）、破甲；进阶：贯通（仅直线形）。
  *  - 重武器：范围大、耗能高。基础：延长（可切换）、震慑、破甲；进阶：巨化（需先有延长）、震地。
  */
 const ROLE_UPGRADES = {
-  light: { basic: ["precise", "parry"], advanced: ["chain", "doom"] },
+  light: { basic: ["precise", "parry", "leech"], advanced: ["chain", "doom"] },
   medium: { basic: ["extend", "pierce"], advanced: ["line"] },
   heavy: { basic: ["extend", "stagger", "pierce"], advanced: ["giant", "quake"] },
 };
@@ -140,7 +142,7 @@ export function sanitizeUpgrades(upgrades = {}) {
 }
 
 /** 各类基础强化出现的相对概率。精准对连击的收益大，出得少一些；延长可以切换、只有好处，也略微压低。 */
-const UPGRADE_WEIGHT = { rotate: 1, mirror: 1, extend: 0.8, precise: 0.5, parry: 1, pierce: 1, stagger: 1 };
+const UPGRADE_WEIGHT = { rotate: 1, mirror: 1, extend: 0.8, precise: 0.5, parry: 1, leech: 1, pierce: 1, stagger: 1 };
 
 /**
  * 进阶强化的稀有度按“整局”来控制，而不是每座铁砧各掷一次骰子：

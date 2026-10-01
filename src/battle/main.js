@@ -65,7 +65,7 @@ import { countHearts, resolveHeal, applyChanges } from "./logic/shapes.js";
 import { runBattle, GLYPH, MOVE_TEXT, traitChips } from "./ui/battleView.js";
 import { MatrixView } from "./ui/matrixView.js";
 import { SPRITE, icon, shapeSvg, matrixSvg, heartSvg } from "./ui/icons.js";
-import { heroSheetHtml } from "./ui/heroSheet.js";
+import { heroSheetHtml, upgradeLegendHtml } from "./ui/heroSheet.js";
 import { bindLoadoutDrag } from "./ui/dragLoadout.js";
 import { intelBodyHtml } from "./ui/monsterIntel.js";
 import { upgradeKeys, upLogo, costMarks, weaponCost } from "./ui/marks.js";
@@ -574,7 +574,7 @@ function forgeDesc(opt) {
   const w = WEAPONS[opt.weapon];
   if (opt.kind === "extend") return `战斗中可切换为加长形状（多 ${w.plusShape.size - w.shape.size} 格），不占用回合。`;
   if (opt.kind === "giant") return `多一枚巨化按钮：可切换为 ${w.giantShape.size} 格的巨化形状，与延长各自开关，不占用回合。`;
-  return UPGRADE_TEXT[opt.kind].desc;
+  return rich(UPGRADE_TEXT[opt.kind].desc);
 }
 
 /** 铁砧：随机给出三项强化，玩家选一项；也可以暂不强化，稍后再来。 */
@@ -665,6 +665,25 @@ function showForge(item) {
  * 构筑：左边是出战的武器槽与技能槽，右边是背包。点卡片就在两侧之间移动；
  * 槽位满了时，先点背包里的卡片，再点左边要换下的那一张。
  */
+/** 强化说明弹窗：主角区“构筑”那一行尾部的问号打开，列出拥有的武器身上的全部强化。 */
+function showUpgradeHelp() {
+  if (!board || busy || screenName || document.body.classList.contains("in-battle")) return;
+  const was = playing;
+  playing = false;
+  showScreen(
+    "upgrades",
+    `<div class="panel upgrade-help">
+      <header class="panel-head"><div>${kicker(icon("anvil"), "强化", "UPGRADES")}<h2>强化说明</h2></div><button class="icon-btn" data-cmd="back" aria-label="关闭">${icon("close")}</button></header>
+      ${upgradeLegendHtml(board.hero)}
+    </div>`,
+  );
+  screenBack = () => {
+    hideScreen();
+    playing = was;
+    refreshMarks();
+  };
+}
+
 function showArmory() {
   if (!board || busy || screenName || document.body.classList.contains("in-battle") || !document.body.classList.contains("in-level")) return;
   const was = playing;
@@ -1348,7 +1367,7 @@ function demoGrid(hitCells, rows = 4, cols = 4, anchor = [0, 0]) {
   for (let r = 0; r < rows; r += 1)
     for (let c = 0; c < cols; c += 1) {
       const on = hit.has(`${r},${c}`);
-      html += `<span class="demo-cell ${on ? "hit" : ""} ${r === anchor[0] && c === anchor[1] ? "anchor" : ""}">${heartSvg("heart")}<small>a${r}${c}</small></span>`;
+      html += `<span class="demo-cell ${on ? "hit" : ""} ${r === anchor[0] && c === anchor[1] ? "anchor" : ""}">${heartSvg("heart")}</span>`;
     }
   return `<div class="demo-grid" style="grid-template-columns:repeat(${cols}, 1fr)">${html}</div>`;
 }
@@ -1550,6 +1569,7 @@ const commands = {
   levels: fromMenu(showLevels),
   menu: showMenu,
   armory: showArmory,
+  upgradeHelp: showUpgradeHelp,
   sheetHero: () => openSheet("hero"),
   sheetGoal: () => openSheet("goal"),
   closeSheet,

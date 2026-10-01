@@ -116,6 +116,11 @@ export const SPRITE = `
       <path d="m15 9 3-6 3 3-6 3" fill="currentColor"/>
       <path d="m5 13 6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="square"/>
     </symbol>
+    <!-- 吸血：一滴血，右上角一个加号，表示“回复红心”。 -->
+    <symbol id="i-leech" viewBox="0 0 24 24">
+      <path d="M9 4 3.5 12.5a5.5 5.5 0 1 0 11 0z" fill="currentColor"/>
+      <path d="M18.5 3v8M14.5 7h8" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"/>
+    </symbol>
     <!-- 死灭：方格里一个叉，格子被抹去。 -->
     <symbol id="i-doom" viewBox="0 0 24 24">
       <path d="M3.5 3.5h17v17h-17z" fill="none" stroke="currentColor" stroke-width="2.2"/>

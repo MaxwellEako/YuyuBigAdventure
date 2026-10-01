@@ -33,6 +33,7 @@ const GLOSSARY = {
   精准: { icon: "perfect" },
   破甲: { icon: "pierce" },
   招架: { icon: "parry" },
+  吸血: { icon: "leech", tone: "heart" },
   死灭: { icon: "doom" },
   贯通: { icon: "line" },
   巨化: { icon: "giant" },

@@ -1,21 +1,21 @@
 import { icon, shapeSvg, matrixSvg } from "./icons.js";
-import { upgradeKeys, upLogo, upLogos, costMarks, weaponCost, cdMark, chargePips } from "./marks.js";
-import { WEAPONS, SHIELD } from "../data/weapons.js";
+import { upgradeKeys, upLogo, upLogos, costMarks, weaponCost, chargePips } from "./marks.js";
+import { WEAPONS } from "../data/weapons.js";
 import { SKILLS } from "../data/skills.js";
 import { getHeroName } from "../data/heroName.js";
 import { countHearts } from "../logic/shapes.js";
 import { weaponShape, UPGRADE_TEXT, SKILL_SLOTS } from "../logic/arsenal.js";
+import { rich } from "./keywords.js";
 
 /**
  * “武器与构筑”面板：电脑上是左侧常驻面板，手机上是从底部拉出的窄卡。
  * 两处用同一份 HTML，样式见 sheet.css。自上而下：
  *   主角    名字 · 红心 / 总数（同一行）
- *           缩略心阵 │ 药水 · 钥匙 · 护甲片 · 防御冷却
+ *           缩略心阵 │ 药水 · 钥匙 · 护甲片
+ *           构筑按钮 ……… 问号（点开强化说明弹窗，见 upgradeLegendHtml）
  *   出战    一行一件：形状 · 名字 · 充能菱形 ……… 强化标记（黑底白色图标）
  *   闲置    同样的一行，颜色淡一些；在“出战”“闲置”之间拖动即可换装（拖放逻辑见 dragLoadout.js）
  *   技能    出战 / 闲置两段，同样可以拖动；右侧是剩余次数方块
- *   图例    只列出上面出现过的强化标记，写明各自的作用
- *   构筑    底部主按钮
  */
 
 /**
@@ -30,12 +30,10 @@ export function heroSheetHtml({ hero, features, kicker, sheetHead, carries = { p
     ${sheetHead("武器与构筑")}
     ${kicker("01", "主角", "HERO")}
     ${heroBlock(hero, features, carries)}
-    ${kicker("02", "出战", "ARSENAL", `<em class="slot-count">${hero.equipped.length} / ${hero.slots}</em><button class="build-chip" data-cmd="armory" title="构筑">${icon("bag")}构筑</button>`)}
+    ${kicker("02", "出战", "ARSENAL", `<em class="slot-count">${hero.equipped.length} / ${hero.slots}</em>`)}
     ${dropList("weapon", "on", hero.equipped.map((id, i) => weaponRow(id, i, hero.upgrades, "on")))}
     ${idleWeapons(hero)}
-    ${skillBlock(hero, kicker)}
-    ${legend(hero)}
-    <button class="primary sheet-build" data-cmd="armory">${icon("bag")}<span>构筑 · 更换出战武器与技能</span><span aria-hidden="true">→</span></button>`;
+    ${skillBlock(hero, kicker)}`;
 }
 
 /**
@@ -53,9 +51,6 @@ function heroBlock(hero, features, carries) {
     carries.plates || hero.plates
       ? `<button class="hud-stat" data-cmd="armor" ${hero.plates ? "" : "disabled"} title="使用护甲片（G）">${icon("armor")}<span>护甲片</span><b>${hero.plates}</b></button>`
       : "",
-    features.has("shield")
-      ? `<span class="hud-stat" title="${SHIELD.desc}每次使用后冷却 ${SHIELD.cooldown} 回合。">${icon("shield")}<span>${SHIELD.name}</span><b>${cdMark(SHIELD.cooldown)}</b></span>`
-      : "",
   ].join("");
   return `
     <div class="hud-id">
@@ -65,6 +60,10 @@ function heroBlock(hero, features, carries) {
     <div class="hud-body">
       <div class="hud-matrix" title="${getHeroName()}的红心矩阵 · ${hero.matrix.length}×${hero.matrix[0].length}">${matrixSvg(hero.matrix, { cell: 8, gap: 2 })}</div>
       <div class="hud-stats">${stats}</div>
+    </div>
+    <div class="hud-tools">
+      <button class="build-chip" data-cmd="armory" title="构筑：更换出战武器与技能">${icon("bag")}构筑</button>
+      <button class="help-chip" data-cmd="upgradeHelp" title="强化说明" aria-label="强化说明">?</button>
     </div>`;
 }
 
@@ -119,14 +118,16 @@ function skillBlock(hero, kicker) {
     ${owned.length > hero.equippedSkills.length || hero.equippedSkills.length ? `<div class="idle-label">${icon("bag")}<span>闲置</span></div>${dropList("skill", "off", idle.map((id) => row(id, "off")), "skills idle")}` : ""}`;
 }
 
-/** 图例：只列出出战武器身上出现过的强化，说明书式“标记 · 名称 · 作用”。 */
-function legend(hero) {
-  const keys = new Set(hero.equipped.flatMap((id) => upgradeKeys(id, hero.upgrades)));
-  if (!keys.size) return "";
-  // 按 UPGRADE_TEXT 的固定顺序排列，不随装备顺序跳动。
+/**
+ * 强化说明（点主角区的问号弹出）：列出拥有的武器身上出现过的全部强化，说明书式“标记 · 名称 / 作用”。
+ * 按 UPGRADE_TEXT 的固定顺序排列；作用说明里的[连击]、[追击]渲染成带专属图标的强调色。
+ */
+export function upgradeLegendHtml(hero) {
+  const keys = new Set(hero.weapons.flatMap((id) => upgradeKeys(id, hero.upgrades)));
+  if (!keys.size) return `<p class="up-legend-empty">${rich("还没有任何强化。站在[铁砧]旁边点它，可以从三项强化中选一项。")}</p>`;
   const items = Object.keys(UPGRADE_TEXT)
     .filter((k) => keys.has(k))
-    .map((k) => `<li>${upLogo(k)}<b>${UPGRADE_TEXT[k].name}</b><span>${UPGRADE_TEXT[k].desc}</span></li>`)
+    .map((k) => `<li>${upLogo(k)}<b>${UPGRADE_TEXT[k].name}</b><span>${rich(UPGRADE_TEXT[k].desc)}</span></li>`)
     .join("");
   return `<ul class="up-legend" aria-label="强化标记说明">${items}</ul>`;
 }

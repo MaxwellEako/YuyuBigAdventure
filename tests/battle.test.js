@@ -33,6 +33,7 @@ import {
   reachesChase,
   monsterHits,
   parriedCell,
+  LEECH_HEAL,
 } from "../src/battle/logic/combat.js";
 import {
   createBoard,
@@ -407,6 +408,7 @@ test("强化：延长可切换为加长形状；候选项不会重复已有的�
   assert.deepEqual(
     basic,
     [
+      "dagger:leech",
       "dagger:parry",
       "dagger:precise",
       "dagger:rotate",
@@ -418,7 +420,7 @@ test("强化：延长可切换为加长形状；候选项不会重复已有的�
       "hook:pierce",
       "hook:rotate",
     ],
-    "基础强化补短板：轻武器精准、招架；中型延长、破甲；重武器延长、震慑、破甲（旋转、镜像看武器本身）",
+    "基础强化补短板：轻武器精准、招架、吸血；中型延长、破甲；重武器延长、震慑、破甲（旋转、镜像看武器本身）",
   );
   assert.equal(all.filter((k) => isAdvanced(k.split(":")[1])).length, 0, "没排到进阶强化的铁砧只出基础强化");
   const rare = upgradeOptions(hero, createRng(1), 20, {}, { advanced: true }).filter((o) => isAdvanced(o.kind));
@@ -586,6 +588,26 @@ test("轻武器强化：连锁让连击多涨一次；招架接上连击时怪�
   plain.phase = "hero";
   assert.equal(previewCombo(plain, "slash", 2, 4), "start", "离得远：重新起手");
   assert.deepEqual(sanitizeUpgrades({ dagger: { nimble: true, rotate: true } }), { dagger: { rotate: true } }, "旧存档里的灵巧被去掉");
+
+  // 吸血：用带吸血的武器打出追击（连击 ×3 之后多出的那一击）回复 2 颗心；平常出手不回复。
+  const makeLeech = () => {
+    const state = createCombat({
+      hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "slash"], potions: 0, upgrades: { dagger: { leech: true } } },
+      monster: { def: MONSTERS.pawn, matrix: parseMatrix(["######", "######", "######", "######"]) },
+      rng: createRng(5),
+    });
+    for (const [r, c] of [[0, 0], [0, 1], [0, 2]]) state.heroMatrix[r][c] = EMPTY;
+    return state;
+  };
+  const calm = makeLeech();
+  heroAttack(calm, "dagger", 0, 0);
+  assert.equal(countHearts(calm.heroMatrix).hearts, 22, "不是追击：不回复");
+  const chasing = makeLeech();
+  chasing.bonus = true;
+  chasing.bonusReason = "chase";
+  const leeched = heroAttack(chasing, "dagger", 0, 0);
+  assert.equal(countHearts(chasing.heroMatrix).hearts, 22 + LEECH_HEAL, `追击时回复 ${LEECH_HEAL} 颗心`);
+  assert.ok(leeched.events.some((e) => e.type === "heal" && e.side === "hero"));
 
   // 旧存档里的垫步换成取代它的招架。
   assert.deepEqual(sanitizeUpgrades({ dagger: { relay: true } }), { dagger: { parry: true } }, "垫步迁移为招架");
