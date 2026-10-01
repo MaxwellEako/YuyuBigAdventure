@@ -5271,3 +5271,13 @@ body:not(.in-level) .hint-bar {
 body.dev-mode .dev-badge {
   display: inline-grid;
 }
+
+/*
+ * 电脑上手机抽屉的标题栏（.sheet-head）不显示，面板里的第一个小标题前面却还算上了段间距，
+ * 顶部空出一大块。这里把紧跟在标题栏后面的第一个小标题贴回面板顶部。
+ */
+@media (min-width: 901px) {
+  .hud > .sheet-head + .kicker {
+    margin-top: 0;
+  }
+}
