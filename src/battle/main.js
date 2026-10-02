@@ -34,6 +34,7 @@ import { pinMonster } from "./ui/boardPin.js";
 import { rich, kw } from "./ui/keywords.js";
 import { getHeroName, setHeroName, validateName } from "./data/heroName.js";
 import { isDevMode, devLoadout } from "./logic/devMode.js";
+import { recordChapterStart } from "./playLog.js";
 import { featuresAt } from "./data/features.js";
 import { isTouch } from "./ui/device.js";
 import { nameEntryHtml, bindNameEntry } from "./ui/nameEntry.js";
@@ -1018,6 +1019,8 @@ function startLevel(index, { intro = true } = {}) {
   renderHud();
   refreshMarks();
   document.body.classList.add("in-level");
+  // 试玩记录：每进入一章（含重玩、重新开始）记一次，只发不收，不影响本机存档。
+  if (!dev) recordChapterStart({ name: progress.name, level, index, progress });
   if (intro) showIntro();
   else begin();
 }
