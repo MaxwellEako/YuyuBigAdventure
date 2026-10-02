@@ -176,7 +176,8 @@ export const MONSTERS = {
     aim: 0.85,
     pattern: [
       atk("横扫", ["###"]),
-      { kind: "armor", name: "筑墙", amount: 4 },
+      // 每次给 2 颗心加护甲：原来的 4 颗让城堡战拖到 14–16 回合、主角要挨 30 颗心（中期主角一共才 30 多颗）。
+      { kind: "armor", name: "筑墙", amount: 2 },
       atk("冲撞", ["#", "#", "#", "#"]),
     ],
   },
@@ -218,7 +219,8 @@ export const MONSTERS = {
       atk("王之审判", ["###", "#.#", "###"]),
       { kind: "curse", name: "将军！", amount: 2 },
       atk("十字刑", [".#.", "###", ".#."]),
-      { kind: "heal", name: "吞墨", amount: 4 },
+      // 回 3 颗：暗王战本来就长（心阵大、带护甲），回血再多就成了单纯的消耗战。
+      { kind: "heal", name: "吞墨", amount: 3 },
     ],
   },
 };

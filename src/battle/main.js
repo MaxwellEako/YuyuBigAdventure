@@ -61,7 +61,7 @@ import {
   previewPlate,
   armorHero,
 } from "./logic/board.js";
-import { createCombat, ENERGY_COST, CHASE_EVERY } from "./logic/combat.js";
+import { createCombat, ENERGY_COST, ENERGY_PER_LINK, CHASE_EVERY } from "./logic/combat.js";
 import { countHearts, resolveHeal, applyChanges } from "./logic/shapes.js";
 import { runBattle, GLYPH, MOVE_TEXT, traitChips } from "./ui/battleView.js";
 import { MatrixView } from "./ui/matrixView.js";
@@ -1444,7 +1444,7 @@ function showHelp() {
           <ul class="help-legend">
             <li><span class="legend-glyph">${icon("perfect")}</span><span>${rich("攻击范围内的格子全部为红心时，即为[完美命中]，命中位置留下蓝色虚线框。")}</span></li>
             <li><span class="legend-glyph">${icon("combo")}</span><span>${rich("切换武器，且攻击范围与蓝色虚线框相邻，再次完美命中，即构成[连击]。")}</span></li>
-            <li><span class="legend-glyph">${icon("energy")}</span><span>${rich(`连击 ×2 以上，每次连击获得 1 点[充能]。中型武器每次消耗 ${ENERGY_COST.medium} 点，重型武器每次消耗 ${ENERGY_COST.heavy} 点。连击 ×${CHASE_EVERY} 时触发[追击]：敌人行动前再追加一次攻击。`)}</span></li>
+            <li><span class="legend-glyph">${icon("energy")}</span><span>${rich(`每次连击获得 ${ENERGY_PER_LINK} 点[充能]。中型武器每次消耗 ${ENERGY_COST.medium} 点，重型武器每次消耗 ${ENERGY_COST.heavy} 点。连击 ×${CHASE_EVERY} 时触发[追击]：敌人行动前再追加一次攻击。`)}</span></li>
           </ul>
           <h3><span class="t-meta">05</span>棋盘</h3>
           <ul class="help-legend">

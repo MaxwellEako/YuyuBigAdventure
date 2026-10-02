@@ -20,12 +20,21 @@ import { weaponShape, nextRotation, toggleExtent, weaponCooldown, isLineShape } 
 
 /**
  * 充能：中型、重型武器每用一次要消耗充能，充能靠连击攒。
- * 每场战斗开局给 ENERGY_START 颗，最多攒 ENERGY_MAX 颗。
- * 重武器要 3 颗，比开局多一颗：必须先打出连击才能抡起来，不能开场就砸。
+ *   - 每场战斗开局给 ENERGY_START 点，最多攒 ENERGY_MAX 点；
+ *   - 每连上一次（连击 ×1 起）得 ENERGY_PER_LINK 点；
+ *   - 中型武器 1 点，重武器 2 点：开局的 1 点只够用一次中型武器，重武器必须先连上一下才抡得起来，
+ *     之后“轻武器连几下 → 一锤”可以循环下去（像老式发动机，先摇几下打着火，然后就转起来了）。
+ *
+ * 这组数值是用模拟对局调出来的（第 1–11 章所有怪物、两种玩家：只挑当下最好的一击 / 会给重武器攒充能）：
+ *   前期（还没有重武器）轻武器 + 中型武器刷连击，中型武器打掉约四成的心，回合数和改动前一样；
+ *   后期战锤带上延长 / 巨化后，带重武器比不带快 12–14%，重武器打掉 35–40% 的心，一场用两三次；
+ *   改动前（开局 2、每次 +1 且 ×2 起、重武器 3 点）只会挑当下最好一击的玩家几乎用不上重武器。
+ *   连击求解器（tests/helpers/chainSolver.js）验证过：每种怪物首次登场时仍能用一条连击打完。
  */
-export const ENERGY_START = 2;
-export const ENERGY_MAX = 5;
-export const ENERGY_COST = { light: 0, medium: 1, heavy: 3 };
+export const ENERGY_START = 1;
+export const ENERGY_MAX = 6;
+export const ENERGY_PER_LINK = 2;
+export const ENERGY_COST = { light: 0, medium: 1, heavy: 2 };
 
 /** 每连上 CHASE_EVERY 次（连击 ×3、×6、×9……）获得一次追击：怪物行动前再出一招。 */
 export const CHASE_EVERY = 3;
@@ -242,7 +251,7 @@ export function attackShape(state, weaponId, r, c) {
 
 /**
  * 连击的显示：第一次完美命中只是起手，不提示；第二次起才算连上。
- * 内部的 combo 记连续完美命中的次数，界面显示 combo - 1；连击 ×2 起，每连上一次得一点充能；
+ * 内部的 combo 记连续完美命中的次数，界面显示 combo - 1；每连上一次得 ENERGY_PER_LINK 点充能；
  * 每到 ×3 的倍数获得一次追击。
  */
 export const comboLinks = (combo) => Math.max(0, combo - 1);
@@ -288,7 +297,7 @@ export function previewHeal(state, r, c) {
 }
 
 /**
- * 连击结算：连上就累计连击；从第二次连击起，每连上一次得一点充能；每到 ×3 的倍数追击一次。
+ * 连击结算：连上就累计连击；每连上一次得 ENERGY_PER_LINK 点充能；每到 ×3 的倍数追击一次。
  * 返回这一击是否触发追击。事件与日志直接写进 events / state.log。
  */
 function settleCombo(state, slot, outcome, wasBonus, events) {
@@ -315,7 +324,7 @@ function settleCombo(state, slot, outcome, wasBonus, events) {
   state.bestCombo = Math.max(state.bestCombo, state.combo);
   const links = comboLinks(state.combo);
   let earn = 0;
-  if (outcome === "link" && links >= 2) earn += 1;
+  if (outcome === "link") earn += ENERGY_PER_LINK;
   if (outcome === "link" && up.precise) earn += 1;
   // 招架：用这件武器接上连击时，怪物下一招少打 1 颗心；一回合里接上几次都只算一次。
   if (outcome === "link" && up.parry && !state.parried) {

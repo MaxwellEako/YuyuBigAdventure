@@ -4,7 +4,7 @@ import { WEAPONS } from "../data/weapons.js";
 import { SKILLS } from "../data/skills.js";
 import { getHeroName } from "../data/heroName.js";
 import { moveLegendHtml } from "./moveLegend.js";
-import { CHASE_EVERY, ENERGY_COST, ENERGY_START, ENERGY_MAX } from "../logic/combat.js";
+import { CHASE_EVERY, ENERGY_COST, ENERGY_START, ENERGY_MAX, ENERGY_PER_LINK } from "../logic/combat.js";
 
 /** 4×4 示意矩阵：hit 中的格子标为被消除，anchor 为锚点。 */
 function demoGrid(hitCells = [], anchor = null, rows = 4, cols = 4, prevCells = []) {
@@ -127,7 +127,7 @@ export const TOPICS = {
         ${ladder([
           { glyph: icon("perfect"), title: "完美命中", note: "攻击范围内全部为红心。" },
           { glyph: icon("combo"), title: "连击", note: "切换武器，且攻击范围与蓝色虚线框相邻。" },
-          { glyph: icon("energy"), title: "连击 ×2 以上", note: "每次连击获得 1 点充能。", tone: "accent" },
+          { glyph: icon("energy"), title: "每次连击", note: `获得 ${ENERGY_PER_LINK} 点充能。`, tone: "accent" },
           { glyph: icon("chase"), title: `连击 ×${CHASE_EVERY}`, note: "追击：敌人行动前再追加一次攻击。", tone: "accent" },
         ])}
       </div>

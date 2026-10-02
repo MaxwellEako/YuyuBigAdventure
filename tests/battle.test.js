@@ -27,6 +27,7 @@ import {
   ENERGY_START,
   ENERGY_MAX,
   ENERGY_COST,
+  ENERGY_PER_LINK,
   slotOf,
   comboLinks,
   previewCombo,
@@ -506,7 +507,7 @@ test("技能按章节解锁，每章开始时次数恢复；铁砧选定强化�
   assert.equal(pickupAt(board, forge.r, forge.c).ok, false, "铁砧只能用一次");
 });
 
-test("连击与充能：从第二次连击起，每连上一次得一颗；中型花一颗，重型花三颗，开局抡不动", () => {
+test("连击与充能：每连上一次得 ENERGY_PER_LINK 点；中型花 1 点，重型花 2 点，开局抡不动，连上一下就能抡", () => {
   const combat = createCombat({
     hero: { matrix: filledMatrix(5, 5), weapons: ["dagger", "slash", "hook", "hammer"], potions: 0 },
     monster: { def: MONSTERS.knight, matrix: parseMatrix(["#######", "#######", "#######", "#######", "#######"]) },
@@ -514,22 +515,25 @@ test("连击与充能：从第二次连击起，每连上一次得一颗；中�
   });
   assert.equal(combat.energy, ENERGY_START);
   assert.ok(ENERGY_COST.heavy > ENERGY_START, "重武器比开局的充能贵");
+  assert.ok(ENERGY_START + ENERGY_PER_LINK >= ENERGY_COST.heavy, "连上一次就攒够重武器的充能");
   assert.match(slotBlocked(combat, slotOf(combat, "hammer")), /充能/, "开局不能直接抡战锤");
   heroAttack(combat, "dagger", 0, 0);
   assert.equal(combat.combo, 1, "起手");
+  assert.equal(combat.energy, ENERGY_START, "起手不给充能");
   monsterTurn(combat);
   heroAttack(combat, "slash", 1, 0);
   assert.equal(combat.combo, 2, "连击");
-  assert.equal(combat.energy, ENERGY_START, "第一次连击不给充能");
+  assert.equal(combat.energy, ENERGY_START + ENERGY_PER_LINK, "第一次连击就给充能");
   monsterTurn(combat);
+  assert.equal(slotBlocked(combat, slotOf(combat, "hammer")), null, "攒够了，战锤可以出手");
   heroAttack(combat, "dagger", 2, 2);
   assert.equal(combat.combo, 3, "连击 ×2");
-  assert.equal(combat.energy, ENERGY_START + 1, "第二次连击起每次一颗");
+  assert.equal(combat.energy, Math.min(ENERGY_MAX, ENERGY_START + 2 * ENERGY_PER_LINK), "每连上一次都给");
   assert.equal(combat.phase, "monster", "×2 还不追击");
   monsterTurn(combat);
-  assert.equal(slotBlocked(combat, slotOf(combat, "hammer")), null, "攒够三颗，战锤可以出手");
+  const before = combat.energy;
   heroAttack(combat, "hammer", 1, 4);
-  assert.equal(combat.energy, 1, "战锤连上：花三颗、得一颗");
+  assert.equal(combat.energy, Math.min(ENERGY_MAX, before - ENERGY_COST.heavy + ENERGY_PER_LINK), "战锤连上：先花后得");
   combat.energy = 0;
   combat.weapons[2].cd = 0;
   assert.match(slotBlocked(combat, combat.weapons[2]), /充能/, "钩镰充能不足时无法使用");
@@ -770,11 +774,11 @@ test("序章的墨渍怪：短剑 → 钩镰 → 短剑三下连成一串，拿�
   monsterTurn(combat);
   heroAttack(combat, "hook", 1, 1);
   assert.equal(combat.combo, 2, "第二下就能看到「连击」");
-  assert.equal(combat.energy, ENERGY_START - 1);
+  assert.equal(combat.energy, ENERGY_START - 1 + ENERGY_PER_LINK, "钩镰花 1 点，连上得回");
   monsterTurn(combat);
   heroAttack(combat, "dagger", 2, 2);
   assert.equal(combat.combo, 3, "连击 ×2");
-  assert.equal(combat.energy, ENERGY_START, "连击 ×2 得到一点充能");
+  assert.equal(combat.energy, Math.min(ENERGY_MAX, ENERGY_START - 1 + 2 * ENERGY_PER_LINK), "再连上一次再得");
   assert.equal(combat.phase, "won", "三下拼完");
 });
 
@@ -887,7 +891,7 @@ test("精准强化：轻武器垫刀接上连击时多得一点充能；中型�
   combat.phase = "hero";
   heroAttack(combat, "dagger", 0, 2);
   assert.equal(combat.combo, 2);
-  assert.equal(combat.energy, ENERGY_START, "开局的充能 − 钩镰 1 + 精准 1");
+  assert.equal(combat.energy, ENERGY_START - 1 + ENERGY_PER_LINK + 1, "开局的充能 − 钩镰 1 + 连击 + 精准 1");
   assert.deepEqual(sanitizeUpgrades({ dagger: { precise: true }, hook: { precise: true } }), { dagger: { precise: true } });
 });
 test("铁砧：三项强化固定不变，每项只能刷新一次", () => {
