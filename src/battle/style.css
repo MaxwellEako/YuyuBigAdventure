@@ -3982,6 +3982,21 @@ body:not(.in-level) .hint-bar {
   color: var(--ink);
 }
 
+/*
+ * 深色底上的关键词：铁砧卡片被选中（悬停时整张变蓝）和进阶卡片（黑底）。
+ * 蓝字放在蓝底 / 黑底上几乎看不见（对比度不到 2:1），黑字放在蓝底上也一样（约 1.8:1），
+ * 所以这里改用和正文相同的白色，靠加粗与前面的专属图标和正文区分开。
+ */
+.forge-card.adv .kw.kw {
+  color: inherit;
+}
+
+@media (hover: hover) {
+  .forge-card:hover .kw.kw {
+    color: inherit;
+  }
+}
+
 /* 上一击的范围：虚线框，提示下一击挨着它打才能连上。 */
 .cell.last-hit {
   outline: 2px dashed var(--accent);

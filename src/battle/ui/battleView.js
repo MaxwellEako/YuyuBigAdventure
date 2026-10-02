@@ -648,7 +648,7 @@ export function runBattle({ root, combat, monster, world, sfx, heroFirst, featur
       await explainCombo();
     }
     if (combat.phase === "hero") {
-      // 追击或疾风斩之后：仍是主角回合，换一件可用的普通武器。
+      // 追击或突刺之后：仍是主角回合，换一件可用的普通武器。
       if (slotBlocked(combat, slotOf(combat, selected))) selected = firstReady() ?? selected;
       busy = false;
       render();

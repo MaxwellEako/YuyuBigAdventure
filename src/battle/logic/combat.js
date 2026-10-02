@@ -85,7 +85,7 @@ export function createCombat({
     // 上一击用的招式：连续两次用同一件武器（或同一个技能）不算连上。
     lastWeaponId: null,
     upgrades: hero.upgrades ?? {},
-    // 追加攻击：bonus 为 true 时怪物暂不行动，主角再出一招。bonusReason：chase 追击 / swift 疾风斩。
+    // 追加攻击：bonus 为 true 时怪物暂不行动，主角再出一招。bonusReason：chase 追击 / swift 突刺。
     bonus: false,
     bonusReason: null,
     stunned: false,
@@ -326,7 +326,7 @@ function settleCombo(state, slot, outcome, wasBonus, events) {
   const before = state.energy;
   state.energy = Math.min(ENERGY_MAX, state.energy + earn);
   const gained = state.energy - before;
-  // 追击本身（以及疾风斩的追加攻击）不会再触发追击，避免一口气打到底。
+  // 追击本身（以及突刺的追加攻击）不会再触发追击，避免一口气打到底。
   const chase = outcome === "link" && !wasBonus && reachesChase(linksBefore, links);
   if (links) state.log.push(`${comboLabel(links)}${gained ? `，充能 +${gained}` : ""}${chase ? "，追击！" : "。"}`);
   events.push({ type: "combo", combo: state.combo, energy: gained, chase });
@@ -418,10 +418,10 @@ export function heroAttack(state, weaponId, r, c) {
     state.bonusReason = "chase";
     events.push({ type: "bonus", reason: "chase" });
   } else if (slot.kind === "skill" && def.effect === "extra" && !wasBonus) {
-    // 疾风斩：本回合还可以再用一次普通武器，怪物暂不行动。
+    // 突刺：本回合还可以再用一次普通武器，怪物暂不行动。
     state.bonus = true;
     state.bonusReason = "swift";
-    state.log.push("疾风斩生效，可追加一次攻击。");
+    state.log.push("突刺生效，可追加一次攻击。");
     events.push({ type: "bonus", reason: "swift" });
   } else state.phase = "monster";
   return { ok: true, events };

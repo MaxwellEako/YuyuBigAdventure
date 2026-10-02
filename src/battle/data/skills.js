@@ -8,7 +8,7 @@ import { getHeroName } from "./heroName.js";
 export const SKILLS = {
   swift: {
     id: "swift",
-    name: "疾风斩",
+    name: "突刺",
     art: ["@#"],
     charges: 2,
     effect: "extra",

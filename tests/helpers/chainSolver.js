@@ -90,7 +90,7 @@ export function solveChain({ def, matrix, weapons, slots = weapons.length, upgra
       if (next.phase === "won") return nextPath;
       if (until === "chase" && result.events.some((e) => e.type === "combo" && e.chase)) return nextPath;
       if (next.phase === "hero") {
-        // 追击或疾风斩：同一回合里再出一招。
+        // 追击或突刺：同一回合里再出一招。
         const found = search(next, turnsLeft, nextPath);
         if (found) return found;
         continue;

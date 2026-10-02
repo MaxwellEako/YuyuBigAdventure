@@ -121,7 +121,7 @@ export const LEVELS = [
     name: "骑士巡夜",
     english: "KNIGHT'S WATCH",
     story: "被墨迹侵蚀的骑士按马步巡逻。出口位于铁栅门后，钥匙位于棋盘另一侧。",
-    tip: "习得新技能[疾风斩|技能]，使用后可追加一次攻击。棋盘上有一个[宝箱]。",
+    tip: "习得新技能[突刺|技能]，使用后可追加一次攻击。棋盘上有一个[宝箱]。",
     skill: "swift",
     goal: "reach",
     goalText: "找到[钥匙]，打开[铁栅门]",

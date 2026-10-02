@@ -462,7 +462,7 @@ test("延长：战斗中不占回合地切换长短，可以随时切回原形�
   assert.equal(heroTransform(plain, "spear", "extend").ok, false, "没有延长强化");
 });
 
-test("技能：次数有限；疾风斩后可以立刻再用一次普通武器；定身让怪物跳过一次行动；汲血恢复红心", () => {
+test("技能：次数有限；突刺后可以立刻再用一次普通武器；定身让怪物跳过一次行动；汲血恢复红心", () => {
   const make = (skills, heroMatrix = filledMatrix(4, 4)) =>
     createCombat({
       hero: { matrix: heroMatrix, weapons: ["dagger"], potions: 0, skills },
@@ -471,7 +471,7 @@ test("技能：次数有限；疾风斩后可以立刻再用一次普通武器�
     });
   const swift = make({ swift: 1 });
   assert.equal(heroAttack(swift, "swift", 1, 0).ok, true);
-  assert.equal(swift.phase, "hero", "疾风斩之后仍是主角回合");
+  assert.equal(swift.phase, "hero", "突刺之后仍是主角回合");
   assert.equal(heroAttack(swift, "swift", 2, 0).ok, false, "次数用完");
   assert.equal(heroAttack(swift, "dagger", 2, 0).ok, true);
   assert.equal(swift.phase, "monster", "追加攻击之后轮到怪物");

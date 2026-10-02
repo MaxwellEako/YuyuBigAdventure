@@ -87,7 +87,7 @@ export const MONSTERS = {
     },
     moves: "orth",
     aim: 0.6,
-    pattern: [atk("斜刺", ["#.#"]), atk("突刺", ["#", "#"])],
+    pattern: [atk("斜刺", ["#.#"]), atk("直刺", ["#", "#"])],
   },
   knight: {
     id: "knight",
